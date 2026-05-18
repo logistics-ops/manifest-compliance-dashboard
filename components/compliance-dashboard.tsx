@@ -13,6 +13,10 @@ import {
   ShieldAlert,
   Truck,
   Bell,
+  Building2,
+  Flag,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
@@ -30,7 +34,7 @@ import {
   isHighRisk,
 } from "@/lib/compliance";
 import { mockCarriers } from "@/lib/mock-data";
-import type { AlertLabel, Carrier, CarrierStatus, ComplianceTimelineEvent } from "@/types/carrier";
+import type { AlertLabel, Carrier, CarrierStatus, ComplianceTimelineEvent, OrganizationBranding } from "@/types/carrier";
 import { StatusChip } from "@/components/status-chip";
 import type { AuthSession, ComplianceNotification } from "@/types/carrier";
 import { logoutAction } from "@/app/login/actions";
@@ -61,18 +65,21 @@ export function ComplianceDashboard({
   carriers = mockCarriers,
   notifications = [],
   session,
+  branding,
 }: {
   carriers?: Carrier[];
   notifications?: ComplianceNotification[];
   session: AuthSession;
+  branding: OrganizationBranding;
 }) {
-  const activeCarriers = carriers.length ? carriers : mockCarriers;
-  const [selectedCarrierId, setSelectedCarrierId] = useState(activeCarriers[0].id);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const activeCarriers = carriers;
+  const [selectedCarrierId, setSelectedCarrierId] = useState(activeCarriers[0]?.id ?? "");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<CarrierStatus | "All">("All");
 
-  const selectedCarrier = activeCarriers.find((carrier) => carrier.id === selectedCarrierId) ?? activeCarriers[0];
-  const selectedDocuments = getCarrierDocuments(selectedCarrier);
+  const selectedCarrier = activeCarriers.find((carrier) => carrier.id === selectedCarrierId) ?? activeCarriers[0] ?? null;
+  const selectedDocuments = selectedCarrier ? getCarrierDocuments(selectedCarrier) : [];
   const overviewMetrics = getOverviewMetrics(activeCarriers);
   const timelineEvents = getComplianceTimeline(activeCarriers, 90);
   const activeNotifications = notifications.length ? notifications : [];
@@ -99,17 +106,32 @@ export function ComplianceDashboard({
 
   return (
     <div className="grid min-h-screen grid-cols-[312px_minmax(0,1fr)] max-xl:grid-cols-1">
-      <Sidebar carriers={activeCarriers} />
+      <Sidebar
+        carriers={activeCarriers}
+        branding={branding}
+        session={session}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+      />
 
       <main className="p-8 max-md:p-4">
+        <button
+          type="button"
+          onClick={() => setIsSidebarOpen(true)}
+          className="form-button mb-4 hidden min-h-10 max-xl:inline-flex"
+          aria-label="Open navigation"
+        >
+          <PanelLeftOpen className="h-4 w-4" />
+          Navigation
+        </button>
         <header className="mb-6 flex items-start justify-between gap-6 border-b border-white/10 pb-6 max-lg:flex-col">
           <div>
-            <p className="eyebrow">Manifest Global Logistics</p>
+            <p className="eyebrow">{branding.name}</p>
             <h1 className="max-w-4xl text-5xl font-extrabold leading-[0.95] tracking-normal text-white max-md:text-3xl">
               Carrier Compliance Command Center
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-manifest-muted">
-              Executive visibility into carrier readiness, document exposure, and renewal risk across the Manifest trucking network.
+              Executive visibility into carrier readiness, document exposure, and renewal risk across your active tenant network.
             </p>
           </div>
 
@@ -121,6 +143,24 @@ export function ComplianceDashboard({
               >
                 <Plus className="h-4 w-4" />
                 New carrier
+              </Link>
+            ) : null}
+            {canManageCarriers(session) && !session.platformSuperAdmin ? (
+              <Link
+                href="/onboarding"
+                className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-4 text-sm font-extrabold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white max-md:justify-center"
+              >
+                <Flag className="h-4 w-4" />
+                Onboarding
+              </Link>
+            ) : null}
+            {session.platformSuperAdmin ? (
+              <Link
+                href="/platform"
+                className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-4 text-sm font-extrabold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white max-md:justify-center"
+              >
+                <Building2 className="h-4 w-4" />
+                Platform
               </Link>
             ) : null}
             <form action={logoutAction}>
@@ -136,7 +176,7 @@ export function ComplianceDashboard({
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   className="focus-ring h-11 w-72 rounded-md border border-white/10 bg-black/40 py-0 pl-9 pr-3 text-sm text-white shadow-inner shadow-black/40 max-md:w-full"
-                  placeholder="Company, MC, DOT..."
+                  placeholder="Search company, MC, DOT..."
                   type="search"
                 />
               </span>
@@ -168,8 +208,8 @@ export function ComplianceDashboard({
                 Fleet-ready visibility for onboarding, renewals, audit evidence, and carrier risk.
               </h2>
               <div className="mt-6 flex flex-wrap gap-3 text-xs font-bold text-manifest-muted">
-                <span className="rounded-md border border-white/10 bg-black/30 px-3 py-2">Mock data environment</span>
-                <span className="rounded-md border border-white/10 bg-black/30 px-3 py-2">Supabase-ready structure</span>
+                <span className="rounded-md border border-white/10 bg-black/30 px-3 py-2">{branding.slug}</span>
+                <span className="rounded-md border border-white/10 bg-black/30 px-3 py-2">Tenant-scoped data</span>
                 <span className="rounded-md border border-white/10 bg-black/30 px-3 py-2">90-day expiration view</span>
               </div>
             </div>
@@ -202,7 +242,7 @@ export function ComplianceDashboard({
           <AlertPanel carriers={activeCarriers} />
         </section>
 
-        <CarrierDetail carrier={selectedCarrier} />
+        {selectedCarrier ? <CarrierDetail carrier={selectedCarrier} /> : <EmptyDashboardState session={session} />}
 
         <section id="documents" className="section-panel mt-5 p-6 max-md:p-4">
           <div className="mb-5 flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
@@ -214,7 +254,7 @@ export function ComplianceDashboard({
           </div>
 
           <div className="grid grid-cols-4 gap-3 max-2xl:grid-cols-3 max-lg:grid-cols-2 max-md:grid-cols-1">
-            {selectedDocuments.map((doc) => (
+            {selectedDocuments.length ? selectedDocuments.map((doc) => (
               <article key={doc.name} className={`section-panel min-h-48 p-4 ${documentBorder(doc.status)}`}>
                 <div>
                   <h3 className="mb-1.5 min-h-11 text-base font-bold leading-tight">{doc.name}</h3>
@@ -234,7 +274,11 @@ export function ComplianceDashboard({
                   </div>
                 </dl>
               </article>
-            ))}
+            )) : (
+              <div className="empty-state col-span-full">
+                No carrier is selected yet. Add or select a carrier to review required documents.
+              </div>
+            )}
           </div>
         </section>
       </main>
@@ -242,22 +286,68 @@ export function ComplianceDashboard({
   );
 }
 
-function Sidebar({ carriers }: { carriers: Carrier[] }) {
+function Sidebar({
+  carriers,
+  branding,
+  session,
+  isOpen,
+  onClose,
+}: {
+  carriers: Carrier[];
+  branding: OrganizationBranding;
+  session: AuthSession;
+  isOpen: boolean;
+  onClose: () => void;
+}) {
   const auditReady = carriers.filter(isAuditReady).length;
 
   return (
-    <aside className="sticky top-0 h-screen border-r border-white/10 bg-black/65 p-7 backdrop-blur-2xl max-xl:static max-xl:h-auto">
+    <aside
+      className={`sticky top-0 z-40 h-screen border-r border-white/10 bg-black/75 p-7 backdrop-blur-2xl transition-transform max-xl:fixed max-xl:inset-y-0 max-xl:left-0 max-xl:w-[min(340px,calc(100vw-2rem))] max-xl:shadow-premium ${
+        isOpen ? "max-xl:translate-x-0" : "max-xl:-translate-x-full"
+      } xl:translate-x-0`}
+    >
+      <button type="button" onClick={onClose} className="form-button mb-5 hidden max-xl:inline-flex" aria-label="Close navigation">
+        <PanelLeftClose className="h-4 w-4" />
+        Close
+      </button>
       <div className="flex items-center gap-3.5 border-b border-white/10 pb-7">
-        <div className="grid h-12 w-12 place-items-center rounded-md border border-manifest-red/65 bg-gradient-to-br from-manifest-red to-manifest-redDark font-extrabold shadow-[0_14px_38px_rgba(227,25,55,0.28)]">
-          M
-        </div>
+        {branding.logoUrl ? (
+          <img
+            src={branding.logoUrl}
+            alt={`${branding.name} logo`}
+            className="h-12 w-12 rounded-md border border-manifest-red/65 object-contain bg-black/30 p-1"
+          />
+        ) : (
+          <div className="grid h-12 w-12 place-items-center rounded-md border border-manifest-red/65 bg-gradient-to-br from-manifest-red to-manifest-redDark font-extrabold shadow-[0_14px_38px_rgba(227,25,55,0.28)]">
+            {branding.name.charAt(0)}
+          </div>
+        )}
         <div>
-          <p className="eyebrow">Manifest</p>
-          <h2 className="text-lg font-extrabold leading-tight tracking-normal">Global Logistics</h2>
+          <p className="eyebrow">{branding.slug}</p>
+          <h2 className="text-lg font-extrabold leading-tight tracking-normal">{branding.name}</h2>
         </div>
       </div>
 
       <nav className="mt-7 grid gap-2 max-xl:flex max-xl:flex-wrap" aria-label="Primary">
+        {session.platformSuperAdmin ? (
+          <Link
+            href="/platform"
+            className="flex min-h-11 items-center gap-3 rounded-md border border-manifest-red/30 bg-manifest-red/10 px-3.5 text-sm font-semibold text-white transition hover:border-manifest-red/60 hover:bg-manifest-red/15"
+          >
+            <Building2 className="h-4 w-4" />
+            Platform Console
+          </Link>
+        ) : null}
+        {canManageCarriers(session) && !session.platformSuperAdmin ? (
+          <Link
+            href="/onboarding"
+            className="flex min-h-11 items-center gap-3 rounded-md border border-transparent px-3.5 text-sm font-semibold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white"
+          >
+            <Flag className="h-4 w-4" />
+            Onboarding
+          </Link>
+        ) : null}
         {navItems.map(({ label, icon: Icon, href }) => (
           <a
             key={label}
@@ -274,10 +364,34 @@ function Sidebar({ carriers }: { carriers: Carrier[] }) {
         <span className="panel-label">Audit Posture</span>
         <strong className="mb-2 block text-2xl">{auditReady}/{carriers.length} audit ready</strong>
         <p className="text-sm leading-relaxed text-manifest-muted">
-          Mock data is isolated for a future Supabase-backed carrier compliance workflow.
+          Live tenant data is filtered by organization before it reaches this dashboard.
         </p>
       </div>
     </aside>
+  );
+}
+
+function EmptyDashboardState({ session }: { session: AuthSession }) {
+  return (
+    <section id="detail" className="empty-state">
+      <div className="flex items-start gap-3 max-md:flex-col">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-manifest-red/35 bg-manifest-red/10 text-manifest-red">
+          <Truck className="h-5 w-5" />
+        </span>
+        <div>
+          <h2 className="text-xl font-extrabold text-white">No carriers in this organization yet</h2>
+          <p className="mt-2 max-w-2xl">
+            Create the first carrier profile to start tracking compliance, required documents, renewal windows, and alerts for this tenant.
+          </p>
+          {canManageCarriers(session) ? (
+            <Link href="/carriers/new" className="form-button mt-4 min-h-10 px-4 text-sm">
+              <Plus className="h-4 w-4" />
+              Add carrier
+            </Link>
+          ) : null}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -341,14 +455,22 @@ function CarrierRoster({
             </tr>
           </thead>
           <tbody>
-            {carriers.map((carrier) => (
+            {carriers.length ? carriers.map((carrier) => (
               <CarrierRow
                 key={carrier.id}
                 carrier={carrier}
                 isSelected={carrier.id === selectedCarrierId}
                 onSelectCarrier={onSelectCarrier}
               />
-            ))}
+            )) : (
+              <tr>
+                <td colSpan={6} className="border-b border-white/10 px-4 py-8">
+                  <div className="empty-state">
+                    No carriers match the current search and status filters.
+                  </div>
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

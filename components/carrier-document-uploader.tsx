@@ -44,6 +44,7 @@ export function CarrierDocumentUploader({
 
   const isUploading = progress > 0 && progress < 100;
   const hasFile = Boolean(latestFile.storagePath);
+  const uploadState = isUploading ? "uploading" : progress === 100 ? "complete" : "idle";
 
   function handleDrop(event: DragEvent<HTMLLabelElement>) {
     event.preventDefault();
@@ -153,7 +154,14 @@ export function CarrierDocumentUploader({
   }
 
   return (
-    <form action={updateCarrierDocumentAction} className="grid gap-3 rounded-md border border-white/10 bg-black/25 p-3">
+    <form
+      action={updateCarrierDocumentAction}
+      onSubmit={() => {
+        setError(null);
+        setMessage("Document metadata saved.");
+      }}
+      className="grid gap-3 rounded-md border border-white/10 bg-black/25 p-3"
+    >
       <input type="hidden" name="carrierId" value={carrierId} />
       <input type="hidden" name="documentName" value={document.name} />
 
@@ -190,7 +198,9 @@ export function CarrierDocumentUploader({
         className={`grid min-h-32 cursor-pointer place-items-center rounded-md border border-dashed p-4 text-center transition ${
           isDragging
             ? "border-manifest-red bg-manifest-red/15"
-            : "border-white/15 bg-black/25 hover:border-manifest-red/50 hover:bg-manifest-red/10"
+            : uploadState === "complete"
+              ? "border-manifest-green/45 bg-manifest-green/10"
+              : "border-white/15 bg-black/25 hover:border-manifest-red/50 hover:bg-manifest-red/10"
         } ${canEdit ? "" : "cursor-not-allowed opacity-60"}`}
       >
         <input
@@ -210,21 +220,27 @@ export function CarrierDocumentUploader({
         <span className="grid justify-items-center gap-2">
           <UploadCloud className="h-6 w-6 text-manifest-red" />
           <span className="text-sm font-extrabold text-white">
-            {hasFile ? "Replace document" : "Drop file or browse"}
+            {isUploading ? "Uploading document..." : hasFile ? "Replace document" : "Drop file or browse"}
           </span>
-          <span className="text-xs font-bold text-manifest-muted">PDF, JPG, PNG, DOC, DOCX</span>
+          <span className="text-xs font-bold text-manifest-muted">PDF, JPG, PNG, DOC, DOCX · 25 MB max</span>
         </span>
       </label>
 
       {progress > 0 ? (
         <div className="grid gap-2">
           <div className="flex items-center justify-between text-xs font-bold text-manifest-muted">
-            <span>{progress < 100 ? "Uploading" : "Upload complete"}</span>
+            <span>{progress < 100 ? "Uploading securely" : "Upload complete"}</span>
             <span>{progress}%</span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-white/10">
-            <div className="h-full rounded-full bg-manifest-red transition-all" style={{ width: `${progress}%` }} />
+            <div
+              className={`h-full rounded-full transition-all ${progress === 100 ? "bg-manifest-green" : "bg-gradient-to-r from-manifest-red to-manifest-danger"}`}
+              style={{ width: `${progress}%` }}
+            />
           </div>
+          <span className="text-xs leading-5 text-manifest-muted">
+            {progress < 100 ? "Keep this tab open while the file is uploaded and versioned." : "Metadata saved and the dashboard is refreshing."}
+          </span>
         </div>
       ) : null}
 
@@ -272,13 +288,13 @@ export function CarrierDocumentUploader({
         />
       </label>
 
-      {message ? <p className="text-xs font-bold text-manifest-green">{message}</p> : null}
-      {error ? <p className="text-xs font-bold text-manifest-danger">{error}</p> : null}
+      {message ? <p className="rounded-md border border-manifest-green/30 bg-manifest-green/10 px-3 py-2 text-xs font-bold text-manifest-green">{message}</p> : null}
+      {error ? <p className="rounded-md border border-manifest-danger/35 bg-manifest-danger/10 px-3 py-2 text-xs font-bold text-manifest-danger">{error}</p> : null}
 
       {canEdit ? (
         <div className="flex flex-wrap gap-2">
           <button className="form-button" disabled={isPending || isUploading}>
-            Save document
+            {isPending ? "Saving..." : "Save document"}
           </button>
           <button
             type="button"
@@ -302,6 +318,8 @@ export function CarrierDocumentUploader({
           ) : null}
         </div>
       ) : null}
+      {message ? <div className="toast" role="status">{message}</div> : null}
+      {error ? <div className="toast border-manifest-danger/45" role="alert">{error}</div> : null}
     </form>
   );
 }

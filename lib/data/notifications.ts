@@ -1,4 +1,5 @@
 import { generateComplianceNotifications } from "@/lib/notifications";
+import { getCurrentSession } from "@/lib/integrations/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { Carrier, ComplianceNotification, NotificationPriority, NotificationStatus } from "@/types/carrier";
 
@@ -22,18 +23,25 @@ type NotificationRow = {
 
 export async function getNotifications(carriers: Carrier[]): Promise<ComplianceNotification[]> {
   const generated = generateComplianceNotifications(carriers);
+  const session = await getCurrentSession();
   const supabase = await createClient();
 
   if (!supabase) {
     return generated;
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("notifications")
     .select("*, carriers(company_name)")
     .neq("status", "dismissed")
     .order("created_at", { ascending: false })
     .limit(80);
+
+  if (session?.organizationId && !session.platformSuperAdmin) {
+    query = query.eq("organization_id", session.organizationId);
+  }
+
+  const { data, error } = await query;
 
   if (error || !data?.length) {
     return generated;

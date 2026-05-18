@@ -18,6 +18,7 @@ export const REQUIRED_DOCUMENTS: RequiredDocumentName[] = [
 export const mockCarriers: Carrier[] = [
   {
     id: "carrier-001",
+    organizationId: "demo-organization",
     companyName: "Redline Freight Partners",
     mcNumber: "MC-812449",
     dotNumber: "DOT-2981440",
@@ -43,6 +44,7 @@ export const mockCarriers: Carrier[] = [
   },
   {
     id: "carrier-002",
+    organizationId: "demo-organization",
     companyName: "Iron Mile Transport",
     mcNumber: "MC-604182",
     dotNumber: "DOT-1855062",
@@ -68,6 +70,7 @@ export const mockCarriers: Carrier[] = [
   },
   {
     id: "carrier-003",
+    organizationId: "demo-organization",
     companyName: "Northstar Linehaul",
     mcNumber: "MC-447019",
     dotNumber: "DOT-2298711",
@@ -93,6 +96,7 @@ export const mockCarriers: Carrier[] = [
   },
   {
     id: "carrier-004",
+    organizationId: "demo-organization",
     companyName: "Summit Ridge Carriers",
     mcNumber: "MC-733820",
     dotNumber: "DOT-3149087",
@@ -118,6 +122,7 @@ export const mockCarriers: Carrier[] = [
   },
   {
     id: "carrier-005",
+    organizationId: "demo-organization",
     companyName: "Blue Harbor Logistics",
     mcNumber: "MC-921557",
     dotNumber: "DOT-3952021",
@@ -143,6 +148,7 @@ export const mockCarriers: Carrier[] = [
   },
   {
     id: "carrier-006",
+    organizationId: "demo-organization",
     companyName: "Keystone Express Group",
     mcNumber: "MC-105933",
     dotNumber: "DOT-1702944",

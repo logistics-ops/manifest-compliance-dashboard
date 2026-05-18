@@ -65,6 +65,7 @@ export function CarrierProfilePage({ carrier, session }: { carrier: Carrier; ses
           <div className="flex items-start justify-between gap-8 max-lg:flex-col">
             <div>
               <p className="eyebrow">Carrier Compliance Profile</p>
+              <span className="mb-2 block text-sm font-bold text-manifest-muted">{session.organizationName}</span>
               <h1 className="text-5xl font-extrabold leading-[0.95] tracking-normal text-white max-md:text-3xl">
                 {carrier.companyName}
               </h1>
@@ -249,7 +250,10 @@ function DocumentUploadRow({
         <dl className="grid gap-2.5 rounded-md border border-white/10 bg-black/25 p-3">
           <ChecklistTerm label="Expiration" value={document.expirationDate ?? "No expiration"} />
           <ChecklistTerm label="Days" value={document.daysUntilExpiration ?? "N/A"} />
-          <ChecklistTerm label="Storage Key" value={document.storagePath ?? storageKeyPreview(carrier.id, document.name)} />
+          <ChecklistTerm
+            label="Storage Key"
+            value={document.storagePath ?? storageKeyPreview(carrier.organizationId, carrier.id, document.name)}
+          />
           <ChecklistTerm label="File" value={document.fileName ?? "No file uploaded"} />
         </dl>
 
@@ -315,6 +319,7 @@ function documentBorder(status: string) {
   return "border-manifest-danger/60";
 }
 
-function storageKeyPreview(carrierId: string, documentName: string) {
-  return `carrier-documents/${carrierId}/${documentName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+function storageKeyPreview(organizationId: string | null, carrierId: string, documentName: string) {
+  const tenant = organizationId ?? "organization-id";
+  return `organizations/${tenant}/carriers/${carrierId}/${documentName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 }

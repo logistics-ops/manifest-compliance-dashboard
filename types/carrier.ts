@@ -7,7 +7,20 @@ export type AuthSession = {
   email: string;
   fullName: string;
   role: UserRole;
+  organizationId: string | null;
+  organizationName: string;
+  organizationSlug: string;
+  platformSuperAdmin: boolean;
   carrierId: string | null;
+};
+
+export type OrganizationBranding = {
+  name: string;
+  slug: string;
+  logoUrl: string | null;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
 };
 
 export type DocumentStatus = "Valid" | "Expiring Soon" | "Expired" | "Missing";
@@ -86,6 +99,7 @@ export type CarrierDocument = {
 
 export type Carrier = {
   id: string;
+  organizationId: string | null;
   companyName: string;
   mcNumber: string;
   dotNumber: string;

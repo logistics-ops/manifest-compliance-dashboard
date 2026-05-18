@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getCarriers } from "@/lib/data/carriers";
 import { createEmailDispatch, createWeeklySummaryEmail } from "@/lib/integrations/email-alerts";
 import { requireStaffAccess } from "@/lib/integrations/auth";
+import { writeAuditLog } from "@/lib/audit";
 import { generateComplianceNotifications } from "@/lib/notifications";
 import { createClient } from "@/lib/supabase/server";
 
@@ -21,17 +22,35 @@ export async function assignNotificationToMeAction(formData: FormData) {
   const notificationId = String(formData.get("notificationId") ?? "");
 
   if (supabase && isUuid(notificationId)) {
-    await supabase
+    const notification = await getNotificationAuditTarget(supabase, notificationId, session);
+    let query = supabase
       .from("notifications")
       .update({ assigned_to: session.userId })
       .eq("id", notificationId);
+
+    if (!session.platformSuperAdmin) {
+      query = query.eq("organization_id", requireOrganizationId(session));
+    }
+
+    await query;
+
+    if (notification) {
+      await writeAuditLog({
+        organizationId: notification.organization_id,
+        actorUserId: session.userId,
+        action: "notification.assigned",
+        entityType: "notification",
+        entityId: notificationId,
+        metadata: { carrierId: notification.carrier_id },
+      });
+    }
   }
 
   revalidatePath("/");
 }
 
 export async function syncComplianceNotificationsAction() {
-  await requireStaffAccess();
+  const session = await requireStaffAccess();
 
   const supabase = await createClient();
   const carriers = await getCarriers();
@@ -43,6 +62,7 @@ export async function syncComplianceNotificationsAction() {
   }
 
   const payload = notifications.map((notification) => ({
+    organization_id: requireOrganizationId(session),
     carrier_id: notification.carrierId,
     document_name: notification.documentName,
     title: notification.title,
@@ -57,8 +77,17 @@ export async function syncComplianceNotificationsAction() {
   if (payload.length) {
     await supabase
       .from("notifications")
-      .upsert(payload, { onConflict: "rule_key", ignoreDuplicates: true });
+      .upsert(payload, { onConflict: "organization_id,rule_key", ignoreDuplicates: true });
   }
+
+  await writeAuditLog({
+    organizationId: requireOrganizationId(session),
+    actorUserId: session.userId,
+    action: "notification.synced",
+    entityType: "notification",
+    entityId: null,
+    metadata: { generatedCount: payload.length },
+  });
 
   revalidatePath("/");
   return;
@@ -81,6 +110,15 @@ export async function sendWeeklyComplianceSummaryAction() {
     text: email.text,
     category: "weekly_summary",
   });
+
+  await writeAuditLog({
+    organizationId: requireOrganizationId(session),
+    actorUserId: session.userId,
+    action: "email.weekly_summary_requested",
+    entityType: "notification",
+    entityId: null,
+    metadata: { notificationCount: notifications.length },
+  });
 }
 
 async function updateNotificationStatus(notificationId: string, status: "read" | "dismissed") {
@@ -89,7 +127,8 @@ async function updateNotificationStatus(notificationId: string, status: "read" |
   const timestamp = new Date().toISOString();
 
   if (supabase && isUuid(notificationId)) {
-    await supabase
+    const notification = await getNotificationAuditTarget(supabase, notificationId, session);
+    let query = supabase
       .from("notifications")
       .update({
         status,
@@ -98,6 +137,23 @@ async function updateNotificationStatus(notificationId: string, status: "read" |
         dismissed_by: status === "dismissed" ? session.userId : null,
       })
       .eq("id", notificationId);
+
+    if (!session.platformSuperAdmin) {
+      query = query.eq("organization_id", requireOrganizationId(session));
+    }
+
+    await query;
+
+    if (notification) {
+      await writeAuditLog({
+        organizationId: notification.organization_id,
+        actorUserId: session.userId,
+        action: status === "read" ? "notification.read" : "notification.dismissed",
+        entityType: "notification",
+        entityId: notificationId,
+        metadata: { carrierId: notification.carrier_id },
+      });
+    }
   }
 
   revalidatePath("/");
@@ -105,4 +161,30 @@ async function updateNotificationStatus(notificationId: string, status: "read" |
 
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+function requireOrganizationId(session: Awaited<ReturnType<typeof requireStaffAccess>>) {
+  if (!session.organizationId) {
+    throw new Error("An organization is required before syncing notifications.");
+  }
+
+  return session.organizationId;
+}
+
+async function getNotificationAuditTarget(
+  supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
+  notificationId: string,
+  session: Awaited<ReturnType<typeof requireStaffAccess>>,
+) {
+  let query = supabase
+    .from("notifications")
+    .select("organization_id, carrier_id")
+    .eq("id", notificationId);
+
+  if (!session.platformSuperAdmin) {
+    query = query.eq("organization_id", requireOrganizationId(session));
+  }
+
+  const { data } = await query.maybeSingle();
+  return data;
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, CheckCheck, Mail, RefreshCw, X } from "lucide-react";
+import { Bell, CheckCheck, Filter, Mail, RefreshCw, Search, X } from "lucide-react";
+import { useMemo, useState } from "react";
 import {
   assignNotificationToMeAction,
   dismissNotificationAction,
@@ -17,8 +18,38 @@ export function NotificationCenter({
 }: {
   notifications: ComplianceNotification[];
 }) {
+  const [query, setQuery] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState<"all" | ComplianceNotification["priority"]>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | ComplianceNotification["status"]>("all");
+  const [toast, setToast] = useState<string | null>(null);
   const stats = getNotificationStats(notifications);
-  const visibleNotifications = notifications.slice(0, 8);
+  const visibleNotifications = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+
+    return notifications
+      .filter((notification) => priorityFilter === "all" || notification.priority === priorityFilter)
+      .filter((notification) => statusFilter === "all" || notification.status === statusFilter)
+      .filter((notification) => {
+        if (!needle) return true;
+
+        return [
+          notification.title,
+          notification.message,
+          notification.carrierName,
+          notification.documentName ?? "",
+          notification.category,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(needle);
+      })
+      .slice(0, 12);
+  }, [notifications, priorityFilter, query, statusFilter]);
+
+  function showToast(message: string) {
+    setToast(message);
+    window.setTimeout(() => setToast(null), 3200);
+  }
 
   return (
     <section id="notifications" className="section-panel mb-5 p-6 max-md:p-4">
@@ -32,13 +63,13 @@ export function NotificationCenter({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <form action={syncComplianceNotificationsAction}>
+          <form action={syncComplianceNotificationsAction} onSubmit={() => showToast("Sync requested. The queue will refresh when complete.")}>
             <button className="form-button min-h-10">
               <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
               Sync rules
             </button>
           </form>
-          <form action={sendWeeklyComplianceSummaryAction}>
+          <form action={sendWeeklyComplianceSummaryAction} onSubmit={() => showToast("Weekly summary dispatch requested.")}>
             <button className="form-button min-h-10">
               <Mail className="mr-1.5 h-3.5 w-3.5" />
               Send weekly summary
@@ -54,12 +85,47 @@ export function NotificationCenter({
         <NotificationStat label="Assigned" value={stats.assigned} tone="text-manifest-green" />
       </div>
 
+      <div className="mb-5 grid grid-cols-[minmax(0,1fr)_180px_180px] gap-3 max-lg:grid-cols-1">
+        <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+          Search alerts
+          <span className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-manifest-quiet" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              className="form-control w-full pl-9"
+              placeholder="Carrier, document, message..."
+              type="search"
+            />
+          </span>
+        </label>
+        <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+          Priority
+          <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value as typeof priorityFilter)} className="form-control">
+            <option value="all">All priorities</option>
+            <option value="critical">Critical</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </label>
+        <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+          Status
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} className="form-control">
+            <option value="all">All statuses</option>
+            <option value="unread">Unread</option>
+            <option value="read">Read</option>
+            <option value="dismissed">Dismissed</option>
+          </select>
+        </label>
+      </div>
+
       <div className="grid gap-3">
         {visibleNotifications.length ? (
           visibleNotifications.map((notification) => (
             <article
               key={notification.id}
-              className={`rounded-md border bg-black/30 p-4 ${notification.status === "unread" ? "border-manifest-red/35" : "border-white/10"}`}
+              className={`surface-hover rounded-md border bg-black/30 p-4 ${notification.status === "unread" ? "border-manifest-red/35" : "border-white/10"}`}
             >
               <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 max-md:grid-cols-1">
                 <div>
@@ -97,7 +163,7 @@ export function NotificationCenter({
                     </Link>
                   ) : null}
                   {notification.status === "unread" ? (
-                    <form action={markNotificationReadAction}>
+                    <form action={markNotificationReadAction} onSubmit={() => showToast("Notification marked as read.")}>
                       <input type="hidden" name="notificationId" value={notification.id} />
                       <button className="form-button" title="Mark as read">
                         <CheckCheck className="h-3.5 w-3.5" />
@@ -105,12 +171,12 @@ export function NotificationCenter({
                     </form>
                   ) : null}
                   {!notification.assignedTo ? (
-                    <form action={assignNotificationToMeAction}>
+                    <form action={assignNotificationToMeAction} onSubmit={() => showToast("Notification assigned to you.")}>
                       <input type="hidden" name="notificationId" value={notification.id} />
                       <button className="form-button">Assign to me</button>
                     </form>
                   ) : null}
-                  <form action={dismissNotificationAction}>
+                  <form action={dismissNotificationAction} onSubmit={() => showToast("Notification dismissed.")}>
                     <input type="hidden" name="notificationId" value={notification.id} />
                     <button className="form-button" title="Dismiss alert">
                       <X className="h-3.5 w-3.5" />
@@ -121,11 +187,15 @@ export function NotificationCenter({
             </article>
           ))
         ) : (
-          <div className="rounded-md border border-white/10 bg-black/30 p-4 text-sm text-manifest-muted">
-            No active notifications. Sync rules to generate the latest compliance alert queue.
+          <div className="empty-state flex items-start gap-3">
+            <Filter className="mt-0.5 h-4 w-4 shrink-0 text-manifest-red" />
+            <span>
+              No notifications match the current filters. Adjust search, priority, or status, or sync rules to refresh the queue.
+            </span>
           </div>
         )}
       </div>
+      {toast ? <div className="toast" role="status">{toast}</div> : null}
     </section>
   );
 }

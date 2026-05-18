@@ -28,7 +28,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -36,6 +37,10 @@ select {
   .section-panel {
     @apply rounded-md border border-white/10 shadow-premium backdrop-blur-xl;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018));
+  }
+
+  .surface-hover {
+    @apply transition duration-200 hover:border-manifest-red/35 hover:bg-white/[0.055];
   }
 
   .eyebrow {
@@ -51,10 +56,37 @@ select {
   }
 
   .form-control {
-    @apply min-h-11 rounded-md border border-white/10 bg-black/35 px-3 py-2 text-sm text-white outline-none placeholder:text-manifest-quiet focus:border-manifest-red focus:ring-2 focus:ring-manifest-red/25;
+    @apply min-h-11 rounded-md border border-white/10 bg-black/35 px-3 py-2 text-sm text-white outline-none placeholder:text-manifest-quiet focus:border-manifest-red focus:ring-2 focus:ring-manifest-red/25 disabled:cursor-not-allowed disabled:opacity-60 invalid:border-manifest-danger/60 invalid:ring-manifest-danger/15;
   }
 
   .form-button {
-    @apply inline-flex min-h-9 items-center justify-center rounded-md border border-manifest-red/50 bg-manifest-red/10 px-3 text-xs font-extrabold text-white transition hover:bg-manifest-red/20;
+    @apply inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md border border-manifest-red/50 bg-manifest-red/10 px-3 text-xs font-extrabold text-white transition hover:bg-manifest-red/20 disabled:cursor-not-allowed disabled:opacity-55;
+  }
+
+  .empty-state {
+    @apply rounded-md border border-dashed border-white/15 bg-black/25 p-6 text-sm leading-6 text-manifest-muted;
+  }
+
+  .toast {
+    @apply fixed bottom-5 right-5 z-50 max-w-sm rounded-md border border-manifest-red/40 bg-[#111114]/95 px-4 py-3 text-sm font-bold text-white shadow-premium backdrop-blur-xl max-md:left-4 max-md:right-4;
+  }
+
+  .skeleton {
+    @apply relative overflow-hidden rounded-md bg-white/[0.055];
+  }
+
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+    animation: skeleton-shimmer 1.4s infinite;
+  }
+}
+
+@keyframes skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
   }
 }

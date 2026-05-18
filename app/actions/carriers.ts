@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin, requireStaffAccess } from "@/lib/integrations/auth";
+import { writeAuditLog } from "@/lib/audit";
+import { assertTenantStoragePath as assertTenantUploadPath } from "@/lib/security/tenant-rules";
 import { createClient } from "@/lib/supabase/server";
 import type { CarrierStatus, RequiredDocumentName } from "@/types/carrier";
 
@@ -16,9 +18,11 @@ const statusToDatabase: Record<CarrierStatus, string> = {
 };
 
 export async function createCarrierAction(formData: FormData) {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const organizationId = getWritableOrganizationId(session);
 
   const payload = {
+    organization_id: organizationId,
     company_name: getString(formData, "companyName"),
     mc_number: getString(formData, "mcNumber"),
     dot_number: getString(formData, "dotNumber"),
@@ -45,12 +49,21 @@ export async function createCarrierAction(formData: FormData) {
     redirect("/");
   }
 
+  await writeAuditLog({
+    organizationId,
+    actorUserId: session.userId,
+    action: "carrier.created",
+    entityType: "carrier",
+    entityId: data.id,
+    metadata: { companyName: payload.company_name, status: payload.status },
+  });
+
   revalidatePath("/");
   redirect(`/carriers/${data.id}`);
 }
 
 export async function updateCarrierAction(formData: FormData) {
-  await requireAdmin();
+  const session = await requireAdmin();
 
   const carrierId = getString(formData, "carrierId");
   const payload = {
@@ -66,45 +79,87 @@ export async function updateCarrierAction(formData: FormData) {
   const supabase = await createClient();
 
   if (supabase && carrierId) {
-    await supabase.from("carriers").update(payload).eq("id", carrierId);
-  }
+    await assertCarrierIsInSessionOrganization(supabase, session, carrierId);
+    let query = supabase.from("carriers").update(payload).eq("id", carrierId);
+    if (!session.platformSuperAdmin && session.organizationId) {
+      query = query.eq("organization_id", session.organizationId);
+    }
+    await query;
 
-  revalidateCarrier(carrierId);
-}
-
-export async function updateCarrierStatusAction(formData: FormData) {
-  await requireAdmin();
-
-  const carrierId = getString(formData, "carrierId");
-  const status = getString(formData, "status") as CarrierStatus;
-  const supabase = await createClient();
-
-  if (supabase && carrierId && statusToDatabase[status]) {
-    await supabase.from("carriers").update({ status: statusToDatabase[status] }).eq("id", carrierId);
-  }
-
-  revalidateCarrier(carrierId);
-}
-
-export async function addComplianceNoteAction(formData: FormData) {
-  await requireStaffAccess();
-
-  const carrierId = getString(formData, "carrierId");
-  const note = getString(formData, "note");
-  const supabase = await createClient();
-
-  if (supabase && carrierId && note) {
-    await supabase.from("compliance_notes").insert({
-      carrier_id: carrierId,
-      note,
+    await writeAuditLog({
+      organizationId: getWritableOrganizationId(session),
+      actorUserId: session.userId,
+      action: "carrier.updated",
+      entityType: "carrier",
+      entityId: carrierId,
+      metadata: { companyName: payload.company_name },
     });
   }
 
   revalidateCarrier(carrierId);
 }
 
+export async function updateCarrierStatusAction(formData: FormData) {
+  const session = await requireAdmin();
+
+  const carrierId = getString(formData, "carrierId");
+  const status = getString(formData, "status") as CarrierStatus;
+  const supabase = await createClient();
+
+  if (supabase && carrierId && statusToDatabase[status]) {
+    await assertCarrierIsInSessionOrganization(supabase, session, carrierId);
+    let query = supabase.from("carriers").update({ status: statusToDatabase[status] }).eq("id", carrierId);
+    if (!session.platformSuperAdmin && session.organizationId) {
+      query = query.eq("organization_id", session.organizationId);
+    }
+    await query;
+
+    await writeAuditLog({
+      organizationId: getWritableOrganizationId(session),
+      actorUserId: session.userId,
+      action: "carrier.status_changed",
+      entityType: "carrier",
+      entityId: carrierId,
+      metadata: { status: statusToDatabase[status] },
+    });
+  }
+
+  revalidateCarrier(carrierId);
+}
+
+export async function addComplianceNoteAction(formData: FormData) {
+  const session = await requireStaffAccess();
+
+  const carrierId = getString(formData, "carrierId");
+  const note = getString(formData, "note");
+  const supabase = await createClient();
+
+  if (supabase && carrierId && note) {
+    await assertCarrierIsInSessionOrganization(supabase, session, carrierId);
+    const { data } = await supabase.from("compliance_notes").insert({
+      organization_id: getWritableOrganizationId(session),
+      carrier_id: carrierId,
+      note,
+      created_by: session.userId,
+    }).select("id").single();
+
+    if (data) {
+      await writeAuditLog({
+        organizationId: getWritableOrganizationId(session),
+        actorUserId: session.userId,
+        action: "compliance_note.added",
+        entityType: "compliance_note",
+        entityId: data.id,
+        metadata: { carrierId },
+      });
+    }
+  }
+
+  revalidateCarrier(carrierId);
+}
+
 export async function updateCarrierDocumentAction(formData: FormData) {
-  await requireStaffAccess();
+  const session = await requireStaffAccess();
 
   const carrierId = getString(formData, "carrierId");
   const documentName = getString(formData, "documentName");
@@ -114,8 +169,19 @@ export async function updateCarrierDocumentAction(formData: FormData) {
   const supabase = await createClient();
 
   if (supabase && carrierId && documentName) {
-    await supabase.from("carrier_documents").upsert(
+    const organizationId = getWritableOrganizationId(session);
+    await assertCarrierIsInSessionOrganization(supabase, session, carrierId);
+    const { data: existingDocument } = await supabase
+      .from("carrier_documents")
+      .select("id, expiration_date")
+      .eq("organization_id", organizationId)
+      .eq("carrier_id", carrierId)
+      .eq("document_name", documentName)
+      .maybeSingle();
+
+    const { data } = await supabase.from("carrier_documents").upsert(
       {
+        organization_id: organizationId,
         carrier_id: carrierId,
         document_name: documentName,
         uploaded,
@@ -123,8 +189,33 @@ export async function updateCarrierDocumentAction(formData: FormData) {
         notes,
         status: getDocumentDatabaseStatus(uploaded, expirationDate),
       },
-      { onConflict: "carrier_id,document_name" },
-    );
+      { onConflict: "organization_id,carrier_id,document_name" },
+    ).select("id").single();
+
+    await writeAuditLog({
+      organizationId,
+      actorUserId: session.userId,
+      action: "document.metadata_updated",
+      entityType: "carrier_document",
+      entityId: data?.id ?? existingDocument?.id ?? null,
+      metadata: { carrierId, documentName, uploaded },
+    });
+
+    if ((existingDocument?.expiration_date ?? null) !== expirationDate) {
+      await writeAuditLog({
+        organizationId,
+        actorUserId: session.userId,
+        action: "document.expiration_changed",
+        entityType: "carrier_document",
+        entityId: data?.id ?? existingDocument?.id ?? null,
+        metadata: {
+          carrierId,
+          documentName,
+          previousExpirationDate: existingDocument?.expiration_date ?? null,
+          expirationDate,
+        },
+      });
+    }
   }
 
   revalidateCarrier(carrierId);
@@ -135,7 +226,7 @@ export async function createCarrierDocumentUploadTargetAction(input: {
   documentName: RequiredDocumentName;
   fileName: string;
 }) {
-  await requireStaffAccess();
+  const session = await requireStaffAccess();
 
   const supabase = await createClient();
   const carrierId = input.carrierId.trim();
@@ -146,9 +237,13 @@ export async function createCarrierDocumentUploadTargetAction(input: {
     throw new Error("Supabase Storage is not configured for uploads.");
   }
 
+  const organizationId = getWritableOrganizationId(session);
+  await assertCarrierIsInSessionOrganization(supabase, session, carrierId);
+
   const { data: latestVersion } = await supabase
     .from("carrier_document_versions")
     .select("version_number")
+    .eq("organization_id", organizationId)
     .eq("carrier_id", carrierId)
     .eq("document_name", documentName)
     .order("version_number", { ascending: false })
@@ -158,6 +253,7 @@ export async function createCarrierDocumentUploadTargetAction(input: {
   const { data: currentDocument } = await supabase
     .from("carrier_documents")
     .select("version_number")
+    .eq("organization_id", organizationId)
     .eq("carrier_id", carrierId)
     .eq("document_name", documentName)
     .maybeSingle();
@@ -167,7 +263,7 @@ export async function createCarrierDocumentUploadTargetAction(input: {
     Number(currentDocument?.version_number ?? 0),
   ) + 1;
   const documentFolder = slugify(documentName);
-  const storagePath = `carriers/${carrierId}/${documentFolder}/v${versionNumber}/${Date.now()}-${fileName}`;
+  const storagePath = `organizations/${organizationId}/carriers/${carrierId}/${documentFolder}/v${versionNumber}/${Date.now()}-${fileName}`;
 
   return {
     bucket: STORAGE_BUCKET,
@@ -195,8 +291,20 @@ export async function finalizeCarrierDocumentUploadAction(input: {
   }
 
   const uploadedAt = new Date().toISOString();
+  const organizationId = getWritableOrganizationId(session);
+  await assertCarrierIsInSessionOrganization(supabase, session, input.carrierId);
+  assertTenantUploadPath(input.storagePath, organizationId, input.carrierId);
+
   const status = getDocumentDatabaseStatus(true, input.expirationDate);
+  const { data: existingDocument } = await supabase
+    .from("carrier_documents")
+    .select("id, expiration_date, version_number")
+    .eq("organization_id", organizationId)
+    .eq("carrier_id", input.carrierId)
+    .eq("document_name", input.documentName)
+    .maybeSingle();
   const payload = {
+    organization_id: organizationId,
     carrier_id: input.carrierId,
     document_name: input.documentName,
     storage_path: input.storagePath,
@@ -214,7 +322,7 @@ export async function finalizeCarrierDocumentUploadAction(input: {
 
   const { data, error } = await supabase
     .from("carrier_documents")
-    .upsert(payload, { onConflict: "carrier_id,document_name" })
+    .upsert(payload, { onConflict: "organization_id,carrier_id,document_name" })
     .select("id")
     .single();
 
@@ -223,6 +331,7 @@ export async function finalizeCarrierDocumentUploadAction(input: {
   }
 
   await supabase.from("carrier_document_versions").insert({
+    organization_id: organizationId,
     carrier_document_id: data.id,
     carrier_id: input.carrierId,
     document_name: input.documentName,
@@ -234,6 +343,37 @@ export async function finalizeCarrierDocumentUploadAction(input: {
     uploaded_by: session.userId,
     uploaded_at: uploadedAt,
   });
+
+  await writeAuditLog({
+    organizationId,
+    actorUserId: session.userId,
+    action: existingDocument ? "document.replaced" : "document.uploaded",
+    entityType: "carrier_document",
+    entityId: data.id,
+    metadata: {
+      carrierId: input.carrierId,
+      documentName: input.documentName,
+      fileName: input.fileName,
+      versionNumber: input.versionNumber,
+      storagePath: input.storagePath,
+    },
+  });
+
+  if ((existingDocument?.expiration_date ?? null) !== input.expirationDate) {
+    await writeAuditLog({
+      organizationId,
+      actorUserId: session.userId,
+      action: "document.expiration_changed",
+      entityType: "carrier_document",
+      entityId: data.id,
+      metadata: {
+        carrierId: input.carrierId,
+        documentName: input.documentName,
+        previousExpirationDate: existingDocument?.expiration_date ?? null,
+        expirationDate: input.expirationDate,
+      },
+    });
+  }
 
   revalidateCarrier(input.carrierId);
 
@@ -278,4 +418,30 @@ function slugify(value: string) {
 
 function sanitizeFileName(value: string) {
   return value.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+function getWritableOrganizationId(session: Awaited<ReturnType<typeof requireStaffAccess>>) {
+  if (!session.organizationId) {
+    throw new Error("An organization is required before managing tenant data.");
+  }
+
+  return session.organizationId;
+}
+
+async function assertCarrierIsInSessionOrganization(
+  supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
+  session: Awaited<ReturnType<typeof requireStaffAccess>>,
+  carrierId: string,
+) {
+  const organizationId = getWritableOrganizationId(session);
+  const { data, error } = await supabase
+    .from("carriers")
+    .select("id")
+    .eq("id", carrierId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (error || !data) {
+    throw new Error("Carrier is not available in the current organization.");
+  }
 }

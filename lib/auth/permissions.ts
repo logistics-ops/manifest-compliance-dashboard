@@ -1,19 +1,29 @@
 import type { AuthSession } from "@/types/carrier";
+import {
+  canAccessOrganizationRecord,
+  canRoleAccessDashboard,
+  canRoleManageCarriers,
+  canRoleManageCompliance,
+} from "@/lib/security/tenant-rules";
 
 export function canManageCarriers(session: AuthSession | null) {
-  return session?.role === "admin";
+  return session ? canRoleManageCarriers(session.role, session.platformSuperAdmin) : false;
 }
 
 export function canManageCompliance(session: AuthSession | null) {
-  return session?.role === "admin" || session?.role === "staff";
+  return session ? canRoleManageCompliance(session.role, session.platformSuperAdmin) : false;
 }
 
 export function canAccessDashboard(session: AuthSession | null) {
-  return session?.role === "admin" || session?.role === "staff";
+  return session ? canRoleAccessDashboard(session.role, session.platformSuperAdmin) : false;
 }
 
 export function canViewCarrier(session: AuthSession | null, carrierId: string) {
   if (!session) return false;
   if (canAccessDashboard(session)) return true;
   return session.role === "carrier" && session.carrierId === carrierId;
+}
+
+export function canAccessOrganization(session: AuthSession | null, organizationId: string | null) {
+  return canAccessOrganizationRecord(session, organizationId);
 }

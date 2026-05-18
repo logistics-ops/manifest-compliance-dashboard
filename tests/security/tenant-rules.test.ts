@@ -1,0 +1,178 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import type { AuthSession } from "../../types/carrier";
+import {
+  assertTenantStoragePath,
+  canAccessAuditLogRecord,
+  canAccessCarrierRecord,
+  canAccessNotificationRecord,
+  canAccessOrganizationRecord,
+  canMutateTenantRecord,
+  canRoleAccessDashboard,
+  canRoleManageCarriers,
+  canRoleManageCompliance,
+  isTenantStoragePath,
+} from "../../lib/security/tenant-rules";
+
+const orgA = "org-a";
+const orgB = "org-b";
+const carrierA = "carrier-a";
+const carrierB = "carrier-b";
+
+function session(overrides: Partial<AuthSession>): AuthSession {
+  return {
+    userId: "user-1",
+    email: "user@example.test",
+    fullName: "Test User",
+    role: "carrier",
+    organizationId: orgA,
+    organizationName: "Org A",
+    organizationSlug: "org-a",
+    platformSuperAdmin: false,
+    carrierId: null,
+    ...overrides,
+  };
+}
+
+test("organization access allows own active org and blocks other or suspended orgs", () => {
+  const admin = session({ role: "admin" });
+
+  assert.equal(canAccessOrganizationRecord(admin, orgA, true), true);
+  assert.equal(canAccessOrganizationRecord(admin, orgB, true), false);
+  assert.equal(canAccessOrganizationRecord(admin, orgA, false), false);
+  assert.equal(canAccessOrganizationRecord(null, orgA, true), false);
+});
+
+test("platform super admin can access all organizations including suspended organizations", () => {
+  const platform = session({ role: "admin", organizationId: null, platformSuperAdmin: true });
+
+  assert.equal(canAccessOrganizationRecord(platform, orgA, true), true);
+  assert.equal(canAccessOrganizationRecord(platform, orgB, false), true);
+});
+
+test("role permission checks match dashboard, carrier management, and compliance rules", () => {
+  assert.equal(canRoleAccessDashboard("admin"), true);
+  assert.equal(canRoleAccessDashboard("staff"), true);
+  assert.equal(canRoleAccessDashboard("carrier"), false);
+  assert.equal(canRoleAccessDashboard("carrier", true), true);
+
+  assert.equal(canRoleManageCarriers("admin"), true);
+  assert.equal(canRoleManageCarriers("staff"), false);
+  assert.equal(canRoleManageCarriers("carrier"), false);
+  assert.equal(canRoleManageCarriers("carrier", true), true);
+
+  assert.equal(canRoleManageCompliance("admin"), true);
+  assert.equal(canRoleManageCompliance("staff"), true);
+  assert.equal(canRoleManageCompliance("carrier"), false);
+});
+
+test("carrier user can only access linked carrier in their active organization", () => {
+  const carrierUser = session({ role: "carrier", carrierId: carrierA });
+
+  assert.equal(canAccessCarrierRecord(carrierUser, { organizationId: orgA, carrierId: carrierA }, true), true);
+  assert.equal(canAccessCarrierRecord(carrierUser, { organizationId: orgA, carrierId: carrierB }, true), false);
+  assert.equal(canAccessCarrierRecord(carrierUser, { organizationId: orgB, carrierId: carrierA }, true), false);
+  assert.equal(canAccessCarrierRecord(carrierUser, { organizationId: orgA, carrierId: carrierA }, false), false);
+});
+
+test("admin and staff can only access carriers in their own active organization", () => {
+  const admin = session({ role: "admin" });
+  const staff = session({ role: "staff" });
+
+  assert.equal(canAccessCarrierRecord(admin, { organizationId: orgA, carrierId: carrierA }, true), true);
+  assert.equal(canAccessCarrierRecord(staff, { organizationId: orgA, carrierId: carrierA }, true), true);
+  assert.equal(canAccessCarrierRecord(admin, { organizationId: orgB, carrierId: carrierB }, true), false);
+  assert.equal(canAccessCarrierRecord(staff, { organizationId: orgB, carrierId: carrierB }, true), false);
+  assert.equal(canMutateTenantRecord(admin, orgA, ["admin"], true), true);
+  assert.equal(canMutateTenantRecord(staff, orgA, ["admin"], true), false);
+  assert.equal(canMutateTenantRecord(staff, orgA, ["admin", "staff"], true), true);
+  assert.equal(canMutateTenantRecord(staff, orgA, ["admin", "staff"], false), false);
+});
+
+test("platform super admin can access carriers and mutate tenant records across organizations", () => {
+  const platform = session({ role: "admin", organizationId: null, platformSuperAdmin: true });
+
+  assert.equal(canAccessCarrierRecord(platform, { organizationId: orgB, carrierId: carrierB }, false), true);
+  assert.equal(canMutateTenantRecord(platform, orgB, ["admin"], false), true);
+});
+
+test("upload path validation accepts only the expected organization and carrier prefix", () => {
+  const validPath = `organizations/${orgA}/carriers/${carrierA}/certificate-of-insurance/v1/file.pdf`;
+  const wrongOrgPath = `organizations/${orgB}/carriers/${carrierA}/certificate-of-insurance/v1/file.pdf`;
+  const wrongCarrierPath = `organizations/${orgA}/carriers/${carrierB}/certificate-of-insurance/v1/file.pdf`;
+  const legacyPath = `carriers/${carrierA}/certificate-of-insurance/v1/file.pdf`;
+
+  assert.equal(isTenantStoragePath(validPath, orgA, carrierA), true);
+  assert.equal(isTenantStoragePath(wrongOrgPath, orgA, carrierA), false);
+  assert.equal(isTenantStoragePath(wrongCarrierPath, orgA, carrierA), false);
+  assert.equal(isTenantStoragePath(legacyPath, orgA, carrierA), false);
+  assert.doesNotThrow(() => assertTenantStoragePath(validPath, orgA, carrierA));
+  assert.throws(() => assertTenantStoragePath(wrongOrgPath, orgA, carrierA), /current organization/);
+});
+
+test("notification access is scoped by organization, assignment, and linked carrier", () => {
+  const staff = session({ role: "staff", userId: "staff-a" });
+  const carrierUser = session({ role: "carrier", userId: "carrier-user-a", carrierId: carrierA });
+  const otherCarrierUser = session({ role: "carrier", userId: "carrier-user-b", carrierId: carrierB });
+
+  assert.equal(
+    canAccessNotificationRecord(staff, { organizationId: orgA, carrierId: carrierA, assignedTo: null }, true),
+    true,
+  );
+  assert.equal(
+    canAccessNotificationRecord(staff, { organizationId: orgB, carrierId: carrierB, assignedTo: "staff-a" }, true),
+    false,
+  );
+  assert.equal(
+    canAccessNotificationRecord(carrierUser, { organizationId: orgA, carrierId: carrierA, assignedTo: null }, true),
+    true,
+  );
+  assert.equal(
+    canAccessNotificationRecord(otherCarrierUser, { organizationId: orgA, carrierId: carrierA, assignedTo: null }, true),
+    false,
+  );
+  assert.equal(
+    canAccessNotificationRecord(carrierUser, { organizationId: orgA, carrierId: null, assignedTo: "carrier-user-a" }, true),
+    true,
+  );
+  assert.equal(
+    canAccessNotificationRecord(carrierUser, { organizationId: orgA, carrierId: carrierA, assignedTo: null }, false),
+    false,
+  );
+});
+
+test("audit log access is scoped by platform, organization, and role sensitivity", () => {
+  const platform = session({ role: "admin", organizationId: null, platformSuperAdmin: true });
+  const admin = session({ role: "admin" });
+  const staff = session({ role: "staff" });
+  const carrierUser = session({ role: "carrier", carrierId: carrierA });
+
+  assert.equal(
+    canAccessAuditLogRecord(platform, { organizationId: orgB, action: "organization.suspended" }, false),
+    true,
+  );
+  assert.equal(
+    canAccessAuditLogRecord(admin, { organizationId: orgA, action: "user.role_changed" }, true),
+    true,
+  );
+  assert.equal(
+    canAccessAuditLogRecord(admin, { organizationId: orgB, action: "carrier.created" }, true),
+    false,
+  );
+  assert.equal(
+    canAccessAuditLogRecord(staff, { organizationId: orgA, action: "carrier.status_changed" }, true),
+    true,
+  );
+  assert.equal(
+    canAccessAuditLogRecord(staff, { organizationId: orgA, action: "user.role_changed" }, true),
+    false,
+  );
+  assert.equal(
+    canAccessAuditLogRecord(staff, { organizationId: orgA, action: "carrier.created" }, false),
+    false,
+  );
+  assert.equal(
+    canAccessAuditLogRecord(carrierUser, { organizationId: orgA, action: "carrier.created" }, true),
+    false,
+  );
+});

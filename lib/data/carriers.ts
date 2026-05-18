@@ -1,9 +1,11 @@
 import { mockCarriers, REQUIRED_DOCUMENTS } from "@/lib/mock-data";
+import { getCurrentSession } from "@/lib/integrations/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { Carrier, CarrierDocument, CarrierStatus, RequiredDocumentName } from "@/types/carrier";
 
 type CarrierRow = {
   id: string;
+  organization_id: string | null;
   company_name: string;
   mc_number: string;
   dot_number: string;
@@ -31,19 +33,46 @@ type CarrierRow = {
 };
 
 export async function getCarriers(): Promise<Carrier[]> {
+  const session = await getCurrentSession();
   const supabase = await createClient();
 
   if (!supabase) {
     return mockCarriers;
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("carriers")
     .select("*, carrier_documents(document_name, uploaded, expiration_date, notes, storage_path, file_name, file_size, mime_type, uploaded_at, version_number, uploaded_by_user:users!carrier_documents_uploaded_by_fkey(full_name, email))")
     .order("company_name");
 
-  if (error || !data?.length) {
-    return mockCarriers;
+  if (session?.organizationId && !session.platformSuperAdmin) {
+    query = query.eq("organization_id", session.organizationId);
+  }
+
+  const { data, error } = await query;
+
+  if (error || !data) {
+    return [];
+  }
+
+  return (data as CarrierRow[]).map(mapCarrierRow);
+}
+
+export async function getCarriersForOrganization(organizationId: string): Promise<Carrier[]> {
+  const supabase = await createClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("carriers")
+    .select("*, carrier_documents(document_name, uploaded, expiration_date, notes, storage_path, file_name, file_size, mime_type, uploaded_at, version_number, uploaded_by_user:users!carrier_documents_uploaded_by_fkey(full_name, email))")
+    .eq("organization_id", organizationId)
+    .order("company_name");
+
+  if (error || !data) {
+    return [];
   }
 
   return (data as CarrierRow[]).map(mapCarrierRow);
@@ -75,6 +104,7 @@ function mapCarrierRow(row: CarrierRow): Carrier {
 
   return {
     id: row.id,
+    organizationId: row.organization_id,
     companyName: row.company_name,
     mcNumber: row.mc_number,
     dotNumber: row.dot_number,

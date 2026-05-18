@@ -17,6 +17,7 @@ Copy `.env.example` to `.env.local` and add your Supabase project values:
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET=carrier-documents
+NEXT_PUBLIC_ROOT_DOMAIN=your-root-domain.com
 EMAIL_ALERT_WEBHOOK_URL=optional_email_provider_webhook
 ```
 
@@ -38,7 +39,9 @@ Roles:
 - `staff`: update compliance documents, alerts, and notes.
 - `carrier`: view only their linked carrier profile, documents, alerts, and compliance score.
 
-Carrier portal users must have `public.users.carrier_id` set to the carrier profile they are allowed to view. The schema includes bootstrap SQL comments for promoting the first admin and linking a carrier user.
+The platform is tenant-aware. `public.organizations` owns branding, subdomain, and tenant settings. Tenant-owned tables carry `organization_id`, and RLS scopes admins/staff/carrier users to their own organization unless `public.users.platform_super_admin = true`.
+
+Organization users must have `public.users.organization_id` set. Carrier portal users must also have `public.users.carrier_id` set to the carrier profile they are allowed to view. Tenant subdomains are resolved from the request host. For example, with `NEXT_PUBLIC_ROOT_DOMAIN=example.com`, `acme.example.com` looks up `public.organizations.subdomain = 'acme'` and applies that organization's logo and brand colors.
 
 ## Structure
 
@@ -79,7 +82,7 @@ The executive analytics section includes:
 Carrier document uploads use the private `carrier-documents` bucket and organized paths:
 
 ```txt
-carriers/{carrierId}/{document-name}/v{version}/{timestamp}-{fileName}
+organizations/{organizationId}/carriers/{carrierId}/{document-name}/v{version}/{timestamp}-{fileName}
 ```
 
 Supported upload types:
