@@ -39,7 +39,7 @@ export async function syncComplianceNotificationsAction() {
 
   if (!supabase) {
     revalidatePath("/");
-    return { created: notifications.length };
+    return;
   }
 
   const payload = notifications.map((notification) => ({
@@ -61,7 +61,7 @@ export async function syncComplianceNotificationsAction() {
   }
 
   revalidatePath("/");
-  return { created: payload.length };
+  return;
 }
 
 export async function sendWeeklyComplianceSummaryAction() {
