@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 18rem),
+    linear-gradient(135deg, rgba(227, 25, 55, 0.18), transparent 30rem),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 84px),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 84px),
+    #050506;
+  color: #f8f8f8;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+@layer components {
+  .section-panel {
+    @apply rounded-md border border-white/10 shadow-premium backdrop-blur-xl;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018));
+  }
+
+  .eyebrow {
+    @apply mb-1.5 text-[11px] font-extrabold uppercase tracking-[0.18em] text-manifest-red;
+  }
+
+  .panel-label {
+    @apply mb-1.5 block text-[11px] font-extrabold uppercase tracking-[0.18em] text-manifest-red;
+  }
+
+  .focus-ring {
+    @apply focus:outline-none focus-visible:border-manifest-red focus-visible:ring-2 focus-visible:ring-manifest-red/30;
+  }
+
+  .form-control {
+    @apply min-h-11 rounded-md border border-white/10 bg-black/35 px-3 py-2 text-sm text-white outline-none placeholder:text-manifest-quiet focus:border-manifest-red focus:ring-2 focus:ring-manifest-red/25;
+  }
+
+  .form-button {
+    @apply inline-flex min-h-9 items-center justify-center rounded-md border border-manifest-red/50 bg-manifest-red/10 px-3 text-xs font-extrabold text-white transition hover:bg-manifest-red/20;
+  }
+}
