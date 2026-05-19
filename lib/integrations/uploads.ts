@@ -11,8 +11,8 @@ export const ALLOWED_DOCUMENT_MIME_TYPES = [
 export const ALLOWED_DOCUMENT_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".doc", ".docx"];
 
 export type UploadDocumentInput = {
-  carrierId: string;
-  documentName: RequiredDocumentName;
+  carrierId?: string;
+  documentName?: RequiredDocumentName;
   file: File;
   bucket: string;
   path: string;
@@ -31,6 +31,10 @@ export function validateDocumentFile(file: File) {
 }
 
 export async function uploadCarrierDocument(input: UploadDocumentInput): Promise<{ path: string }> {
+  return uploadStorageDocument(input);
+}
+
+export async function uploadStorageDocument(input: UploadDocumentInput): Promise<{ path: string }> {
   validateDocumentFile(input.file);
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

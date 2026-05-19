@@ -5,14 +5,19 @@ import {
   assertTenantStoragePath,
   canAccessAuditLogRecord,
   canAccessCarrierRecord,
+  canAccessLoadRecord,
   canAccessNotificationRecord,
   canAccessOrganizationRecord,
+  canManageLoadRecord,
   canUploadCarrierDocument,
+  canUploadLoadDocument,
   canMutateTenantRecord,
   canRoleAccessDashboard,
   canRoleManageCarriers,
   canRoleManageCompliance,
   isTenantStoragePath,
+  isLoadStoragePath,
+  isLoadDocumentStoragePath,
 } from "../../lib/security/tenant-rules";
 
 const orgA = "org-a";
@@ -155,6 +160,43 @@ test("notification access is scoped by organization, assignment, and linked carr
     canAccessNotificationRecord(carrierUser, { organizationId: orgA, carrierId: carrierA, assignedTo: null }, false),
     false,
   );
+});
+
+test("load access is scoped by organization, role, and linked carrier", () => {
+  const platform = session({ role: "admin", organizationId: null, platformSuperAdmin: true });
+  const admin = session({ role: "admin" });
+  const staff = session({ role: "staff" });
+  const carrierUser = session({ role: "carrier", carrierId: carrierA });
+  const otherCarrierUser = session({ role: "carrier", carrierId: carrierB });
+  const loadA = { organizationId: orgA, carrierId: carrierA };
+  const loadB = { organizationId: orgB, carrierId: carrierB };
+
+  assert.equal(canAccessLoadRecord(platform, loadB, false), true);
+  assert.equal(canAccessLoadRecord(admin, loadA, true), true);
+  assert.equal(canAccessLoadRecord(staff, loadA, true), true);
+  assert.equal(canAccessLoadRecord(admin, loadB, true), false);
+  assert.equal(canAccessLoadRecord(carrierUser, loadA, true), true);
+  assert.equal(canAccessLoadRecord(carrierUser, { organizationId: orgA, carrierId: carrierB }, true), false);
+  assert.equal(canAccessLoadRecord(otherCarrierUser, loadA, true), false);
+  assert.equal(canAccessLoadRecord(carrierUser, loadA, false), false);
+
+  assert.equal(canManageLoadRecord(admin, loadA, true), true);
+  assert.equal(canManageLoadRecord(staff, loadA, true), true);
+  assert.equal(canManageLoadRecord(carrierUser, loadA, true), false);
+  assert.equal(canUploadLoadDocument(carrierUser, loadA, true), true);
+  assert.equal(canUploadLoadDocument(otherCarrierUser, loadA, true), false);
+});
+
+test("load document storage paths are scoped under organization and load", () => {
+  const validPath = `organizations/${orgA}/loads/load-a/pod/v1/file.pdf`;
+  const wrongOrgPath = `organizations/${orgB}/loads/load-a/pod/v1/file.pdf`;
+  const wrongLoadPath = `organizations/${orgA}/loads/load-b/pod/v1/file.pdf`;
+
+  assert.equal(isLoadStoragePath(validPath, orgA, "load-a"), true);
+  assert.equal(isLoadStoragePath(wrongOrgPath, orgA, "load-a"), false);
+  assert.equal(isLoadStoragePath(wrongLoadPath, orgA, "load-a"), false);
+  assert.equal(isLoadDocumentStoragePath(validPath, orgA, "load-a", "pod"), true);
+  assert.equal(isLoadDocumentStoragePath(validPath, orgA, "load-a", "rate_confirmation"), false);
 });
 
 test("audit log access is scoped by platform, organization, and role sensitivity", () => {

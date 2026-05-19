@@ -7,7 +7,7 @@ export type EmailDispatchInput = {
   subject: string;
   html: string;
   text: string;
-  category: NotificationCategory;
+  category: NotificationCategory | "pod_delivery";
 };
 
 export async function createEmailDispatch(input: EmailDispatchInput): Promise<void> {
@@ -102,6 +102,48 @@ export function createWeeklySummaryEmail(input: {
         ["High-risk carriers", String(highRiskCarriers.length)],
         ["Missing documents", String(missingDocuments.length)],
         ["Expiring documents", String(expiringDocuments.length)],
+      ],
+    }),
+  };
+}
+
+export function createPodDeliveryEmail(input: {
+  brokerName: string;
+  loadNumber: string;
+  carrierName: string;
+  origin: string;
+  destination: string;
+  deliveryDate: string | null;
+  podUrl: string;
+}) {
+  const subject = `POD for load ${input.loadNumber}`;
+  const greeting = input.brokerName ? `Hello ${input.brokerName},` : "Hello,";
+  const text = [
+    greeting,
+    "",
+    `Proof of delivery is available for load ${input.loadNumber}.`,
+    `Carrier: ${input.carrierName}`,
+    `Lane: ${input.origin} to ${input.destination}`,
+    input.deliveryDate ? `Delivery date: ${input.deliveryDate}` : "",
+    `POD link: ${input.podUrl}`,
+    "",
+    "Thank you,",
+    "ManifestOS",
+  ].filter(Boolean).join("\n");
+
+  return {
+    subject,
+    text,
+    html: baseEmailTemplate({
+      eyebrow: "Proof of Delivery",
+      title: `POD ready for load ${input.loadNumber}`,
+      body: "The proof of delivery document is ready for broker review.",
+      details: [
+        ["Carrier", input.carrierName],
+        ["Origin", input.origin],
+        ["Destination", input.destination],
+        ["Delivery date", input.deliveryDate ?? "Not set"],
+        ["POD link", input.podUrl],
       ],
     }),
   };

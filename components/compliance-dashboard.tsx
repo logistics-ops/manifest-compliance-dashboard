@@ -8,6 +8,7 @@ import {
   FileCheck2,
   LayoutDashboard,
   Plus,
+  Route,
   type LucideIcon,
   Search,
   ShieldAlert,
@@ -54,6 +55,7 @@ const navItems: Array<{ label: string; href: string; icon: LucideIcon }> = [
   { label: "Overview", href: "#overview", icon: LayoutDashboard },
   { label: "Analytics", href: "#analytics", icon: BarChart3 },
   { label: "Notifications", href: "#notifications", icon: Bell },
+  { label: "Loads", href: "/loads", icon: Route },
   { label: "Timeline", href: "#timeline", icon: ClipboardCheck },
   { label: "Carrier Profiles", href: "#carriers", icon: Truck },
   { label: "Required Documents", href: "#documents", icon: FileCheck2 },
@@ -145,6 +147,13 @@ export function ComplianceDashboard({
                 New carrier
               </Link>
             ) : null}
+            <Link
+              href="/loads"
+              className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-4 text-sm font-extrabold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white max-md:justify-center"
+            >
+              <Route className="h-4 w-4" />
+              Loads
+            </Link>
             {canManageCarriers(session) && !session.platformSuperAdmin ? (
               <Link
                 href="/onboarding"
@@ -348,16 +357,20 @@ function Sidebar({
             Onboarding
           </Link>
         ) : null}
-        {navItems.map(({ label, icon: Icon, href }) => (
-          <a
-            key={label}
-            href={href}
-            className="flex min-h-11 items-center gap-3 rounded-md border border-transparent px-3.5 text-sm font-semibold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white"
-          >
-            <Icon className="h-4 w-4" />
-            {label}
-          </a>
-        ))}
+        {navItems.map(({ label, icon: Icon, href }) => {
+          const className = "flex min-h-11 items-center gap-3 rounded-md border border-transparent px-3.5 text-sm font-semibold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white";
+          return href.startsWith("/") ? (
+            <Link key={label} href={href} className={className}>
+              <Icon className="h-4 w-4" />
+              {label}
+            </Link>
+          ) : (
+            <a key={label} href={href} className={className}>
+              <Icon className="h-4 w-4" />
+              {label}
+            </a>
+          );
+        })}
       </nav>
 
       <div className="absolute bottom-7 left-7 right-7 rounded-md border border-white/10 bg-white/[0.035] p-4 shadow-premium max-xl:static max-xl:mt-5">

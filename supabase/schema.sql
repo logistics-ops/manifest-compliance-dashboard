@@ -25,6 +25,16 @@ create type public.notification_category as enum (
   'high_risk_carrier',
   'weekly_summary'
 );
+create type public.load_status as enum (
+  'booked',
+  'in_transit',
+  'delivered',
+  'pod_uploaded',
+  'pod_sent',
+  'invoiced',
+  'cancelled'
+);
+create type public.load_document_type as enum ('rate_confirmation', 'pod');
 
 create table public.organizations (
   id uuid primary key default gen_random_uuid(),
@@ -255,6 +265,48 @@ create table public.notifications (
   unique (organization_id, rule_key)
 );
 
+create table public.loads (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  load_number text not null,
+  carrier_id uuid not null references public.carriers(id) on delete cascade,
+  driver_name text,
+  broker_name text,
+  broker_email text,
+  origin_city text not null,
+  origin_state text not null,
+  destination_city text not null,
+  destination_state text not null,
+  pickup_date date,
+  delivery_date date,
+  rate_amount numeric(12, 2) not null default 0,
+  status public.load_status not null default 'booked',
+  notes text,
+  created_by uuid references public.users(id) on delete set null,
+  pod_sent_at timestamptz,
+  pod_sent_by uuid references public.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (organization_id, load_number)
+);
+
+create table public.load_documents (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  load_id uuid not null references public.loads(id) on delete cascade,
+  carrier_id uuid not null references public.carriers(id) on delete cascade,
+  document_type public.load_document_type not null,
+  storage_path text not null,
+  file_name text not null,
+  file_size bigint,
+  mime_type text,
+  version_number integer not null,
+  uploaded_by uuid references public.users(id) on delete set null,
+  uploaded_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  unique (organization_id, load_id, document_type, version_number)
+);
+
 create table if not exists public.audit_logs (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid references public.organizations(id) on delete set null,
@@ -304,6 +356,14 @@ create index if not exists notifications_category_idx on public.notifications(ca
 create index if not exists notifications_carrier_id_idx on public.notifications(carrier_id);
 create index if not exists notifications_assigned_to_idx on public.notifications(assigned_to);
 create index if not exists notifications_created_at_idx on public.notifications(created_at desc);
+create index if not exists loads_organization_id_idx on public.loads(organization_id);
+create index if not exists loads_carrier_id_idx on public.loads(carrier_id);
+create index if not exists loads_status_idx on public.loads(status);
+create index if not exists loads_pickup_date_idx on public.loads(pickup_date);
+create index if not exists load_documents_organization_id_idx on public.load_documents(organization_id);
+create index if not exists load_documents_load_id_idx on public.load_documents(load_id);
+create index if not exists load_documents_carrier_id_idx on public.load_documents(carrier_id);
+create index if not exists load_documents_type_idx on public.load_documents(document_type);
 create index if not exists audit_logs_organization_id_idx on public.audit_logs(organization_id);
 create index if not exists audit_logs_actor_user_id_idx on public.audit_logs(actor_user_id);
 create index if not exists audit_logs_action_idx on public.audit_logs(action);
@@ -429,6 +489,31 @@ add constraint notifications_organization_dismissed_by_fkey
 foreign key (organization_id, dismissed_by)
 references public.users(organization_id, id);
 
+alter table public.loads
+add constraint loads_organization_carrier_fkey
+foreign key (organization_id, carrier_id)
+references public.carriers(organization_id, id),
+add constraint loads_organization_created_by_fkey
+foreign key (organization_id, created_by)
+references public.users(organization_id, id),
+add constraint loads_organization_pod_sent_by_fkey
+foreign key (organization_id, pod_sent_by)
+references public.users(organization_id, id),
+add constraint loads_organization_id_id_unique unique (organization_id, id);
+
+alter table public.load_documents
+add constraint load_documents_organization_load_fkey
+foreign key (organization_id, load_id)
+references public.loads(organization_id, id)
+on delete cascade,
+add constraint load_documents_organization_carrier_fkey
+foreign key (organization_id, carrier_id)
+references public.carriers(organization_id, id)
+on delete cascade,
+add constraint load_documents_organization_uploaded_by_fkey
+foreign key (organization_id, uploaded_by)
+references public.users(organization_id, id);
+
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
@@ -496,6 +581,8 @@ for each row execute function public.set_updated_at();
 create trigger set_compliance_alerts_updated_at before update on public.compliance_alerts
 for each row execute function public.set_updated_at();
 create trigger set_notifications_updated_at before update on public.notifications
+for each row execute function public.set_updated_at();
+create trigger set_loads_updated_at before update on public.loads
 for each row execute function public.set_updated_at();
 
 create or replace function public.handle_new_auth_user()
@@ -657,6 +744,8 @@ alter table public.equipment_documents enable row level security;
 alter table public.compliance_notes enable row level security;
 alter table public.compliance_alerts enable row level security;
 alter table public.notifications enable row level security;
+alter table public.loads enable row level security;
+alter table public.load_documents enable row level security;
 alter table public.audit_logs enable row level security;
 
 create policy "Active organizations are discoverable by subdomain"
@@ -924,6 +1013,60 @@ on public.notifications for delete
 to authenticated
 using (public.is_admin() and public.can_access_organization(organization_id));
 
+create policy "Authorized users can read loads"
+on public.loads for select
+to authenticated
+using (
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
+  or (
+    public.current_user_role() = 'carrier'::public.app_role
+    and public.current_user_carrier_id() = carrier_id
+    and public.can_access_organization(organization_id)
+  )
+);
+
+create policy "Staff can insert loads"
+on public.loads for insert
+to authenticated
+with check (public.can_manage_compliance() and public.can_access_organization(organization_id));
+
+create policy "Staff can update loads"
+on public.loads for update
+to authenticated
+using (public.can_manage_compliance() and public.can_access_organization(organization_id))
+with check (public.can_manage_compliance() and public.can_access_organization(organization_id));
+
+create policy "Admins can delete loads"
+on public.loads for delete
+to authenticated
+using (public.is_admin() and public.can_access_organization(organization_id));
+
+create policy "Authorized users can read load documents"
+on public.load_documents for select
+to authenticated
+using (
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
+  or (
+    public.current_user_role() = 'carrier'::public.app_role
+    and public.current_user_carrier_id() = carrier_id
+    and public.can_access_organization(organization_id)
+  )
+);
+
+create policy "Authorized users can insert load documents"
+on public.load_documents for insert
+to authenticated
+with check (
+  (public.can_manage_compliance() and public.can_access_organization(organization_id))
+  or (
+    public.current_user_role() = 'carrier'::public.app_role
+    and public.current_user_carrier_id() = carrier_id
+    and public.can_access_organization(organization_id)
+  )
+);
+
 create policy "Platform super admins can read all audit logs"
 on public.audit_logs for select
 to authenticated
@@ -960,7 +1103,12 @@ using (
     'notification.synced',
     'email.weekly_summary_requested',
     'onboarding.carrier_created',
-    'onboarding.carrier_user_invited'
+    'onboarding.carrier_user_invited',
+    'load.created',
+    'load.status_changed',
+    'load.rate_confirmation_uploaded',
+    'load.pod_uploaded',
+    'load.pod_sent'
   )
 );
 
@@ -1076,4 +1224,56 @@ using (
   and (storage.foldername(name))[1] = 'organizations'
   and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
   and public.can_access_organization(((storage.foldername(name))[2])::uuid)
+);
+
+create policy "Authorized users can upload load document files"
+on storage.objects for insert
+to authenticated
+with check (
+  bucket_id = 'carrier-documents'
+  and (storage.foldername(name))[1] = 'organizations'
+  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and public.can_access_organization(((storage.foldername(name))[2])::uuid)
+  and (storage.foldername(name))[3] = 'loads'
+  and (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+  and (storage.foldername(name))[5] in ('rate_confirmation', 'pod')
+  and exists (
+    select 1
+    from public.loads
+    where loads.organization_id = ((storage.foldername(name))[2])::uuid
+      and loads.id = ((storage.foldername(name))[4])::uuid
+      and (
+        public.can_manage_compliance()
+        or (
+          public.current_user_role() = 'carrier'::public.app_role
+          and public.current_user_carrier_id() = loads.carrier_id
+        )
+      )
+  )
+);
+
+create policy "Authorized users can read load document files"
+on storage.objects for select
+to authenticated
+using (
+  bucket_id = 'carrier-documents'
+  and (storage.foldername(name))[1] = 'organizations'
+  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and public.can_access_organization(((storage.foldername(name))[2])::uuid)
+  and (storage.foldername(name))[3] = 'loads'
+  and (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+  and (storage.foldername(name))[5] in ('rate_confirmation', 'pod')
+  and exists (
+    select 1
+    from public.loads
+    where loads.organization_id = ((storage.foldername(name))[2])::uuid
+      and loads.id = ((storage.foldername(name))[4])::uuid
+      and (
+        public.can_manage_compliance()
+        or (
+          public.current_user_role() = 'carrier'::public.app_role
+          and public.current_user_carrier_id() = loads.carrier_id
+        )
+      )
+  )
 );

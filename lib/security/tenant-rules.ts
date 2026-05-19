@@ -13,6 +13,10 @@ export type NotificationAccessRecord = TenantRecord & {
   assignedTo: string | null;
 };
 
+export type LoadAccessRecord = TenantRecord & {
+  carrierId: string;
+};
+
 export type AuditLogAccessRecord = TenantRecord & {
   action: string;
 };
@@ -33,6 +37,11 @@ export const staffAuditActions = new Set([
   "email.weekly_summary_requested",
   "onboarding.carrier_created",
   "onboarding.carrier_user_invited",
+  "load.created",
+  "load.status_changed",
+  "load.rate_confirmation_uploaded",
+  "load.pod_uploaded",
+  "load.pod_sent",
 ]);
 
 export function canRoleAccessDashboard(role: UserRole, platformSuperAdmin = false) {
@@ -79,6 +88,36 @@ export function canUploadCarrierDocument(
   if (!canAccessOrganizationRecord(session, carrier.organizationId, organizationIsActive)) return false;
   if (canRoleManageCompliance(session.role)) return true;
   return session.role === "carrier" && session.carrierId === carrier.carrierId;
+}
+
+export function canAccessLoadRecord(
+  session: AuthSession | null,
+  load: LoadAccessRecord,
+  organizationIsActive = true,
+) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  if (!canAccessOrganizationRecord(session, load.organizationId, organizationIsActive)) return false;
+  if (canRoleManageCompliance(session.role)) return true;
+  return session.role === "carrier" && session.carrierId === load.carrierId;
+}
+
+export function canManageLoadRecord(
+  session: AuthSession | null,
+  load: LoadAccessRecord,
+  organizationIsActive = true,
+) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  return canRoleManageCompliance(session.role) && canAccessOrganizationRecord(session, load.organizationId, organizationIsActive);
+}
+
+export function canUploadLoadDocument(
+  session: AuthSession | null,
+  load: LoadAccessRecord,
+  organizationIsActive = true,
+) {
+  return canAccessLoadRecord(session, load, organizationIsActive);
 }
 
 export function canMutateTenantRecord(
@@ -129,5 +168,43 @@ export function isTenantStoragePath(storagePath: string, organizationId: string,
 export function assertTenantStoragePath(storagePath: string, organizationId: string, carrierId: string) {
   if (!isTenantStoragePath(storagePath, organizationId, carrierId)) {
     throw new Error("Uploaded document path does not match the current organization.");
+  }
+}
+
+export function getLoadStoragePrefix(organizationId: string, loadId: string) {
+  return `organizations/${organizationId}/loads/${loadId}/`;
+}
+
+export function getLoadDocumentStoragePrefix(organizationId: string, loadId: string, documentType: string) {
+  return `${getLoadStoragePrefix(organizationId, loadId)}${documentType}/`;
+}
+
+export function isLoadStoragePath(storagePath: string, organizationId: string, loadId: string) {
+  return storagePath.startsWith(getLoadStoragePrefix(organizationId, loadId));
+}
+
+export function isLoadDocumentStoragePath(
+  storagePath: string,
+  organizationId: string,
+  loadId: string,
+  documentType: string,
+) {
+  return storagePath.startsWith(getLoadDocumentStoragePrefix(organizationId, loadId, documentType));
+}
+
+export function assertLoadStoragePath(storagePath: string, organizationId: string, loadId: string) {
+  if (!isLoadStoragePath(storagePath, organizationId, loadId)) {
+    throw new Error("Uploaded load document path does not match the current organization and load.");
+  }
+}
+
+export function assertLoadDocumentStoragePath(
+  storagePath: string,
+  organizationId: string,
+  loadId: string,
+  documentType: string,
+) {
+  if (!isLoadDocumentStoragePath(storagePath, organizationId, loadId, documentType)) {
+    throw new Error("Uploaded load document path does not match the requested document type.");
   }
 }
