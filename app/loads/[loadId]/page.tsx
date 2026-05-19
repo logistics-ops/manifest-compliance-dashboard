@@ -7,7 +7,7 @@ import { LoadDocumentUploader } from "@/components/load-document-uploader";
 import { StatusChip } from "@/components/status-chip";
 import { getLoad } from "@/lib/data/loads";
 import { requireSession } from "@/lib/integrations/auth";
-import { canAccessLoadRecord, canManageLoadRecord, canUploadLoadDocumentType } from "@/lib/security/tenant-rules";
+import { canAccessLoadRecord, canUploadLoadDocumentType } from "@/lib/security/tenant-rules";
 import type { LoadDocument, LoadDocumentType, LoadStatus } from "@/types/load";
 
 type LoadPageProps = {
@@ -31,7 +31,6 @@ export default async function LoadDetailPage({ params, searchParams }: LoadPageP
 
   const rateConfirmation = latestDocument(load.documents, "rate_confirmation");
   const pod = latestDocument(load.documents, "pod");
-  const canManage = canManageLoadRecord(session, { organizationId: load.organizationId, carrierId: load.carrierId });
   const canEdit = canAccessLoadRecord(session, { organizationId: load.organizationId, carrierId: load.carrierId });
   const canUploadRateConfirmation = canUploadLoadDocumentType(session, { organizationId: load.organizationId, carrierId: load.carrierId }, "rate_confirmation");
   const canUploadPod = canUploadLoadDocumentType(session, { organizationId: load.organizationId, carrierId: load.carrierId }, "pod");
@@ -113,7 +112,7 @@ export default async function LoadDetailPage({ params, searchParams }: LoadPageP
 
           <div className="section-panel p-6">
             <p className="eyebrow">Workflow</p>
-            {canManage ? (
+            {canEdit ? (
               <form action={updateLoadStatusAction} className="mt-4 grid gap-3">
                 <input type="hidden" name="loadId" value={load.id} />
                 <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
@@ -124,17 +123,25 @@ export default async function LoadDetailPage({ params, searchParams }: LoadPageP
                 </label>
                 <button className="form-button min-h-10 w-fit px-3 text-sm">Save status</button>
               </form>
-            ) : null}
+            ) : (
+              <p className="mt-4 rounded-md border border-white/10 bg-black/25 p-3 text-sm text-manifest-muted">
+                You can view this load, but status changes are not available for your role.
+              </p>
+            )}
 
-            {pod && canManage ? (
+            {canEdit ? (
               <form action={sendPodToBrokerAction} className="mt-4 border-t border-white/10 pt-4">
                 <input type="hidden" name="loadId" value={load.id} />
-                <button className="form-button min-h-10 px-3 text-sm" disabled={!load.brokerEmail}>
+                <button className="form-button min-h-10 px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" disabled={!pod || !load.brokerEmail}>
                   <Send className="h-4 w-4" />
                   Send POD to Broker
                 </button>
                 <p className="mt-2 text-xs leading-5 text-manifest-muted">
-                  Uses `EMAIL_ALERT_WEBHOOK_URL` and records a load audit event.
+                  {pod && load.brokerEmail
+                    ? "Sends through Resend from pod@manifestgl.com and records a load audit event."
+                    : !pod
+                      ? "Upload a POD before sending it to the broker."
+                      : "Add a broker email before sending the POD."}
                 </p>
               </form>
             ) : null}

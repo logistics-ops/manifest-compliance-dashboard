@@ -8,23 +8,34 @@ export type EmailDispatchInput = {
   html: string;
   text: string;
   category: NotificationCategory | "pod_delivery";
+  from?: string;
 };
 
 export async function createEmailDispatch(input: EmailDispatchInput): Promise<void> {
-  const webhookUrl = process.env.EMAIL_ALERT_WEBHOOK_URL;
+  const apiKey = process.env.RESEND_API_KEY;
 
-  if (!webhookUrl) {
-    return;
+  if (!apiKey) {
+    throw new Error("RESEND_API_KEY is required before sending emails.");
   }
 
-  await fetch(webhookUrl, {
+  const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({
-      source: "manifest-carrier-compliance",
-      ...input,
+      from: input.from ?? "pod@manifestgl.com",
+      to: [input.to],
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
     }),
   });
+
+  if (!response.ok) {
+    throw new Error(await parseResendError(response));
+  }
 }
 
 export function createDocumentAlertEmail(input: {
@@ -116,7 +127,7 @@ export function createPodDeliveryEmail(input: {
   deliveryDate: string | null;
   podUrl: string;
 }) {
-  const subject = `POD for load ${input.loadNumber}`;
+  const subject = `POD for Load ${input.loadNumber}`;
   const greeting = input.brokerName ? `Hello ${input.brokerName},` : "Hello,";
   const text = [
     greeting,
@@ -127,7 +138,7 @@ export function createPodDeliveryEmail(input: {
     input.deliveryDate ? `Delivery date: ${input.deliveryDate}` : "",
     `POD link: ${input.podUrl}`,
     "",
-    "Thank you,",
+    "Thank you for working with Manifest Global Logistics.",
     "ManifestOS",
   ].filter(Boolean).join("\n");
 
@@ -147,6 +158,15 @@ export function createPodDeliveryEmail(input: {
       ],
     }),
   };
+}
+
+async function parseResendError(response: Response) {
+  try {
+    const payload = await response.json() as { message?: string; error?: string; name?: string };
+    return payload.message || payload.error || payload.name || "Unable to send email with Resend.";
+  } catch {
+    return "Unable to send email with Resend.";
+  }
 }
 
 function baseEmailTemplate(input: {

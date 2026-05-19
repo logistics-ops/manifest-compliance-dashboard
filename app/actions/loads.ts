@@ -278,22 +278,22 @@ export async function finalizeLoadDocumentUploadAction(input: {
 }
 
 export async function sendPodToBrokerAction(formData: FormData) {
-  const session = await requireStaffAccess();
+  const session = await requireSession();
   const supabase = await createClient();
   const loadId = getString(formData, "loadId");
 
-  if (!supabase || !loadId) return;
+  if (!supabase || !loadId) redirectWithLoadMessage(loadId, "Supabase is not configured.", "error");
 
-  const load = await assertCanManageLoad(supabase, session, loadId);
-  if (!load.brokerEmail) throw new Error("Broker email is required before sending POD.");
+  const load = await assertCanEditLoad(supabase, session, loadId);
+  if (!load.brokerEmail) redirectWithLoadMessage(loadId, "Broker email is required before sending POD.", "error");
 
   const loads = await getLoads();
   const fullLoad = loads.find((item) => item.id === loadId);
   const pod = fullLoad?.documents.find((document) => document.documentType === "pod");
-  if (!fullLoad || !pod) throw new Error("Upload a POD before sending it to the broker.");
+  if (!fullLoad || !pod) redirectWithLoadMessage(loadId, "Upload a POD before sending it to the broker.", "error");
 
   const { data } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(pod.storagePath, 60 * 60 * 24 * 7);
-  if (!data?.signedUrl) throw new Error("Unable to create POD link.");
+  if (!data?.signedUrl) redirectWithLoadMessage(loadId, "Unable to create POD link.", "error");
 
   const email = createPodDeliveryEmail({
     brokerName: fullLoad.brokerName,
@@ -305,19 +305,32 @@ export async function sendPodToBrokerAction(formData: FormData) {
     podUrl: data.signedUrl,
   });
 
-  await createEmailDispatch({
-    to: load.brokerEmail,
-    subject: email.subject,
-    html: email.html,
-    text: email.text,
-    category: "pod_delivery",
-  });
+  try {
+    await createEmailDispatch({
+      to: load.brokerEmail,
+      from: "pod@manifestgl.com",
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+      category: "pod_delivery",
+    });
+  } catch (emailError) {
+    redirectWithLoadMessage(
+      loadId,
+      emailError instanceof Error ? emailError.message : "Unable to send POD email with Resend.",
+      "error",
+    );
+  }
 
-  await supabase
+  const { error: updateError } = await supabase
     .from("loads")
     .update({ status: "pod_sent", pod_sent_at: new Date().toISOString(), pod_sent_by: session.userId })
     .eq("id", loadId)
     .eq("organization_id", load.organizationId);
+
+  if (updateError) {
+    redirectWithLoadMessage(loadId, updateError.message, "error");
+  }
 
   await writeAuditLog({
     organizationId: load.organizationId,
@@ -329,6 +342,7 @@ export async function sendPodToBrokerAction(formData: FormData) {
   });
 
   revalidateLoad(loadId);
+  redirectWithLoadMessage(loadId, "POD sent to broker.", "success");
 }
 
 type LoadAuthTarget = {
