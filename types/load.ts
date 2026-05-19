@@ -29,6 +29,8 @@ export type Load = {
   carrierName: string;
   driverName: string;
   brokerName: string;
+  brokerId: string | null;
+  brokerMcNumber: string;
   brokerEmail: string;
   originCity: string;
   originState: string;

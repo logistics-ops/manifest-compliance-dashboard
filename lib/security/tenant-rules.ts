@@ -19,6 +19,11 @@ export type LoadAccessRecord = TenantRecord & {
 
 export type InvoiceAccessRecord = LoadAccessRecord;
 
+export type BrokerAccessRecord = TenantRecord & {
+  linkedCarrierIds?: string[];
+  requestedByCarrierId?: string | null;
+};
+
 export type AuditLogAccessRecord = TenantRecord & {
   action: string;
 };
@@ -55,6 +60,13 @@ export const staffAuditActions = new Set([
   "invoice.paid",
   "invoice.voided",
   "invoice.downloaded",
+  "broker.created",
+  "broker.updated",
+  "broker.approved",
+  "broker.blocked",
+  "broker.review_required",
+  "broker_check.requested",
+  "broker.selected_on_load",
 ]);
 
 export function canRoleAccessDashboard(role: UserRole, platformSuperAdmin = false) {
@@ -213,6 +225,40 @@ export function canAccessInvoiceRecord(
   organizationIsActive = true,
 ) {
   return canAccessLoadRecord(session, invoice, organizationIsActive);
+}
+
+export function canAccessBrokerRecord(
+  session: AuthSession | null,
+  broker: BrokerAccessRecord,
+  organizationIsActive = true,
+) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  if (!canAccessOrganizationRecord(session, broker.organizationId, organizationIsActive)) return false;
+  if (canRoleManageCompliance(session.role)) return true;
+  if (session.role !== "carrier" || !session.carrierId) return false;
+  if (broker.linkedCarrierIds) return broker.linkedCarrierIds.includes(session.carrierId);
+  if (broker.requestedByCarrierId) return broker.requestedByCarrierId === session.carrierId;
+  return true;
+}
+
+export function canManageBrokerRecord(session: AuthSession | null, organizationId: string | null, organizationIsActive = true) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  return canRoleManageCompliance(session.role) && canAccessOrganizationRecord(session, organizationId, organizationIsActive);
+}
+
+export function canCreateBrokerCheckRequest(
+  session: AuthSession | null,
+  organizationId: string | null,
+  carrierId: string | null,
+  organizationIsActive = true,
+) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  if (!canAccessOrganizationRecord(session, organizationId, organizationIsActive)) return false;
+  if (canRoleManageCompliance(session.role)) return true;
+  return session.role === "carrier" && Boolean(session.carrierId) && session.carrierId === carrierId;
 }
 
 export function canGenerateInvoiceRecord(

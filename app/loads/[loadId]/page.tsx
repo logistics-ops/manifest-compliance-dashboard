@@ -4,8 +4,10 @@ import { redirect } from "next/navigation";
 import { Archive, ArrowLeft, CheckCircle2, FileUp, Mail, Route, Send, Truck } from "lucide-react";
 import { generateInvoiceAction, markInvoicePaidAction, sendInvoiceAction } from "@/app/actions/invoices";
 import { sendPodToBrokerAction, updateLoadDetailsAction, updateLoadStatusAction } from "@/app/actions/loads";
+import { BrokerStatusBadge } from "@/components/broker-status";
 import { LoadDocumentUploader } from "@/components/load-document-uploader";
 import { StatusChip } from "@/components/status-chip";
+import { getBrokers } from "@/lib/data/brokers";
 import { getLoadActivityTimeline, type LoadActivityItem } from "@/lib/data/load-activity";
 import { getInvoicesForLoad } from "@/lib/data/invoices";
 import { getLoad } from "@/lib/data/loads";
@@ -42,6 +44,7 @@ export default async function LoadDetailPage({ params, searchParams }: LoadPageP
   const timeline = await getLoadActivityTimeline(load);
   const invoices = await getInvoicesForLoad(load.id);
   const latestInvoice = invoices[0] ?? null;
+  const brokers = canEdit ? await getBrokers() : [];
 
   return (
     <main className="min-h-screen p-8 max-md:p-4">
@@ -216,7 +219,19 @@ export default async function LoadDetailPage({ params, searchParams }: LoadPageP
               <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
                 <Field label="Load Number" name="loadNumber" defaultValue={load.loadNumber} required />
                 <Field label="Driver Name" name="driverName" defaultValue={load.driverName} />
+                <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                  Broker Registry
+                  <select name="brokerId" defaultValue={load.brokerId ?? ""} className="form-control">
+                    <option value="">Manual broker entry</option>
+                    {brokers.map((broker) => (
+                      <option key={broker.id} value={broker.id}>
+                        {broker.brokerName} {broker.mcNumber ? `(MC ${broker.mcNumber})` : ""} - {broker.approvedStatus.replace(/_/g, " ")} / {broker.riskLevel} risk
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <Field label="Broker Name" name="brokerName" defaultValue={load.brokerName} />
+                <Field label="Broker MC Number" name="brokerMcNumber" defaultValue={load.brokerMcNumber} />
                 <Field label="Broker Email" name="brokerEmail" type="email" defaultValue={load.brokerEmail} />
                 <Field label="Origin City" name="originCity" defaultValue={load.originCity} required />
                 <Field label="Origin State" name="originState" defaultValue={load.originState} required />
@@ -226,6 +241,19 @@ export default async function LoadDetailPage({ params, searchParams }: LoadPageP
                 <Field label="Delivery Date" name="deliveryDate" type="date" defaultValue={load.deliveryDate ?? ""} />
                 <Field label="Rate Amount" name="rateAmount" type="number" defaultValue={String(load.rateAmount)} />
               </div>
+              {brokers.some((broker) => broker.approvedStatus === "blocked" || broker.riskLevel === "high") ? (
+                <div className="rounded-md border border-manifest-amber/35 bg-manifest-amber/10 p-3 text-sm text-manifest-amber">
+                  Selecting a blocked or high-risk broker will save the load and notify admin/staff for review.
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {brokers.filter((broker) => broker.approvedStatus === "blocked" || broker.riskLevel === "high").slice(0, 4).map((broker) => (
+                      <span key={broker.id} className="inline-flex items-center gap-2">
+                        {broker.brokerName}
+                        <BrokerStatusBadge value={broker.approvedStatus === "blocked" ? "blocked" : "high"} />
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
                 Notes
                 <textarea name="notes" defaultValue={load.notes} className="form-control min-h-28 resize-y" />

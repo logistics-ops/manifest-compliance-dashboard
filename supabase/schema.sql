@@ -26,7 +26,8 @@ create type public.notification_category as enum (
   'weekly_summary',
   'load_operation',
   'archive_operation',
-  'invoice_operation'
+  'invoice_operation',
+  'broker_operation'
 );
 create type public.load_status as enum (
   'booked',
@@ -39,6 +40,9 @@ create type public.load_status as enum (
 );
 create type public.load_document_type as enum ('rate_confirmation', 'pod');
 create type public.invoice_status as enum ('draft', 'sent', 'paid', 'overdue', 'void');
+create type public.broker_approved_status as enum ('approved', 'review_required', 'blocked');
+create type public.broker_risk_level as enum ('low', 'medium', 'high');
+create type public.broker_check_request_status as enum ('open', 'reviewing', 'resolved');
 
 create table public.organizations (
   id uuid primary key default gen_random_uuid(),
@@ -269,13 +273,50 @@ create table public.notifications (
   unique (organization_id, rule_key)
 );
 
+create table public.brokers (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  broker_name text not null,
+  mc_number text,
+  dot_number text,
+  contact_name text,
+  contact_email text,
+  contact_phone text,
+  authority_status text,
+  safety_rating text,
+  approved_status public.broker_approved_status not null default 'review_required',
+  risk_level public.broker_risk_level not null default 'medium',
+  notes text,
+  notes_private boolean not null default false,
+  blocked_reason text,
+  created_by uuid references public.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (organization_id, mc_number)
+);
+
+create table public.broker_check_requests (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  requested_by uuid references public.users(id) on delete set null,
+  carrier_id uuid references public.carriers(id) on delete set null,
+  broker_name text,
+  mc_number text,
+  notes text,
+  status public.broker_check_request_status not null default 'open',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table public.loads (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   load_number text not null,
   carrier_id uuid not null references public.carriers(id) on delete cascade,
   driver_name text,
+  broker_id uuid references public.brokers(id) on delete set null,
   broker_name text,
+  broker_mc_number text,
   broker_email text,
   origin_city text not null,
   origin_state text not null,
@@ -403,8 +444,13 @@ create index if not exists notifications_category_idx on public.notifications(ca
 create index if not exists notifications_carrier_id_idx on public.notifications(carrier_id);
 create index if not exists notifications_assigned_to_idx on public.notifications(assigned_to);
 create index if not exists notifications_created_at_idx on public.notifications(created_at desc);
+create index if not exists brokers_organization_id_idx on public.brokers(organization_id);
+create index if not exists brokers_mc_number_idx on public.brokers(organization_id, mc_number);
+create index if not exists broker_check_requests_organization_id_idx on public.broker_check_requests(organization_id);
+create index if not exists broker_check_requests_carrier_id_idx on public.broker_check_requests(carrier_id);
 create index if not exists loads_organization_id_idx on public.loads(organization_id);
 create index if not exists loads_carrier_id_idx on public.loads(carrier_id);
+create index if not exists loads_broker_id_idx on public.loads(broker_id);
 create index if not exists loads_status_idx on public.loads(status);
 create index if not exists loads_pickup_date_idx on public.loads(pickup_date);
 create index if not exists loads_archived_at_idx on public.loads(archived_at);
@@ -837,6 +883,8 @@ alter table public.equipment_documents enable row level security;
 alter table public.compliance_notes enable row level security;
 alter table public.compliance_alerts enable row level security;
 alter table public.notifications enable row level security;
+alter table public.brokers enable row level security;
+alter table public.broker_check_requests enable row level security;
 alter table public.loads enable row level security;
 alter table public.load_documents enable row level security;
 alter table public.invoices enable row level security;
@@ -1107,6 +1155,56 @@ create policy "Admins can delete notifications"
 on public.notifications for delete
 to authenticated
 using (public.is_admin() and public.can_access_organization(organization_id));
+
+create policy "Authorized users can read brokers"
+on public.brokers for select
+to authenticated
+using (
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
+  or (
+    public.current_user_role() = 'carrier'::public.app_role
+    and public.can_access_organization(organization_id)
+  )
+);
+
+create policy "Staff can manage brokers"
+on public.brokers for all
+to authenticated
+using (public.is_platform_super_admin() or (public.can_manage_compliance() and public.can_access_organization(organization_id)))
+with check (public.is_platform_super_admin() or (public.can_manage_compliance() and public.can_access_organization(organization_id)));
+
+create policy "Authorized users can read broker check requests"
+on public.broker_check_requests for select
+to authenticated
+using (
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
+  or (
+    public.current_user_role() = 'carrier'::public.app_role
+    and public.current_user_carrier_id() = carrier_id
+    and public.can_access_organization(organization_id)
+  )
+);
+
+create policy "Authorized users can create broker check requests"
+on public.broker_check_requests for insert
+to authenticated
+with check (
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
+  or (
+    public.current_user_role() = 'carrier'::public.app_role
+    and public.current_user_carrier_id() = carrier_id
+    and public.can_access_organization(organization_id)
+  )
+);
+
+create policy "Staff can update broker check requests"
+on public.broker_check_requests for update
+to authenticated
+using (public.is_platform_super_admin() or (public.can_manage_compliance() and public.can_access_organization(organization_id)))
+with check (public.is_platform_super_admin() or (public.can_manage_compliance() and public.can_access_organization(organization_id)));
 
 create policy "Authorized users can read loads"
 on public.loads for select

@@ -75,6 +75,7 @@ const organizationNavGroups: NavGroup[] = [
       { label: "Analytics", href: "#analytics", icon: BarChart3 },
       { label: "Notifications", href: "#notifications", icon: Bell },
       { label: "Audit Logs", href: "#audit-logs", icon: ClipboardList },
+      { label: "Broker Check", href: "/brokers", icon: Building2 },
     ],
   },
   {
@@ -90,6 +91,7 @@ const organizationNavGroups: NavGroup[] = [
     title: "Operations",
     items: [
       { label: "Loads", href: "/loads", icon: Route },
+      { label: "Broker Check", href: "/brokers", icon: Building2 },
       { label: "POD Workflow", href: "/loads", icon: FileCheck2 },
       { label: "Rate Confirmations", href: "/loads", icon: ClipboardCheck },
       { label: "Activity Timeline", href: "#timeline", icon: Activity },

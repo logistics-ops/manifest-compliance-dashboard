@@ -51,7 +51,8 @@ export type NotificationCategory =
   | "weekly_summary"
   | "load_operation"
   | "archive_operation"
-  | "invoice_operation";
+  | "invoice_operation"
+  | "broker_operation";
 
 export type NotificationStatus = "unread" | "read" | "dismissed";
 

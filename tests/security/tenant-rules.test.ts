@@ -4,6 +4,7 @@ import type { AuthSession } from "../../types/carrier";
 import {
   assertTenantStoragePath,
   canAccessAuditLogRecord,
+  canAccessBrokerRecord,
   canAccessCarrierRecord,
   canAccessInvoiceRecord,
   canAccessLoadRecord,
@@ -15,6 +16,8 @@ import {
   canAccessNotificationRecord,
   canAccessOrganizationRecord,
   canCreateLoadRecord,
+  canCreateBrokerCheckRequest,
+  canManageBrokerRecord,
   canManageLoadDocumentRecord,
   canManageLoadRecord,
   canUploadCarrierDocument,
@@ -316,6 +319,36 @@ test("invoice permissions preserve carrier and organization isolation", () => {
   assert.equal(canUpdateInvoiceStatusRecord(carrierUser, invoiceA, false), false);
   assert.equal(isInvoiceStoragePath(`organizations/${orgA}/loads/load-a/invoices/v1/invoice.pdf`, orgA, "load-a"), true);
   assert.equal(isInvoiceStoragePath(`organizations/${orgB}/loads/load-a/invoices/v1/invoice.pdf`, orgA, "load-a"), false);
+});
+
+test("broker registry permissions preserve tenant and carrier request scope", () => {
+  const platform = session({ role: "admin", organizationId: null, platformSuperAdmin: true });
+  const admin = session({ role: "admin" });
+  const staff = session({ role: "staff" });
+  const carrierUser = session({ role: "carrier", carrierId: carrierA });
+  const otherCarrierUser = session({ role: "carrier", carrierId: carrierB });
+
+  assert.equal(canAccessBrokerRecord(platform, { organizationId: orgB }, false), true);
+  assert.equal(canAccessBrokerRecord(admin, { organizationId: orgA }, true), true);
+  assert.equal(canAccessBrokerRecord(staff, { organizationId: orgA }, true), true);
+  assert.equal(canAccessBrokerRecord(admin, { organizationId: orgB }, true), false);
+  assert.equal(canAccessBrokerRecord(carrierUser, { organizationId: orgA }, true), true);
+  assert.equal(canAccessBrokerRecord(carrierUser, { organizationId: orgB }, true), false);
+  assert.equal(canAccessBrokerRecord(carrierUser, { organizationId: orgA, linkedCarrierIds: [carrierA] }, true), true);
+  assert.equal(canAccessBrokerRecord(otherCarrierUser, { organizationId: orgA, linkedCarrierIds: [carrierA] }, true), false);
+  assert.equal(canAccessBrokerRecord(carrierUser, { organizationId: orgA, requestedByCarrierId: carrierA }, true), true);
+  assert.equal(canAccessBrokerRecord(otherCarrierUser, { organizationId: orgA, requestedByCarrierId: carrierA }, true), false);
+
+  assert.equal(canManageBrokerRecord(admin, orgA, true), true);
+  assert.equal(canManageBrokerRecord(staff, orgA, true), true);
+  assert.equal(canManageBrokerRecord(carrierUser, orgA, true), false);
+  assert.equal(canManageBrokerRecord(platform, orgB, false), true);
+
+  assert.equal(canCreateBrokerCheckRequest(admin, orgA, null, true), true);
+  assert.equal(canCreateBrokerCheckRequest(staff, orgA, null, true), true);
+  assert.equal(canCreateBrokerCheckRequest(carrierUser, orgA, carrierA, true), true);
+  assert.equal(canCreateBrokerCheckRequest(carrierUser, orgA, carrierB, true), false);
+  assert.equal(canCreateBrokerCheckRequest(carrierUser, orgB, carrierA, true), false);
 });
 
 test("audit log access is scoped by platform, organization, and role sensitivity", () => {

@@ -11,6 +11,8 @@ type LoadRow = {
   carrier_id: string;
   driver_name: string | null;
   broker_name: string | null;
+  broker_id: string | null;
+  broker_mc_number: string | null;
   broker_email: string | null;
   origin_city: string;
   origin_state: string;
@@ -244,6 +246,8 @@ function mapLoadRow(
     carrierName: carrierNames.get(`${row.organization_id}:${row.carrier_id}`) ?? "Carrier",
     driverName: row.driver_name ?? "",
     brokerName: row.broker_name ?? "",
+    brokerId: row.broker_id,
+    brokerMcNumber: row.broker_mc_number ?? "",
     brokerEmail: row.broker_email ?? "",
     originCity: row.origin_city,
     originState: row.origin_state,
