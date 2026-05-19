@@ -29,7 +29,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   getActionItems,
   getCarrierAlerts,
@@ -163,13 +163,47 @@ export function ComplianceDashboard({
   const timelineEvents = getComplianceTimeline(activeCarriers, 90);
   const activeNotifications = notifications.length ? notifications : [];
 
-  function handleTabChange(tab: DashboardTab) {
+  useEffect(() => {
+    function handlePopState() {
+      setActiveTab(getInitialDashboardTab());
+    }
+
+    setActiveTab(getInitialDashboardTab());
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  useEffect(() => {
+    const section = new URLSearchParams(window.location.search).get("section");
+    if (!section) return;
+
+    window.setTimeout(() => {
+      document.getElementById(section)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  }, [activeTab]);
+
+  function handleTabChange(tab: DashboardTab, targetId?: string) {
     setActiveTab(tab);
     if (typeof window === "undefined") return;
 
     const url = new URL(window.location.href);
     url.searchParams.set("tab", tab);
-    window.history.replaceState(null, "", `${url.pathname}?${url.searchParams.toString()}${url.hash}`);
+    if (targetId) {
+      url.searchParams.set("section", targetId);
+    } else {
+      url.searchParams.delete("section");
+    }
+    window.history.pushState(null, "", `${url.pathname}?${url.searchParams.toString()}${url.hash}`);
+  }
+
+  function handleSidebarNavigate(tab: DashboardTab, targetId?: string) {
+    handleTabChange(tab, targetId);
+    setIsSidebarOpen(false);
+
+    if (!targetId || typeof window === "undefined") return;
+    window.setTimeout(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
   }
 
   const filteredCarriers = useMemo(() => {
@@ -200,6 +234,8 @@ export function ComplianceDashboard({
         session={session}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        activeTab={activeTab}
+        onNavigate={handleSidebarNavigate}
       />
 
       <main className="p-8 max-md:p-4">
@@ -539,7 +575,7 @@ function ActivityOverview({ logs }: { logs: AuditLog[] }) {
   const notificationSyncs = logs.filter((log) => log.action.includes("notification")).length;
 
   return (
-    <section className="grid grid-cols-4 gap-4 max-xl:grid-cols-2 max-md:grid-cols-1">
+    <section id="activity-summary" className="grid grid-cols-4 gap-4 max-xl:grid-cols-2 max-md:grid-cols-1">
       <SummaryPanel title="User Actions" value={logs.length} detail="Visible audit events" />
       <SummaryPanel title="Load Events" value={loadEvents} detail="Load workflow changes" />
       <SummaryPanel title="Invoice Events" value={invoiceEvents} detail="Billing workflow changes" />
@@ -603,12 +639,16 @@ function Sidebar({
   session,
   isOpen,
   onClose,
+  activeTab,
+  onNavigate,
 }: {
   carriers: Carrier[];
   branding: OrganizationBranding;
   session: AuthSession;
   isOpen: boolean;
   onClose: () => void;
+  activeTab: DashboardTab;
+  onNavigate: (tab: DashboardTab, targetId?: string) => void;
 }) {
   const auditReady = carriers.filter(isAuditReady).length;
 
@@ -649,7 +689,12 @@ function Sidebar({
             {group.items
               .filter((item) => !item.platformOnly || session.platformSuperAdmin)
               .map((item) => (
-                <SidebarNavItem key={`${group.title}-${item.label}`} item={item} />
+                <SidebarNavItem
+                  key={`${group.title}-${item.label}`}
+                  item={item}
+                  activeTab={activeTab}
+                  onNavigate={onNavigate}
+                />
               ))}
           </div>
         ))}
@@ -690,12 +735,24 @@ function EmptyDashboardState({ session }: { session: AuthSession }) {
   );
 }
 
-function SidebarNavItem({ item }: { item: NavItem }) {
+function SidebarNavItem({
+  item,
+  activeTab,
+  onNavigate,
+}: {
+  item: NavItem;
+  activeTab: DashboardTab;
+  onNavigate: (tab: DashboardTab, targetId?: string) => void;
+}) {
   const Icon = item.icon;
+  const target = getSidebarTabTarget(item);
+  const isActive = Boolean(target && target.tab === activeTab);
   const className = `flex min-h-10 min-w-0 items-center gap-3 rounded-md border px-3.5 text-sm font-semibold transition ${
     item.placeholder
       ? "border-white/5 text-manifest-quiet opacity-80"
-      : "border-transparent text-manifest-muted hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white"
+      : isActive
+        ? "border-manifest-red/50 bg-manifest-red/15 text-white"
+        : "border-transparent text-manifest-muted hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white"
   }`;
   const content = (
     <>
@@ -704,6 +761,27 @@ function SidebarNavItem({ item }: { item: NavItem }) {
       {item.placeholder ? <span className="ml-auto text-[10px] font-extrabold uppercase tracking-[0.12em]">Soon</span> : null}
     </>
   );
+
+  if (item.placeholder) {
+    return (
+      <button type="button" className={`${className} cursor-not-allowed text-left`} disabled title="Coming soon">
+        {content}
+      </button>
+    );
+  }
+
+  if (target) {
+    return (
+      <button
+        type="button"
+        onClick={() => onNavigate(target.tab, target.targetId)}
+        className={`${className} text-left`}
+        aria-current={isActive ? "page" : undefined}
+      >
+        {content}
+      </button>
+    );
+  }
 
   return item.href.startsWith("/") ? (
     <Link href={item.href} className={className}>
@@ -714,6 +792,30 @@ function SidebarNavItem({ item }: { item: NavItem }) {
       {content}
     </a>
   );
+}
+
+function getSidebarTabTarget(item: NavItem): { tab: DashboardTab; targetId?: string } | null {
+  if (item.href.startsWith("/")) return null;
+
+  switch (item.label) {
+    case "Overview":
+    case "Dashboard":
+    case "Analytics":
+      return { tab: "overview", targetId: "overview" };
+    case "Notifications":
+      return { tab: "operations", targetId: "notifications" };
+    case "Audit Logs":
+      return { tab: "activity" };
+    case "Carrier Profiles":
+      return { tab: "compliance", targetId: "carriers" };
+    case "Required Documents":
+    case "Documents":
+      return { tab: "documents", targetId: "documents" };
+    case "Activity Timeline":
+      return { tab: "activity", targetId: "activity-summary" };
+    default:
+      return null;
+  }
 }
 
 function ModulePlaceholder({
