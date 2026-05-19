@@ -26,13 +26,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   <img
     src="/logo.png"
     alt="Manifest Global Logistics"
-    className="h-16 w-auto object-contain"
+    className="h-20 w-auto object-contain"
   />
 </div>
 
               <p className="eyebrow">Secure Compliance Portal</p>
-              <h2 className="max-w-xl text-5xl font-extrabold leading-[0.95] tracking-normal text-white max-md:text-3xl">
-                Carrier compliance access for operations, audits, and renewals.
+              <h2 className="text-4xl font-extrabold leading-[1.15] tracking-normal text-white max-md:text-3xl">
+                BUILD SMARTER.<br />MOVE STRONGER.<br />PROTECT THE BUSINESS.
               </h2>
             </div>
 
@@ -48,7 +48,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <p className="eyebrow">Authentication</p>
           <h2 className="text-3xl font-extrabold tracking-normal text-white">Sign in</h2>
           <p className="mt-3 text-sm leading-6 text-manifest-muted">
-            Use your Manifest Global Logistics account to access carrier compliance records.
+            Use your registered account to securely access your dashboard.
           </p>
 
           {params.error ? (
