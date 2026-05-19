@@ -160,91 +160,98 @@ export function CarrierDocumentUploader({
         setError(null);
         setMessage("Document metadata saved.");
       }}
-      className="grid gap-3 rounded-md border border-white/10 bg-black/25 p-3"
+      className="grid grid-cols-[minmax(260px,1fr)_minmax(260px,0.9fr)] gap-3 rounded-md border border-white/10 bg-black/25 p-3 max-lg:grid-cols-1"
     >
       <input type="hidden" name="carrierId" value={carrierId} />
       <input type="hidden" name="documentName" value={document.name} />
 
-      <label className="flex items-center justify-between gap-3 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
-        Uploaded
-        <input
-          name="uploaded"
-          type="checkbox"
-          defaultChecked={document.uploaded}
-          disabled={!canEdit}
-          className="h-4 w-4 accent-manifest-red disabled:opacity-50"
-        />
-      </label>
-
-      <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
-        Expiration Date
-        <input
-          ref={expirationRef}
-          name="expirationDate"
-          type="date"
-          defaultValue={document.expirationDate ?? ""}
-          disabled={!canEdit}
-          className="form-control disabled:cursor-not-allowed disabled:opacity-60"
-        />
-      </label>
-
-      <label
-        onDragOver={(event) => {
-          event.preventDefault();
-          if (canEdit) setIsDragging(true);
-        }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-        className={`grid min-h-32 cursor-pointer place-items-center rounded-md border border-dashed p-4 text-center transition ${
-          isDragging
-            ? "border-manifest-red bg-manifest-red/15"
-            : uploadState === "complete"
-              ? "border-manifest-green/45 bg-manifest-green/10"
-              : "border-white/15 bg-black/25 hover:border-manifest-red/50 hover:bg-manifest-red/10"
-        } ${canEdit ? "" : "cursor-not-allowed opacity-60"}`}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          disabled={!canEdit || isUploading}
-          className="sr-only"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) {
-              void handleUpload(file);
-            }
-            event.currentTarget.value = "";
-          }}
-        />
-        <span className="grid justify-items-center gap-2">
-          <UploadCloud className="h-6 w-6 text-manifest-red" />
-          <span className="text-sm font-extrabold text-white">
-            {isUploading ? "Uploading document..." : hasFile ? "Replace document" : "Drop file or browse"}
-          </span>
-          <span className="text-xs font-bold text-manifest-muted">PDF, JPG, PNG, DOC, DOCX · 25 MB max</span>
-        </span>
-      </label>
-
-      {progress > 0 ? (
-        <div className="grid gap-2">
-          <div className="flex items-center justify-between text-xs font-bold text-manifest-muted">
-            <span>{progress < 100 ? "Uploading securely" : "Upload complete"}</span>
-            <span>{progress}%</span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-white/10">
-            <div
-              className={`h-full rounded-full transition-all ${progress === 100 ? "bg-manifest-green" : "bg-gradient-to-r from-manifest-red to-manifest-danger"}`}
-              style={{ width: `${progress}%` }}
+      <div className="grid gap-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 max-sm:grid-cols-1">
+          <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+            Expiration Date
+            <input
+              ref={expirationRef}
+              name="expirationDate"
+              type="date"
+              defaultValue={document.expirationDate ?? ""}
+              disabled={!canEdit}
+              className="form-control disabled:cursor-not-allowed disabled:opacity-60"
             />
-          </div>
-          <span className="text-xs leading-5 text-manifest-muted">
-            {progress < 100 ? "Keep this tab open while the file is uploaded and versioned." : "Metadata saved and the dashboard is refreshing."}
-          </span>
-        </div>
-      ) : null}
+          </label>
 
-      <div className="rounded-md border border-white/10 bg-black/25 p-3">
+          <label className="flex min-h-11 items-center justify-between gap-3 rounded-md border border-white/10 bg-black/25 px-3 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+            Uploaded
+            <input
+              name="uploaded"
+              type="checkbox"
+              defaultChecked={document.uploaded}
+              disabled={!canEdit}
+              className="h-4 w-4 accent-manifest-red disabled:opacity-50"
+            />
+          </label>
+        </div>
+
+        <label
+          onDragOver={(event) => {
+            event.preventDefault();
+            if (canEdit) setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+          className={`grid min-h-24 cursor-pointer place-items-center rounded-md border border-dashed px-4 py-3 text-center transition ${
+            isDragging
+              ? "border-manifest-red bg-manifest-red/15"
+              : uploadState === "complete"
+                ? "border-manifest-green/45 bg-manifest-green/10"
+                : "border-white/15 bg-black/25 hover:border-manifest-red/50 hover:bg-manifest-red/10"
+          } ${canEdit ? "" : "cursor-not-allowed opacity-60"}`}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            disabled={!canEdit || isUploading}
+            className="sr-only"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) {
+                void handleUpload(file);
+              }
+              event.currentTarget.value = "";
+            }}
+          />
+          <span className="flex items-center justify-center gap-3 text-left max-sm:grid max-sm:justify-items-center max-sm:text-center">
+            <UploadCloud className="h-5 w-5 shrink-0 text-manifest-red" />
+            <span className="grid gap-1">
+              <span className="text-sm font-extrabold text-white">
+                {isUploading ? "Uploading document..." : hasFile ? "Replace document" : "Drop file or browse"}
+              </span>
+              <span className="text-xs font-bold text-manifest-muted">PDF, JPG, PNG, DOC, DOCX · 25 MB max</span>
+            </span>
+          </span>
+        </label>
+
+        {progress > 0 ? (
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between text-xs font-bold text-manifest-muted">
+              <span>{progress < 100 ? "Uploading securely" : "Upload complete"}</span>
+              <span>{progress}%</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-white/10">
+              <div
+                className={`h-full rounded-full transition-all ${progress === 100 ? "bg-manifest-green" : "bg-gradient-to-r from-manifest-red to-manifest-danger"}`}
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <span className="text-xs leading-5 text-manifest-muted">
+              {progress < 100 ? "Keep this tab open while the file is uploaded and versioned." : "Metadata saved and the dashboard is refreshing."}
+            </span>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="grid gap-3">
+        <div className="rounded-md border border-white/10 bg-black/25 p-3">
         <span className="mb-2 block text-[11px] font-extrabold uppercase tracking-[0.18em] text-manifest-quiet">
           Current File
         </span>
@@ -272,7 +279,7 @@ export function CarrierDocumentUploader({
         )}
       </div>
 
-      <label className="grid gap-2">
+        <label className="grid gap-2">
         <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-manifest-quiet">
           Document Notes
         </span>
@@ -288,36 +295,37 @@ export function CarrierDocumentUploader({
         />
       </label>
 
-      {message ? <p className="rounded-md border border-manifest-green/30 bg-manifest-green/10 px-3 py-2 text-xs font-bold text-manifest-green">{message}</p> : null}
-      {error ? <p className="rounded-md border border-manifest-danger/35 bg-manifest-danger/10 px-3 py-2 text-xs font-bold text-manifest-danger">{error}</p> : null}
+        {message ? <p className="rounded-md border border-manifest-green/30 bg-manifest-green/10 px-3 py-2 text-xs font-bold text-manifest-green">{message}</p> : null}
+        {error ? <p className="rounded-md border border-manifest-danger/35 bg-manifest-danger/10 px-3 py-2 text-xs font-bold text-manifest-danger">{error}</p> : null}
 
-      {canEdit ? (
-        <div className="flex flex-wrap gap-2">
-          <button className="form-button" disabled={isPending || isUploading}>
-            {isPending ? "Saving..." : "Save document"}
-          </button>
-          <button
-            type="button"
-            disabled={isUploading}
-            onClick={() => fileInputRef.current?.click()}
-            className="form-button"
-          >
-            <FileUp className="mr-1.5 h-3.5 w-3.5" />
-            Select file
-          </button>
-          {hasFile ? (
+        {canEdit ? (
+          <div className="flex flex-wrap gap-2">
+            <button className="form-button" disabled={isPending || isUploading}>
+              {isPending ? "Saving..." : "Save document"}
+            </button>
             <button
               type="button"
               disabled={isUploading}
               onClick={() => fileInputRef.current?.click()}
               className="form-button"
             >
-              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-              Replace
+              <FileUp className="mr-1.5 h-3.5 w-3.5" />
+              Select file
             </button>
-          ) : null}
-        </div>
-      ) : null}
+            {hasFile ? (
+              <button
+                type="button"
+                disabled={isUploading}
+                onClick={() => fileInputRef.current?.click()}
+                className="form-button"
+              >
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                Replace
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
       {message ? <div className="toast" role="status">{message}</div> : null}
       {error ? <div className="toast border-manifest-danger/45" role="alert">{error}</div> : null}
     </form>

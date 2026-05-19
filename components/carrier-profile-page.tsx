@@ -341,14 +341,15 @@ function DocumentUploadRow({
   canEdit: boolean;
 }) {
   return (
-    <article className={`section-panel p-4 ${documentBorder(document.status)}`}>
-      <div className="grid grid-cols-[minmax(220px,1fr)_minmax(220px,0.7fr)_minmax(260px,0.9fr)] gap-4 max-xl:grid-cols-1">
-        <div className="flex items-start gap-3">
+    <article className={`section-panel p-3.5 ${documentBorder(document.status)}`}>
+      <div className="grid grid-cols-[minmax(260px,0.7fr)_minmax(0,1.7fr)] gap-3 max-xl:grid-cols-1">
+        <div className="min-w-0 rounded-md border border-white/10 bg-black/20 p-3">
+          <div className="flex items-start gap-3">
           <span className="mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-md border border-white/10 bg-black/30">
             <ClipboardCheck className="h-4 w-4 text-manifest-red" />
           </span>
-          <div>
-            <h3 className="mb-1 text-base font-bold leading-tight text-white">{document.name}</h3>
+          <div className="min-w-0">
+            <h3 className="mb-1 truncate text-base font-bold leading-tight text-white">{document.name}</h3>
             <div className="flex flex-wrap gap-2">
               <StatusChip value={document.uploaded ? "Uploaded" : "Not uploaded"} />
               <StatusChip value={document.status} type="document" />
@@ -356,11 +357,12 @@ function DocumentUploadRow({
           </div>
         </div>
 
-        <dl className="grid gap-2.5 rounded-md border border-white/10 bg-black/25 p-3">
+          <dl className="mt-3 grid grid-cols-3 gap-2 max-sm:grid-cols-1">
           <ChecklistTerm label="Expiration" value={document.expirationDate ?? "No expiration"} />
           <ChecklistTerm label="Days" value={document.daysUntilExpiration ?? "N/A"} />
           <ChecklistTerm label="File" value={document.fileName ?? "No file uploaded"} />
         </dl>
+        </div>
 
         <CarrierDocumentUploader carrierId={carrier.id} document={document} canEdit={canEdit} />
       </div>
@@ -443,9 +445,11 @@ function InfoTile({
 
 function ChecklistTerm({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="flex items-center justify-between gap-2 border-t border-white/10 pt-2.5">
-      <dt className="text-[11px] font-extrabold uppercase text-manifest-quiet">{label}</dt>
-      <dd className="text-sm text-white">{value}</dd>
+    <div className="min-w-0 rounded-md border border-white/10 bg-white/[0.025] px-2.5 py-2">
+      <dt className="text-[10px] font-extrabold uppercase text-manifest-quiet">{label}</dt>
+      <dd className="mt-1 truncate text-sm font-semibold text-white" title={String(value)}>
+        {value}
+      </dd>
     </div>
   );
 }
