@@ -5,6 +5,7 @@ import {
   ClipboardCheck,
   Download,
   FileCheck2,
+  FileText,
   Mail,
   Phone,
   Route,
@@ -66,6 +67,13 @@ export function CarrierProfilePage({ carrier, session, loads = [] }: { carrier: 
               >
                 <Route className="h-4 w-4" />
                 Loads
+              </Link>
+              <Link
+                href="/invoices"
+                className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-3 text-sm font-bold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white"
+              >
+                <FileText className="h-4 w-4" />
+                Invoices
               </Link>
             </div>
           )}

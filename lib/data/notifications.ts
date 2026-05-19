@@ -1,5 +1,7 @@
 import { generateComplianceNotifications } from "@/lib/notifications";
 import { getLoads } from "@/lib/data/loads";
+import { getInvoices } from "@/lib/data/invoices";
+import { generateInvoiceOperationalNotifications } from "@/lib/data/invoice-notifications";
 import { generateLoadOperationalNotifications } from "@/lib/data/load-notifications";
 import { getCurrentSession } from "@/lib/integrations/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -26,12 +28,15 @@ type NotificationRow = {
 
 export async function getNotifications(carriers: Carrier[]): Promise<ComplianceNotification[]> {
   const generated = generateComplianceNotifications(carriers);
-  const generatedLoadNotifications = generateLoadOperationalNotifications(await getLoads());
+  const loads = await getLoads();
+  const invoices = await getInvoices();
+  const generatedLoadNotifications = generateLoadOperationalNotifications(loads);
+  const generatedInvoiceNotifications = generateInvoiceOperationalNotifications(loads, invoices);
   const session = await getCurrentSession();
   const supabase = await createClient();
 
   if (!supabase) {
-    return [...generatedLoadNotifications, ...generated];
+    return [...generatedInvoiceNotifications, ...generatedLoadNotifications, ...generated];
   }
 
   let query = supabase
@@ -52,7 +57,7 @@ export async function getNotifications(carriers: Carrier[]): Promise<ComplianceN
   const { data, error } = await query;
 
   if (error || !data?.length) {
-    return [...generatedLoadNotifications, ...generated];
+    return [...generatedInvoiceNotifications, ...generatedLoadNotifications, ...generated];
   }
 
   return [
@@ -74,6 +79,7 @@ export async function getNotifications(carriers: Carrier[]): Promise<ComplianceN
     ruleKey: row.rule_key,
     metadata: row.metadata ?? {},
   })),
+    ...generatedInvoiceNotifications,
     ...generatedLoadNotifications,
     ...generated,
   ];

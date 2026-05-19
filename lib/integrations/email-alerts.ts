@@ -7,7 +7,7 @@ export type EmailDispatchInput = {
   subject: string;
   html: string;
   text: string;
-  category: NotificationCategory | "pod_delivery";
+  category: NotificationCategory | "pod_delivery" | "invoice_delivery";
   from?: string;
 };
 
@@ -160,6 +160,57 @@ export function createPodDeliveryEmail(input: {
   };
 }
 
+export function createInvoiceDeliveryEmail(input: {
+  invoiceNumber: string;
+  loadNumber: string;
+  brokerName: string;
+  carrierName: string;
+  origin: string;
+  destination: string;
+  deliveryDate: string | null;
+  totalAmount: number;
+  invoiceUrl: string;
+  podUrl: string | null;
+}) {
+  const subject = `Invoice ${input.invoiceNumber} for Load ${input.loadNumber}`;
+  const greeting = input.brokerName ? `Hello ${input.brokerName},` : "Hello,";
+  const text = [
+    greeting,
+    "",
+    `Invoice ${input.invoiceNumber} is ready for load ${input.loadNumber}.`,
+    `Carrier: ${input.carrierName}`,
+    `Lane: ${input.origin} to ${input.destination}`,
+    input.deliveryDate ? `Delivery date: ${input.deliveryDate}` : "",
+    `Total amount: ${formatEmailMoney(input.totalAmount)}`,
+    `Invoice PDF: ${input.invoiceUrl}`,
+    input.podUrl ? `POD: ${input.podUrl}` : "",
+    "",
+    "Payment instructions: Please remit payment according to the broker-carrier agreement on file.",
+    "",
+    "Thank you for working with Manifest Global Logistics.",
+    "ManifestOS",
+  ].filter(Boolean).join("\n");
+
+  return {
+    subject,
+    text,
+    html: baseEmailTemplate({
+      eyebrow: "Broker Billing",
+      title: `Invoice ${input.invoiceNumber}`,
+      body: `Invoice for load ${input.loadNumber} is ready for review and payment processing.`,
+      details: [
+        ["Carrier", input.carrierName],
+        ["Origin", input.origin],
+        ["Destination", input.destination],
+        ["Delivery date", input.deliveryDate ?? "Not set"],
+        ["Amount due", formatEmailMoney(input.totalAmount)],
+        ["Invoice PDF", input.invoiceUrl],
+        ["POD", input.podUrl ?? "Not attached"],
+      ],
+    }),
+  };
+}
+
 async function parseResendError(response: Response) {
   try {
     const payload = await response.json() as { message?: string; error?: string; name?: string };
@@ -205,4 +256,8 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function formatEmailMoney(value: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
 }

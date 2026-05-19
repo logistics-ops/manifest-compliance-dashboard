@@ -2,10 +2,12 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound, redirect } from "next/navigation";
 import { Archive, ArrowLeft, CheckCircle2, FileUp, Mail, Route, Send, Truck } from "lucide-react";
+import { generateInvoiceAction, markInvoicePaidAction, sendInvoiceAction } from "@/app/actions/invoices";
 import { sendPodToBrokerAction, updateLoadDetailsAction, updateLoadStatusAction } from "@/app/actions/loads";
 import { LoadDocumentUploader } from "@/components/load-document-uploader";
 import { StatusChip } from "@/components/status-chip";
 import { getLoadActivityTimeline, type LoadActivityItem } from "@/lib/data/load-activity";
+import { getInvoicesForLoad } from "@/lib/data/invoices";
 import { getLoad } from "@/lib/data/loads";
 import { requireSession } from "@/lib/integrations/auth";
 import { canAccessLoadRecord, canUploadLoadDocumentType } from "@/lib/security/tenant-rules";
@@ -36,6 +38,8 @@ export default async function LoadDetailPage({ params, searchParams }: LoadPageP
   const canUploadRateConfirmation = canUploadLoadDocumentType(session, { organizationId: load.organizationId, carrierId: load.carrierId }, "rate_confirmation");
   const canUploadPod = canUploadLoadDocumentType(session, { organizationId: load.organizationId, carrierId: load.carrierId }, "pod");
   const timeline = await getLoadActivityTimeline(load);
+  const invoices = await getInvoicesForLoad(load.id);
+  const latestInvoice = invoices[0] ?? null;
 
   return (
     <main className="min-h-screen p-8 max-md:p-4">
@@ -148,6 +152,53 @@ export default async function LoadDetailPage({ params, searchParams }: LoadPageP
               </form>
             ) : null}
           </div>
+        </section>
+
+        <section className="section-panel mt-5 p-6 max-md:p-4">
+          <div className="mb-5 flex items-start justify-between gap-4 max-md:flex-col">
+            <div>
+              <p className="eyebrow">Broker Billing</p>
+              <h2 className="text-2xl font-extrabold tracking-normal text-white">Invoice workflow</h2>
+              <p className="mt-2 text-sm leading-6 text-manifest-muted">
+                Generate and deliver broker invoices after POD evidence is available.
+              </p>
+            </div>
+            {latestInvoice ? <StatusChip value={`Invoice ${formatStatus(latestInvoice.status)}`} /> : <StatusChip value="No invoice" />}
+          </div>
+
+          {latestInvoice ? (
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 rounded-md border border-white/10 bg-black/25 p-4 max-lg:grid-cols-1">
+              <div>
+                <Link href={`/invoices/${latestInvoice.id}`} className="text-lg font-extrabold text-white hover:text-manifest-red">{latestInvoice.invoiceNumber}</Link>
+                <p className="mt-1 text-sm text-manifest-muted">{formatMoney(latestInvoice.totalAmount)} · {latestInvoice.brokerEmail || "No broker email"}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {latestInvoice.storagePath ? <a href={`/invoices/${latestInvoice.id}/download`} className="form-button">Download</a> : null}
+                <form action={sendInvoiceAction}>
+                  <input type="hidden" name="invoiceId" value={latestInvoice.id} />
+                  <button className="form-button" disabled={!latestInvoice.storagePath || !latestInvoice.brokerEmail}>{latestInvoice.sentAt ? "Resend invoice" : "Send invoice"}</button>
+                </form>
+                <form action={markInvoicePaidAction}>
+                  <input type="hidden" name="invoiceId" value={latestInvoice.id} />
+                  <button className="form-button" disabled={latestInvoice.status === "paid" || latestInvoice.status === "void"}>Mark paid</button>
+                </form>
+              </div>
+            </div>
+          ) : (
+            <form action={generateInvoiceAction} className="rounded-md border border-white/10 bg-black/25 p-4">
+              <input type="hidden" name="loadId" value={load.id} />
+              <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                Invoice notes
+                <textarea name="notes" className="form-control min-h-20 resize-y" placeholder="Optional broker billing notes." />
+              </label>
+              <button className="form-button mt-4" disabled={!pod && load.status !== "pod_sent"}>
+                Generate Invoice
+              </button>
+              {!pod && load.status !== "pod_sent" ? (
+                <p className="mt-2 text-xs text-manifest-muted">Upload or send a POD before generating an invoice.</p>
+              ) : null}
+            </form>
+          )}
         </section>
 
         {canEdit ? (

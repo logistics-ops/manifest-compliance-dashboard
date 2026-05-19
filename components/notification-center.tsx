@@ -21,7 +21,7 @@ export function NotificationCenter({
   const [query, setQuery] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<"all" | ComplianceNotification["priority"]>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | ComplianceNotification["status"]>("all");
-  const [categoryFilter, setCategoryFilter] = useState<"all" | "compliance" | "load" | "archive">("all");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | "compliance" | "load" | "archive" | "invoice">("all");
   const [toast, setToast] = useState<string | null>(null);
   const stats = getNotificationStats(notifications);
   const visibleNotifications = useMemo(() => {
@@ -108,6 +108,7 @@ export function NotificationCenter({
             <option value="compliance">Compliance</option>
             <option value="load">Load</option>
             <option value="archive">Archive</option>
+            <option value="invoice">Invoice</option>
           </select>
         </label>
         <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
@@ -240,6 +241,7 @@ function formatCategory(category: string) {
 function getCategoryGroup(category: string) {
   if (category === "load_operation") return "load";
   if (category === "archive_operation") return "archive";
+  if (category === "invoice_operation") return "invoice";
   return "compliance";
 }
 

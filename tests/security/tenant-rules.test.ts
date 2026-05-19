@@ -5,11 +5,13 @@ import {
   assertTenantStoragePath,
   canAccessAuditLogRecord,
   canAccessCarrierRecord,
+  canAccessInvoiceRecord,
   canAccessLoadRecord,
   canAccessLoadTimeline,
   canDeleteArchivedLoadFiles,
   canExportLoadArchive,
   canExportOrganizationLoadArchive,
+  canGenerateInvoiceRecord,
   canAccessNotificationRecord,
   canAccessOrganizationRecord,
   canCreateLoadRecord,
@@ -22,9 +24,12 @@ import {
   canRoleAccessDashboard,
   canRoleManageCarriers,
   canRoleManageCompliance,
+  canSendInvoiceRecord,
+  canUpdateInvoiceStatusRecord,
   isTenantStoragePath,
   isLoadStoragePath,
   isLoadDocumentStoragePath,
+  isInvoiceStoragePath,
 } from "../../lib/security/tenant-rules";
 
 const orgA = "org-a";
@@ -273,6 +278,33 @@ test("load document storage paths are scoped under organization and load", () =>
   assert.equal(isLoadDocumentStoragePath(validPath, orgA, "load-a", "pod"), true);
   assert.equal(isLoadDocumentStoragePath(rateConPath, orgA, "load-a", "rate_confirmation"), true);
   assert.equal(isLoadDocumentStoragePath(validPath, orgA, "load-a", "rate_confirmation"), false);
+});
+
+test("invoice permissions preserve carrier and organization isolation", () => {
+  const platform = session({ role: "admin", organizationId: null, platformSuperAdmin: true });
+  const admin = session({ role: "admin" });
+  const staff = session({ role: "staff" });
+  const carrierUser = session({ role: "carrier", carrierId: carrierA });
+  const otherCarrierUser = session({ role: "carrier", carrierId: carrierB });
+  const invoiceA = { organizationId: orgA, carrierId: carrierA };
+  const invoiceB = { organizationId: orgB, carrierId: carrierB };
+
+  assert.equal(canAccessInvoiceRecord(platform, invoiceB, false), true);
+  assert.equal(canAccessInvoiceRecord(admin, invoiceA, true), true);
+  assert.equal(canAccessInvoiceRecord(staff, invoiceA, true), true);
+  assert.equal(canAccessInvoiceRecord(carrierUser, invoiceA, true), true);
+  assert.equal(canAccessInvoiceRecord(carrierUser, { organizationId: orgA, carrierId: carrierB }, true), false);
+  assert.equal(canAccessInvoiceRecord(otherCarrierUser, invoiceA, true), false);
+  assert.equal(canGenerateInvoiceRecord(carrierUser, invoiceA, true), true);
+  assert.equal(canGenerateInvoiceRecord(carrierUser, { organizationId: orgA, carrierId: carrierB }, true), false);
+  assert.equal(canSendInvoiceRecord(admin, invoiceA, true), true);
+  assert.equal(canSendInvoiceRecord(carrierUser, invoiceA, true), true);
+  assert.equal(canSendInvoiceRecord(otherCarrierUser, invoiceA, true), false);
+  assert.equal(canUpdateInvoiceStatusRecord(staff, invoiceA, true), true);
+  assert.equal(canUpdateInvoiceStatusRecord(carrierUser, invoiceA, true), true);
+  assert.equal(canUpdateInvoiceStatusRecord(carrierUser, invoiceA, false), false);
+  assert.equal(isInvoiceStoragePath(`organizations/${orgA}/loads/load-a/invoices/v1/invoice.pdf`, orgA, "load-a"), true);
+  assert.equal(isInvoiceStoragePath(`organizations/${orgB}/loads/load-a/invoices/v1/invoice.pdf`, orgA, "load-a"), false);
 });
 
 test("audit log access is scoped by platform, organization, and role sensitivity", () => {

@@ -17,6 +17,8 @@ export type LoadAccessRecord = TenantRecord & {
   carrierId: string;
 };
 
+export type InvoiceAccessRecord = LoadAccessRecord;
+
 export type AuditLogAccessRecord = TenantRecord & {
   action: string;
 };
@@ -47,6 +49,12 @@ export const staffAuditActions = new Set([
   "load.archive_downloaded",
   "load.archive_status_changed",
   "load.archive_files_deleted",
+  "invoice.generated",
+  "invoice.sent",
+  "invoice.resent",
+  "invoice.paid",
+  "invoice.voided",
+  "invoice.downloaded",
 ]);
 
 export function canRoleAccessDashboard(role: UserRole, platformSuperAdmin = false) {
@@ -186,6 +194,52 @@ export function canDeleteArchivedLoadFiles(
   organizationIsActive = true,
 ) {
   return canManageLoadRecord(session, load, organizationIsActive);
+}
+
+export function canAccessInvoiceRecord(
+  session: AuthSession | null,
+  invoice: InvoiceAccessRecord,
+  organizationIsActive = true,
+) {
+  return canAccessLoadRecord(session, invoice, organizationIsActive);
+}
+
+export function canGenerateInvoiceRecord(
+  session: AuthSession | null,
+  invoice: InvoiceAccessRecord,
+  organizationIsActive = true,
+) {
+  return canCreateLoadRecord(session, invoice, organizationIsActive);
+}
+
+export function canSendInvoiceRecord(
+  session: AuthSession | null,
+  invoice: InvoiceAccessRecord,
+  organizationIsActive = true,
+) {
+  return canCreateLoadRecord(session, invoice, organizationIsActive);
+}
+
+export function canUpdateInvoiceStatusRecord(
+  session: AuthSession | null,
+  invoice: InvoiceAccessRecord,
+  organizationIsActive = true,
+) {
+  return canCreateLoadRecord(session, invoice, organizationIsActive);
+}
+
+export function getInvoiceStoragePrefix(organizationId: string, loadId: string) {
+  return `${getLoadStoragePrefix(organizationId, loadId)}invoices/`;
+}
+
+export function isInvoiceStoragePath(storagePath: string, organizationId: string, loadId: string) {
+  return storagePath.startsWith(getInvoiceStoragePrefix(organizationId, loadId));
+}
+
+export function assertInvoiceStoragePath(storagePath: string, organizationId: string, loadId: string) {
+  if (!isInvoiceStoragePath(storagePath, organizationId, loadId)) {
+    throw new Error("Invoice PDF path does not match the current organization and load.");
+  }
 }
 
 export function canMutateTenantRecord(

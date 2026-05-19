@@ -50,7 +50,8 @@ export type NotificationCategory =
   | "high_risk_carrier"
   | "weekly_summary"
   | "load_operation"
-  | "archive_operation";
+  | "archive_operation"
+  | "invoice_operation";
 
 export type NotificationStatus = "unread" | "read" | "dismissed";
 

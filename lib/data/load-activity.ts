@@ -111,6 +111,12 @@ function getTimelineTitle(action: string) {
     "load.archive_status_changed": "Load archived",
     "load.archive_downloaded": "Archive downloaded",
     "load.archive_files_deleted": "Archived files deleted",
+    "invoice.generated": "Invoice generated",
+    "invoice.sent": "Invoice sent",
+    "invoice.resent": "Invoice resent",
+    "invoice.paid": "Invoice marked paid",
+    "invoice.voided": "Invoice voided",
+    "invoice.downloaded": "Invoice downloaded",
   };
 
   return titles[action] ?? action.replace("load.", "").replace(/_/g, " ");
