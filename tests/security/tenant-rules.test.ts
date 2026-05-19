@@ -192,6 +192,19 @@ test("load access is scoped by organization, role, and linked carrier", () => {
   assert.equal(canUploadLoadDocumentType(carrierUser, loadA, "pod", true), true);
 });
 
+test("carrier direct load route attempts are blocked across carriers and organizations", () => {
+  const carrierUser = session({ role: "carrier", carrierId: carrierA, organizationId: orgA });
+  const sameOrgOtherCarrierLoad = { organizationId: orgA, carrierId: carrierB };
+  const otherOrgSameCarrierIdLoad = { organizationId: orgB, carrierId: carrierA };
+  const otherOrgOtherCarrierLoad = { organizationId: orgB, carrierId: carrierB };
+
+  assert.equal(canAccessLoadRecord(carrierUser, sameOrgOtherCarrierLoad, true), false);
+  assert.equal(canAccessLoadRecord(carrierUser, otherOrgSameCarrierIdLoad, true), false);
+  assert.equal(canAccessLoadRecord(carrierUser, otherOrgOtherCarrierLoad, true), false);
+  assert.equal(canUploadLoadDocument(carrierUser, sameOrgOtherCarrierLoad, true), false);
+  assert.equal(canUploadLoadDocumentType(carrierUser, sameOrgOtherCarrierLoad, "pod", true), false);
+});
+
 test("load document storage paths are scoped under organization and load", () => {
   const validPath = `organizations/${orgA}/loads/load-a/pod/v1/file.pdf`;
   const rateConPath = `organizations/${orgA}/loads/load-a/rate-confirmation/v1/file.pdf`;

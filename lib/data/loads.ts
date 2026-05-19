@@ -125,6 +125,10 @@ async function getCarrierNamesByTenant(
     query = query.eq("organization_id", session.organizationId);
   }
 
+  if (session.role === "carrier" && session.carrierId && !session.platformSuperAdmin) {
+    query = query.eq("carrier_id", session.carrierId);
+  }
+
   const { data, error } = await query;
 
   if (error || !data) {
