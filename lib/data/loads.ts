@@ -21,7 +21,11 @@ type LoadRow = {
   status: LoadStatus;
   notes: string | null;
   pod_sent_at: string | null;
+  archived_at: string | null;
+  archived_by: string | null;
+  files_deleted_at: string | null;
   created_at: string;
+  updated_at: string;
 };
 
 type LoadDocumentRow = {
@@ -82,6 +86,22 @@ export async function getLoadsResult(): Promise<{ loads: Load[]; error: string |
   return { loads: loadRows.map((row) => mapLoadRow(row, carrierNames, documentsByLoad)), error: null };
 }
 
+export async function getLoadArchiveMetrics(loads?: Load[]) {
+  noStore();
+  const session = await getCurrentSession();
+  const supabase = await createClient();
+  const tenantLoads = loads ?? await getLoads();
+  const documents = tenantLoads.flatMap((load) => load.documents);
+
+  return {
+    activeLoads: tenantLoads.filter((load) => !load.archivedAt).length,
+    archivedLoads: tenantLoads.filter((load) => Boolean(load.archivedAt)).length,
+    estimatedStorageBytes: documents.reduce((total, document) => total + Number(document.fileSize ?? 0), 0),
+    archivedFilesDeletedCount: tenantLoads.filter((load) => Boolean(load.filesDeletedAt)).length,
+    exportHistory: await getArchiveHistory(supabase, session),
+  };
+}
+
 export async function getLoad(loadId: string): Promise<Load | null> {
   const loads = await getLoads();
   return loads.find((load) => load.id === loadId) ?? null;
@@ -102,10 +122,38 @@ function buildLoadsQuery(
   }
 
   if (session.role === "carrier" && session.carrierId && !session.platformSuperAdmin) {
-    query = query.eq("carrier_id", session.carrierId);
+    query = query.eq("id", session.carrierId);
   }
 
   return query;
+}
+
+async function getArchiveHistory(
+  supabase: NonNullable<Awaited<ReturnType<typeof createClient>>> | null,
+  session: NonNullable<Awaited<ReturnType<typeof getCurrentSession>>> | null,
+) {
+  if (!supabase || !session) return [];
+
+  let query = supabase
+    .from("audit_logs")
+    .select("id, action, metadata, created_at")
+    .in("action", ["load.archive_exported", "load.archive_downloaded", "load.archive_status_changed", "load.archive_files_deleted"])
+    .order("created_at", { ascending: false })
+    .limit(8);
+
+  if (session.organizationId && !session.platformSuperAdmin) {
+    query = query.eq("organization_id", session.organizationId);
+  }
+
+  const { data, error } = await query;
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    action: row.action,
+    createdAt: row.created_at,
+    metadata: (row.metadata ?? {}) as Record<string, unknown>,
+  }));
 }
 
 async function getCarrierNamesByTenant(
@@ -204,8 +252,12 @@ function mapLoadRow(
     status: row.status,
     notes: row.notes ?? "",
     podSentAt: row.pod_sent_at,
+    archivedAt: row.archived_at,
+    archivedBy: row.archived_by,
+    filesDeletedAt: row.files_deleted_at,
     documents: (documentsByLoad.get(row.id) ?? []).sort((a, b) => b.versionNumber - a.versionNumber),
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ArrowLeft, Plus, Search, Truck } from "lucide-react";
-import { getLoadsResult } from "@/lib/data/loads";
+import { Archive, ArrowLeft, Download, Plus, Search, Trash2 } from "lucide-react";
+import { deleteArchivedLoadFilesAction, markLoadsArchivedAction } from "@/app/actions/loads";
+import { getLoadArchiveMetrics, getLoadsResult } from "@/lib/data/loads";
 import { requireSession } from "@/lib/integrations/auth";
 import { canManageCompliance } from "@/lib/auth/permissions";
 import { LoadDocumentUploader } from "@/components/load-document-uploader";
@@ -11,15 +12,17 @@ import type { LoadDocument, LoadDocumentType, LoadStatus } from "@/types/load";
 const statuses: Array<LoadStatus | "all"> = ["all", "booked", "in_transit", "delivered", "pod_uploaded", "pod_sent", "invoiced", "cancelled"];
 
 type LoadsPageProps = {
-  searchParams?: Promise<{ query?: string; status?: string }>;
+  searchParams?: Promise<{ query?: string; status?: string; archived?: string; success?: string; error?: string }>;
 };
 
 export default async function LoadsPage({ searchParams }: LoadsPageProps) {
   const session = await requireSession();
   const { loads, error: loadError } = await getLoadsResult();
+  const archiveMetrics = await getLoadArchiveMetrics(loads);
   const params = await searchParams;
   const query = params?.query?.trim().toLowerCase() ?? "";
   const status = statuses.includes(params?.status as LoadStatus | "all") ? params?.status ?? "all" : "all";
+  const archivedMode = params?.archived === "all" ? "all" : params?.archived === "archived" ? "archived" : "active";
   const filteredLoads = loads.filter((load) => {
     const haystack = [
       load.loadNumber,
@@ -33,8 +36,17 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
       load.destinationState,
     ].join(" ").toLowerCase();
 
-    return haystack.includes(query) && (status === "all" || load.status === status);
+    const archiveMatch =
+      archivedMode === "all" ||
+      (archivedMode === "active" && !load.archivedAt) ||
+      (archivedMode === "archived" && Boolean(load.archivedAt));
+
+    return archiveMatch && haystack.includes(query) && (status === "all" || load.status === status);
   });
+  const canManageArchives = canManageCompliance(session);
+  const carrierOptions = Array.from(new Map(loads.map((load) => [load.carrierId, load.carrierName])).entries());
+  const brokerOptions = Array.from(new Set(loads.map((load) => load.brokerName).filter(Boolean)));
+  const filteredLoadIds = filteredLoads.map((load) => load.id).join(",");
 
   return (
     <main className="min-h-screen p-8 max-md:p-4">
@@ -54,12 +66,118 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
             </p>
           </div>
           {canManageCompliance(session) || (session.role === "carrier" && Boolean(session.carrierId)) ? (
-            <Link href="/loads/new" className="form-button min-h-11 px-4 text-sm">
-              <Plus className="h-4 w-4" />
-              Create Load
-            </Link>
+            <div className="flex flex-wrap gap-3">
+              <a href={archiveUrl({ carrierId: session.role === "carrier" && !session.platformSuperAdmin ? session.carrierId ?? "" : "" })} className="form-button min-h-11 px-4 text-sm">
+                <Download className="h-4 w-4" />
+                Download Monthly Archive
+              </a>
+              <Link href="/loads/new" className="form-button min-h-11 px-4 text-sm">
+                <Plus className="h-4 w-4" />
+                Create Load
+              </Link>
+            </div>
           ) : null}
         </header>
+
+        {params?.success ? (
+          <div className="mb-5 rounded-md border border-manifest-green/35 bg-manifest-green/10 px-4 py-3 text-sm font-bold text-manifest-green">
+            {decodeURIComponent(params.success)}
+          </div>
+        ) : null}
+        {params?.error ? (
+          <div className="mb-5 rounded-md border border-manifest-danger/40 bg-manifest-danger/10 px-4 py-3 text-sm font-bold text-manifest-danger">
+            {decodeURIComponent(params.error)}
+          </div>
+        ) : null}
+
+        <section className="mb-5 grid grid-cols-[minmax(0,1fr)_minmax(320px,0.65fr)] gap-5 max-xl:grid-cols-1">
+          <div className="section-panel p-6 max-md:p-4">
+            <div className="mb-5 flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
+              <div>
+                <p className="eyebrow">Archive Export</p>
+                <h2 className="text-2xl font-extrabold tracking-normal text-white">Monthly load package</h2>
+              </div>
+              <Archive className="h-5 w-5 text-manifest-red" />
+            </div>
+            <form action="/loads/archive" method="get" className="grid grid-cols-3 gap-3 max-lg:grid-cols-2 max-md:grid-cols-1">
+              <Field label="Month" name="month" type="month" />
+              <Field label="From" name="from" type="date" />
+              <Field label="To" name="to" type="date" />
+              {session.role !== "carrier" || session.platformSuperAdmin ? (
+                <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                  Carrier
+                  <select name="carrierId" className="form-control">
+                    <option value="">All carriers</option>
+                    {carrierOptions.map(([carrierId, carrierName]) => <option key={carrierId} value={carrierId}>{carrierName}</option>)}
+                  </select>
+                </label>
+              ) : (
+                <input type="hidden" name="carrierId" value={session.carrierId ?? ""} />
+              )}
+              <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                Broker
+                <input name="broker" list="broker-options" className="form-control" placeholder="Any broker" />
+              </label>
+              <datalist id="broker-options">
+                {brokerOptions.map((broker) => <option key={broker} value={broker} />)}
+              </datalist>
+              <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                Status
+                <select name="status" defaultValue="all" className="form-control">
+                  {statuses.map((option) => <option key={option} value={option}>{formatStatus(option)}</option>)}
+                </select>
+              </label>
+              <button className="form-button self-end">
+                <Download className="h-4 w-4" />
+                Export ZIP
+              </button>
+            </form>
+          </div>
+
+          <div className="section-panel p-6 max-md:p-4">
+            <p className="eyebrow">Storage</p>
+            <h2 className="mb-4 text-2xl font-extrabold tracking-normal text-white">Archive posture</h2>
+            <div className="grid grid-cols-2 gap-3">
+              <Metric label="Active loads" value={archiveMetrics.activeLoads} />
+              <Metric label="Archived loads" value={archiveMetrics.archivedLoads} />
+              <Metric label="Estimated storage" value={formatBytes(archiveMetrics.estimatedStorageBytes)} />
+              <Metric label="Files deleted" value={archiveMetrics.archivedFilesDeletedCount} />
+            </div>
+          </div>
+        </section>
+
+        {canManageArchives ? (
+          <section className="section-panel mb-5 p-6 max-md:p-4">
+            <div className="mb-4 flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
+              <div>
+                <p className="eyebrow">Archive Controls</p>
+                <h2 className="text-2xl font-extrabold tracking-normal text-white">Filtered load archive actions</h2>
+              </div>
+              <StatusChip value={`${filteredLoads.length} filtered`} />
+            </div>
+            <div className="grid grid-cols-2 gap-4 max-lg:grid-cols-1">
+              <form action={markLoadsArchivedAction} className="rounded-md border border-white/10 bg-black/25 p-4">
+                <input type="hidden" name="loadIds" value={filteredLoadIds} />
+                <strong className="block text-sm text-white">Mark filtered loads archived</strong>
+                <p className="mt-2 text-sm leading-6 text-manifest-muted">Archived loads stay searchable and remain available in history views.</p>
+                <button className="form-button mt-4 w-fit" disabled={!filteredLoadIds}>
+                  <Archive className="h-4 w-4" />
+                  Mark archived
+                </button>
+              </form>
+              <form action={deleteArchivedLoadFilesAction} className="rounded-md border border-manifest-danger/35 bg-manifest-danger/10 p-4">
+                <input type="hidden" name="loadIds" value={filteredLoadIds} />
+                <strong className="block text-sm text-white">Delete archived files from storage</strong>
+                <p className="mt-2 text-sm leading-6 text-manifest-muted">This only removes archived POD/rate confirmation objects. Load metadata remains.</p>
+                <input name="confirmDelete" className="form-control mt-4" placeholder="Type DELETE_ARCHIVED_FILES" />
+                <button className="form-button mt-3 w-fit">
+                  <Trash2 className="h-4 w-4" />
+                  Delete archived files
+                </button>
+              </form>
+            </div>
+          </section>
+        ) : null}
 
         <section className="section-panel p-6 max-md:p-4">
           <div className="mb-5 flex items-end justify-between gap-4 max-lg:flex-col max-lg:items-stretch">
@@ -81,6 +199,14 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
                   {statuses.map((option) => (
                     <option key={option} value={option}>{formatStatus(option)}</option>
                   ))}
+                </select>
+              </label>
+              <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                View
+                <select name="archived" defaultValue={archivedMode} className="form-control">
+                  <option value="active">Active loads</option>
+                  <option value="archived">Archived loads</option>
+                  <option value="all">All history</option>
                 </select>
               </label>
               <button className="form-button mb-0.5 self-end">Filter</button>
@@ -105,6 +231,7 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
                   <th className="border-b border-white/10 px-4 py-4">Rate</th>
                   <th className="border-b border-white/10 px-4 py-4">Rate Confirmation</th>
                   <th className="border-b border-white/10 px-4 py-4">Status</th>
+                  <th className="border-b border-white/10 px-4 py-4">Archive</th>
                 </tr>
               </thead>
               <tbody>
@@ -146,11 +273,14 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
                       </div>
                     </td>
                     <td className="border-b border-white/10 px-4 py-4"><StatusChip value={formatStatus(load.status)} /></td>
+                    <td className="border-b border-white/10 px-4 py-4 text-xs font-bold text-manifest-muted">
+                      {load.archivedAt ? `Archived ${formatDate(load.archivedAt)}` : "Active"}
+                    </td>
                   </tr>
                 );
                 }) : (
                   <tr>
-                    <td colSpan={8} className="border-b border-white/10 px-4 py-8">
+                    <td colSpan={9} className="border-b border-white/10 px-4 py-8">
                       <div className="empty-state">No loads match the current filters.</div>
                     </td>
                   </tr>
@@ -159,8 +289,45 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
             </table>
           </div>
         </section>
+
+        <section className="section-panel mt-5 p-6 max-md:p-4">
+          <div className="mb-5">
+            <p className="eyebrow">Export History</p>
+            <h2 className="text-2xl font-extrabold tracking-normal text-white">Recent archive events</h2>
+          </div>
+          {archiveMetrics.exportHistory.length ? (
+            <div className="grid gap-2">
+              {archiveMetrics.exportHistory.map((event) => (
+                <div key={event.id} className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-black/25 p-3 text-sm max-md:flex-col max-md:items-start">
+                  <strong className="text-white">{event.action.replace("load.", "").replace(/_/g, " ")}</strong>
+                  <span className="text-manifest-muted">{formatDate(event.createdAt)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">No archive exports recorded yet.</div>
+          )}
+        </section>
       </div>
     </main>
+  );
+}
+
+function Field({ label, name, type }: { label: string; name: string; type: string }) {
+  return (
+    <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+      {label}
+      <input name={name} type={type} className="form-control" />
+    </label>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-md border border-white/10 bg-black/25 p-3">
+      <span className="panel-label">{label}</span>
+      <strong className="mt-2 block text-xl text-white">{value}</strong>
+    </div>
   );
 }
 
@@ -171,6 +338,24 @@ function formatStatus(value: string) {
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(value));
+}
+
+function formatBytes(value: number) {
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function archiveUrl(extra: { carrierId?: string } = {}) {
+  const params = new URLSearchParams();
+  const now = new Date();
+  params.set("month", `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
+  if (extra.carrierId) params.set("carrierId", extra.carrierId);
+  return `/loads/archive?${params.toString()}`;
 }
 
 function latestDocument(documents: LoadDocument[], documentType: LoadDocumentType) {

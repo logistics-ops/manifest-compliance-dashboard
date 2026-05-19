@@ -43,6 +43,10 @@ export const staffAuditActions = new Set([
   "load.rate_confirmation_uploaded",
   "load.pod_uploaded",
   "load.pod_sent",
+  "load.archive_exported",
+  "load.archive_downloaded",
+  "load.archive_status_changed",
+  "load.archive_files_deleted",
 ]);
 
 export function canRoleAccessDashboard(role: UserRole, platformSuperAdmin = false) {
@@ -152,6 +156,28 @@ export function canManageLoadDocumentRecord(
   organizationIsActive = true,
 ) {
   return canCreateLoadRecord(session, load, organizationIsActive);
+}
+
+export function canExportLoadArchive(
+  session: AuthSession | null,
+  load: LoadAccessRecord,
+  organizationIsActive = true,
+) {
+  return canAccessLoadRecord(session, load, organizationIsActive);
+}
+
+export function canExportOrganizationLoadArchive(session: AuthSession | null, organizationId: string | null) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  return canRoleManageCompliance(session.role) && canAccessOrganizationRecord(session, organizationId);
+}
+
+export function canDeleteArchivedLoadFiles(
+  session: AuthSession | null,
+  load: LoadAccessRecord,
+  organizationIsActive = true,
+) {
+  return canManageLoadRecord(session, load, organizationIsActive);
 }
 
 export function canMutateTenantRecord(

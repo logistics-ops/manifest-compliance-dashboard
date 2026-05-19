@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import {
   ArrowLeft,
   ClipboardCheck,
+  Download,
   FileCheck2,
   Mail,
   Phone,
@@ -239,6 +240,10 @@ export function CarrierProfilePage({ carrier, session, loads = [] }: { carrier: 
               <h2 className="text-2xl font-extrabold tracking-normal">Assigned loads</h2>
             </div>
             <div className="flex flex-wrap gap-2">
+              <a href={`/loads/archive?carrierId=${carrier.id}&month=${currentMonth()}`} className="form-button min-h-10 px-3 text-sm">
+                <Download className="h-4 w-4" />
+                Download Monthly Archive
+              </a>
               <StatusChip value={`${loads.length} load${loads.length === 1 ? "" : "s"}`} />
               <Route className="h-5 w-5 text-manifest-red" />
             </div>
@@ -413,4 +418,9 @@ function formatLoadStatus(value: string) {
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
+}
+
+function currentMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }

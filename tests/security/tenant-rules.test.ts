@@ -6,6 +6,9 @@ import {
   canAccessAuditLogRecord,
   canAccessCarrierRecord,
   canAccessLoadRecord,
+  canDeleteArchivedLoadFiles,
+  canExportLoadArchive,
+  canExportOrganizationLoadArchive,
   canAccessNotificationRecord,
   canAccessOrganizationRecord,
   canCreateLoadRecord,
@@ -200,6 +203,15 @@ test("load access is scoped by organization, role, and linked carrier", () => {
   assert.equal(canUploadLoadDocumentType(staff, loadA, "rate_confirmation", true), true);
   assert.equal(canUploadLoadDocumentType(carrierUser, loadA, "rate_confirmation", true), true);
   assert.equal(canUploadLoadDocumentType(carrierUser, loadA, "pod", true), true);
+  assert.equal(canExportLoadArchive(carrierUser, loadA, true), true);
+  assert.equal(canExportLoadArchive(carrierUser, { organizationId: orgA, carrierId: carrierB }, true), false);
+  assert.equal(canExportOrganizationLoadArchive(carrierUser, orgA), false);
+  assert.equal(canExportOrganizationLoadArchive(staff, orgA), true);
+  assert.equal(canExportOrganizationLoadArchive(admin, orgA), true);
+  assert.equal(canExportOrganizationLoadArchive(platform, orgB), true);
+  assert.equal(canDeleteArchivedLoadFiles(admin, loadA, true), true);
+  assert.equal(canDeleteArchivedLoadFiles(staff, loadA, true), true);
+  assert.equal(canDeleteArchivedLoadFiles(carrierUser, loadA, true), false);
 });
 
 test("carrier direct load route attempts are blocked across carriers and organizations", () => {

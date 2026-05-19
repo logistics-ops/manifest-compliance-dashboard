@@ -8,6 +8,7 @@ import { createEmailDispatch, createPodDeliveryEmail } from "@/lib/integrations/
 import { requireSession, requireStaffAccess } from "@/lib/integrations/auth";
 import {
   assertLoadDocumentStoragePath,
+  canDeleteArchivedLoadFiles,
   canCreateLoadRecord,
   canManageLoadRecord,
   canUploadLoadDocumentType,
@@ -345,6 +346,82 @@ export async function sendPodToBrokerAction(formData: FormData) {
   redirectWithLoadMessage(loadId, "POD sent to broker.", "success");
 }
 
+export async function markLoadsArchivedAction(formData: FormData) {
+  const session = await requireStaffAccess();
+  const supabase = await createClient();
+  const ids = getString(formData, "loadIds").split(",").map((id) => id.trim()).filter(Boolean);
+
+  if (!supabase) redirectWithArchiveMessage("Supabase is not configured.", "error");
+  if (!ids.length) redirectWithArchiveMessage("No loads matched the archive request.", "error");
+
+  const loads = await getLoads();
+  const authorized = loads.filter((load) => ids.includes(load.id) && canManageLoadRecord(session, { organizationId: load.organizationId, carrierId: load.carrierId }));
+  if (!authorized.length) redirectWithArchiveMessage("No authorized loads matched the archive request.", "error");
+
+  const archivedAt = new Date().toISOString();
+  const { error } = await supabase
+    .from("loads")
+    .update({ archived_at: archivedAt, archived_by: session.userId })
+    .in("id", authorized.map((load) => load.id));
+
+  if (error) redirectWithArchiveMessage(error.message, "error");
+
+  await writeAuditLog({
+    organizationId: session.platformSuperAdmin ? null : session.organizationId,
+    actorUserId: session.userId,
+    action: "load.archive_status_changed",
+    entityType: "load_archive",
+    metadata: { loadIds: authorized.map((load) => load.id), loadCount: authorized.length, archivedAt },
+  });
+
+  revalidatePath("/loads");
+  redirectWithArchiveMessage(`${authorized.length} load${authorized.length === 1 ? "" : "s"} marked archived.`, "success");
+}
+
+export async function deleteArchivedLoadFilesAction(formData: FormData) {
+  const session = await requireStaffAccess();
+  const supabase = await createClient();
+  const ids = getString(formData, "loadIds").split(",").map((id) => id.trim()).filter(Boolean);
+  const confirmed = getString(formData, "confirmDelete") === "DELETE_ARCHIVED_FILES";
+
+  if (!supabase) redirectWithArchiveMessage("Supabase is not configured.", "error");
+  if (!confirmed) redirectWithArchiveMessage("Type DELETE_ARCHIVED_FILES to confirm storage deletion.", "error");
+  if (!ids.length) redirectWithArchiveMessage("No archived loads matched the deletion request.", "error");
+
+  const loads = await getLoads();
+  const authorized = loads.filter((load) =>
+    ids.includes(load.id) &&
+    load.archivedAt &&
+    !load.filesDeletedAt &&
+    canDeleteArchivedLoadFiles(session, { organizationId: load.organizationId, carrierId: load.carrierId }),
+  );
+  const paths = authorized.flatMap((load) => load.documents.map((document) => document.storagePath).filter(Boolean));
+
+  if (!paths.length) redirectWithArchiveMessage("No archived document files were available for deletion.", "error");
+
+  const { error: removeError } = await supabase.storage.from(STORAGE_BUCKET).remove(paths);
+  if (removeError) redirectWithArchiveMessage(removeError.message, "error");
+
+  const deletedAt = new Date().toISOString();
+  const { error: updateError } = await supabase
+    .from("loads")
+    .update({ files_deleted_at: deletedAt })
+    .in("id", authorized.map((load) => load.id));
+
+  if (updateError) redirectWithArchiveMessage(updateError.message, "error");
+
+  await writeAuditLog({
+    organizationId: session.platformSuperAdmin ? null : session.organizationId,
+    actorUserId: session.userId,
+    action: "load.archive_files_deleted",
+    entityType: "load_archive",
+    metadata: { loadIds: authorized.map((load) => load.id), fileCount: paths.length, deletedAt },
+  });
+
+  revalidatePath("/loads");
+  redirectWithArchiveMessage(`${paths.length} archived file${paths.length === 1 ? "" : "s"} deleted from storage.`, "success");
+}
+
 type LoadAuthTarget = {
   id: string;
   organizationId: string;
@@ -456,4 +533,8 @@ function redirectWithCreateError(message: string): never {
 function redirectWithLoadMessage(loadId: string, message: string, type: "success" | "error"): never {
   const target = loadId ? `/loads/${loadId}` : "/loads";
   redirect(`${target}?${type}=${encodeURIComponent(message)}`);
+}
+
+function redirectWithArchiveMessage(message: string, type: "success" | "error"): never {
+  redirect(`/loads?${type}=${encodeURIComponent(message)}`);
 }

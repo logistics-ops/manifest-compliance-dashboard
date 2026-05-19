@@ -285,6 +285,9 @@ create table public.loads (
   created_by uuid references public.users(id) on delete set null,
   pod_sent_at timestamptz,
   pod_sent_by uuid references public.users(id) on delete set null,
+  archived_at timestamptz,
+  archived_by uuid references public.users(id) on delete set null,
+  files_deleted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (organization_id, load_number)
@@ -360,6 +363,8 @@ create index if not exists loads_organization_id_idx on public.loads(organizatio
 create index if not exists loads_carrier_id_idx on public.loads(carrier_id);
 create index if not exists loads_status_idx on public.loads(status);
 create index if not exists loads_pickup_date_idx on public.loads(pickup_date);
+create index if not exists loads_archived_at_idx on public.loads(archived_at);
+create index if not exists loads_files_deleted_at_idx on public.loads(files_deleted_at);
 create index if not exists load_documents_organization_id_idx on public.load_documents(organization_id);
 create index if not exists load_documents_load_id_idx on public.load_documents(load_id);
 create index if not exists load_documents_carrier_id_idx on public.load_documents(carrier_id);
@@ -498,6 +503,9 @@ foreign key (organization_id, created_by)
 references public.users(organization_id, id),
 add constraint loads_organization_pod_sent_by_fkey
 foreign key (organization_id, pod_sent_by)
+references public.users(organization_id, id),
+add constraint loads_organization_archived_by_fkey
+foreign key (organization_id, archived_by)
 references public.users(organization_id, id),
 add constraint loads_organization_id_id_unique unique (organization_id, id);
 
@@ -1355,6 +1363,34 @@ using (
         or (
           public.current_user_role() = 'carrier'::public.app_role
           and public.current_user_carrier_id() = loads.carrier_id
+        )
+      )
+  )
+);
+
+create policy "Admins can delete archived load document files"
+on storage.objects for delete
+to authenticated
+using (
+  bucket_id = 'carrier-documents'
+  and (storage.foldername(name))[1] = 'organizations'
+  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and public.can_access_organization(((storage.foldername(name))[2])::uuid)
+  and (storage.foldername(name))[3] = 'loads'
+  and (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+  and (storage.foldername(name))[5] in ('rate-confirmation', 'pod')
+  and exists (
+    select 1
+    from public.loads
+    where loads.organization_id = ((storage.foldername(name))[2])::uuid
+      and loads.id = ((storage.foldername(name))[4])::uuid
+      and loads.archived_at is not null
+      and loads.files_deleted_at is null
+      and (
+        public.is_platform_super_admin()
+        or (
+          public.can_manage_compliance()
+          and public.can_access_organization(loads.organization_id)
         )
       )
   )

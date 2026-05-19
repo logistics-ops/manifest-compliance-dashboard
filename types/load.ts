@@ -40,6 +40,10 @@ export type Load = {
   status: LoadStatus;
   notes: string;
   podSentAt: string | null;
+  archivedAt: string | null;
+  archivedBy: string | null;
+  filesDeletedAt: string | null;
   documents: LoadDocument[];
   createdAt: string;
+  updatedAt: string;
 };
