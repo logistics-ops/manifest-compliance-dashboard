@@ -22,7 +22,6 @@ type LoadRow = {
   notes: string | null;
   pod_sent_at: string | null;
   created_at: string;
-  load_documents?: LoadDocumentRow[];
 };
 
 type LoadDocumentRow = {
@@ -34,7 +33,7 @@ type LoadDocumentRow = {
   mime_type: string | null;
   version_number: number;
   uploaded_at: string;
-  uploaded_by_user?: { full_name: string | null; email: string | null } | null;
+  uploaded_by_user?: { full_name: string | null; email: string | null } | Array<{ full_name: string | null; email: string | null }> | null;
 };
 
 type CarrierNameRow = {
@@ -57,8 +56,10 @@ export async function getLoads(): Promise<Load[]> {
     return [];
   }
 
-  const carrierNames = await getCarrierNamesByTenant(supabase, session, data as LoadRow[]);
-  return (data as LoadRow[]).map((row) => mapLoadRow(row, carrierNames));
+  const loadRows = data as LoadRow[];
+  const carrierNames = await getCarrierNamesByTenant(supabase, session, loadRows);
+  const documentsByLoad = await getLoadDocumentsByTenant(supabase, session, loadRows);
+  return loadRows.map((row) => mapLoadRow(row, carrierNames, documentsByLoad));
 }
 
 export async function getLoadsResult(): Promise<{ loads: Load[]; error: string | null }> {
@@ -75,8 +76,10 @@ export async function getLoadsResult(): Promise<{ loads: Load[]; error: string |
     return { loads: [], error: error?.message || "Unable to load loads." };
   }
 
-  const carrierNames = await getCarrierNamesByTenant(supabase, session, data as LoadRow[]);
-  return { loads: (data as LoadRow[]).map((row) => mapLoadRow(row, carrierNames)), error: null };
+  const loadRows = data as LoadRow[];
+  const carrierNames = await getCarrierNamesByTenant(supabase, session, loadRows);
+  const documentsByLoad = await getLoadDocumentsByTenant(supabase, session, loadRows);
+  return { loads: loadRows.map((row) => mapLoadRow(row, carrierNames, documentsByLoad)), error: null };
 }
 
 export async function getLoad(loadId: string): Promise<Load | null> {
@@ -90,7 +93,7 @@ function buildLoadsQuery(
 ) {
   let query = supabase
     .from("loads")
-    .select("*, load_documents(id, document_type, storage_path, file_name, file_size, mime_type, version_number, uploaded_at, uploaded_by_user:users!load_documents_uploaded_by_fkey(full_name, email))")
+    .select("*")
     .order("pickup_date", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 
@@ -137,7 +140,47 @@ async function getCarrierNamesByTenant(
   );
 }
 
-function mapLoadRow(row: LoadRow, carrierNames: Map<string, string>): Load {
+async function getLoadDocumentsByTenant(
+  supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
+  session: NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>,
+  loads: LoadRow[],
+) {
+  const loadIds = Array.from(new Set(loads.map((load) => load.id).filter(Boolean)));
+  if (!loadIds.length) return new Map<string, LoadDocument[]>();
+
+  let query = supabase
+    .from("load_documents")
+    .select("id, organization_id, load_id, document_type, storage_path, file_name, file_size, mime_type, version_number, uploaded_at, uploaded_by_user:users!load_documents_uploaded_by_fkey(full_name, email)")
+    .in("load_id", loadIds)
+    .in("document_type", ["rate_confirmation", "pod"])
+    .order("version_number", { ascending: false });
+
+  if (session.organizationId && !session.platformSuperAdmin) {
+    query = query.eq("organization_id", session.organizationId);
+  }
+
+  const { data, error } = await query;
+
+  if (error || !data) {
+    console.error("Unable to load load documents", error?.message);
+    return new Map<string, LoadDocument[]>();
+  }
+
+  const documentsByLoad = new Map<string, LoadDocument[]>();
+  (data as unknown as Array<LoadDocumentRow & { load_id: string; organization_id: string }>).forEach((document) => {
+    const documents = documentsByLoad.get(document.load_id) ?? [];
+    documents.push(mapLoadDocumentRow(document));
+    documentsByLoad.set(document.load_id, documents);
+  });
+
+  return documentsByLoad;
+}
+
+function mapLoadRow(
+  row: LoadRow,
+  carrierNames: Map<string, string>,
+  documentsByLoad: Map<string, LoadDocument[]>,
+): Load {
   return {
     id: row.id,
     organizationId: row.organization_id,
@@ -157,12 +200,14 @@ function mapLoadRow(row: LoadRow, carrierNames: Map<string, string>): Load {
     status: row.status,
     notes: row.notes ?? "",
     podSentAt: row.pod_sent_at,
-    documents: (row.load_documents ?? []).map(mapLoadDocumentRow).sort((a, b) => b.versionNumber - a.versionNumber),
+    documents: (documentsByLoad.get(row.id) ?? []).sort((a, b) => b.versionNumber - a.versionNumber),
     createdAt: row.created_at,
   };
 }
 
 function mapLoadDocumentRow(row: LoadDocumentRow): LoadDocument {
+  const uploadedByUser = Array.isArray(row.uploaded_by_user) ? row.uploaded_by_user[0] : row.uploaded_by_user;
+
   return {
     id: row.id,
     documentType: row.document_type,
@@ -171,7 +216,7 @@ function mapLoadDocumentRow(row: LoadDocumentRow): LoadDocument {
     fileSize: row.file_size,
     mimeType: row.mime_type,
     versionNumber: row.version_number,
-    uploadedBy: row.uploaded_by_user?.full_name || row.uploaded_by_user?.email || null,
+    uploadedBy: uploadedByUser?.full_name || uploadedByUser?.email || null,
     uploadedAt: row.uploaded_at,
   };
 }
