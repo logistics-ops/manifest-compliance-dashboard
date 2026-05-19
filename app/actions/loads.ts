@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { writeAuditLog } from "@/lib/audit";
 import { getLoads } from "@/lib/data/loads";
+import { upsertLoadNotification } from "@/lib/data/load-notifications";
 import { createEmailDispatch, createPodDeliveryEmail } from "@/lib/integrations/email-alerts";
 import { requireSession, requireStaffAccess } from "@/lib/integrations/auth";
 import {
@@ -54,7 +55,7 @@ export async function createLoadAction(formData: FormData) {
 
   const { data: carrier, error: carrierError } = await supabase
     .from("carriers")
-    .select("id")
+    .select("id, company_name")
     .eq("id", carrierId)
     .eq("organization_id", organizationId)
     .maybeSingle();
@@ -95,7 +96,12 @@ export async function createLoadAction(formData: FormData) {
     action: "load.created",
     entityType: "load",
     entityId: data.id,
-    metadata: { loadNumber: payload.load_number, carrierId },
+    metadata: {
+      load_number: payload.load_number,
+      carrier_id: carrierId,
+      carrier_name: carrier.company_name,
+      new_status: payload.status,
+    },
   });
 
   revalidatePath("/loads");
@@ -124,7 +130,13 @@ export async function updateLoadStatusAction(formData: FormData) {
     action: "load.status_changed",
     entityType: "load",
     entityId: loadId,
-    metadata: { status },
+    metadata: {
+      load_number: load.loadNumber,
+      carrier_id: load.carrierId,
+      carrier_name: load.carrierName,
+      previous_status: load.status,
+      new_status: status,
+    },
   });
 
   revalidateLoad(loadId);
@@ -179,7 +191,11 @@ export async function updateLoadDetailsAction(formData: FormData) {
     action: "load.updated",
     entityType: "load",
     entityId: loadId,
-    metadata: { loadNumber: payload.load_number },
+    metadata: {
+      load_number: payload.load_number,
+      carrier_id: load.carrierId,
+      carrier_name: load.carrierName,
+    },
   });
 
   revalidateLoad(loadId);
@@ -270,7 +286,24 @@ export async function finalizeLoadDocumentUploadAction(input: {
     action: documentType === "pod" ? "load.pod_uploaded" : "load.rate_confirmation_uploaded",
     entityType: "load_document",
     entityId: data.id,
-    metadata: { loadId: input.loadId, loadNumber: load.loadNumber, documentType, versionNumber: input.versionNumber },
+    metadata: {
+      load_id: input.loadId,
+      load_number: load.loadNumber,
+      carrier_id: load.carrierId,
+      carrier_name: load.carrierName,
+      document_type: documentType,
+      file_name: input.fileName,
+      version_number: input.versionNumber,
+    },
+  });
+
+  await upsertLoadNotification({
+    session,
+    load,
+    kind: documentType === "pod" ? "pod_uploaded" : "rate_confirmation_uploaded",
+    priority: documentType === "pod" ? "medium" : "low",
+    documentType,
+    fileName: input.fileName,
   });
 
   revalidateLoad(input.loadId);
@@ -339,7 +372,21 @@ export async function sendPodToBrokerAction(formData: FormData) {
     action: "load.pod_sent",
     entityType: "load",
     entityId: loadId,
-    metadata: { loadNumber: fullLoad.loadNumber, brokerEmail: load.brokerEmail },
+    metadata: {
+      load_number: fullLoad.loadNumber,
+      carrier_id: load.carrierId,
+      carrier_name: fullLoad.carrierName,
+      previous_status: fullLoad.status,
+      new_status: "pod_sent",
+      broker_email: load.brokerEmail,
+    },
+  });
+
+  await upsertLoadNotification({
+    session,
+    load: { ...load, carrierName: fullLoad.carrierName },
+    kind: "pod_sent",
+    priority: "medium",
   });
 
   revalidateLoad(loadId);
@@ -366,13 +413,27 @@ export async function markLoadsArchivedAction(formData: FormData) {
 
   if (error) redirectWithArchiveMessage(error.message, "error");
 
-  await writeAuditLog({
-    organizationId: session.platformSuperAdmin ? null : session.organizationId,
-    actorUserId: session.userId,
-    action: "load.archive_status_changed",
-    entityType: "load_archive",
-    metadata: { loadIds: authorized.map((load) => load.id), loadCount: authorized.length, archivedAt },
-  });
+  await Promise.all(authorized.map(async (load) => {
+    await writeAuditLog({
+      organizationId: load.organizationId,
+      actorUserId: session.userId,
+      action: "load.archive_status_changed",
+      entityType: "load",
+      entityId: load.id,
+      metadata: {
+        load_number: load.loadNumber,
+        carrier_id: load.carrierId,
+        carrier_name: load.carrierName,
+        archived_at: archivedAt,
+      },
+    });
+    await upsertLoadNotification({
+      session,
+      load,
+      kind: "load_archived",
+      priority: "low",
+    });
+  }));
 
   revalidatePath("/loads");
   redirectWithArchiveMessage(`${authorized.length} load${authorized.length === 1 ? "" : "s"} marked archived.`, "success");
@@ -410,13 +471,20 @@ export async function deleteArchivedLoadFilesAction(formData: FormData) {
 
   if (updateError) redirectWithArchiveMessage(updateError.message, "error");
 
-  await writeAuditLog({
-    organizationId: session.platformSuperAdmin ? null : session.organizationId,
+  await Promise.all(authorized.map((load) => writeAuditLog({
+    organizationId: load.organizationId,
     actorUserId: session.userId,
     action: "load.archive_files_deleted",
-    entityType: "load_archive",
-    metadata: { loadIds: authorized.map((load) => load.id), fileCount: paths.length, deletedAt },
-  });
+    entityType: "load",
+    entityId: load.id,
+    metadata: {
+      load_number: load.loadNumber,
+      carrier_id: load.carrierId,
+      carrier_name: load.carrierName,
+      file_count: load.documents.length,
+      files_deleted_at: deletedAt,
+    },
+  })));
 
   revalidatePath("/loads");
   redirectWithArchiveMessage(`${paths.length} archived file${paths.length === 1 ? "" : "s"} deleted from storage.`, "success");
@@ -428,6 +496,8 @@ type LoadAuthTarget = {
   carrierId: string;
   loadNumber: string;
   brokerEmail: string;
+  carrierName: string;
+  status: LoadStatus;
 };
 
 async function assertCanUploadLoadDocument(
@@ -480,18 +550,21 @@ async function getLoadAuthTarget(
 ): Promise<LoadAuthTarget | null> {
   const { data } = await supabase
     .from("loads")
-    .select("id, organization_id, carrier_id, load_number, broker_email")
+    .select("id, organization_id, carrier_id, load_number, broker_email, status, carriers!loads_organization_carrier_fkey(company_name)")
     .eq("id", loadId)
     .maybeSingle();
 
   if (!data) return null;
 
+  const carrier = Array.isArray(data.carriers) ? data.carriers[0] : data.carriers;
   return {
     id: data.id,
     organizationId: data.organization_id,
     carrierId: data.carrier_id,
     loadNumber: data.load_number,
     brokerEmail: data.broker_email ?? "",
+    carrierName: carrier?.company_name ?? "Carrier",
+    status: data.status,
   };
 }
 

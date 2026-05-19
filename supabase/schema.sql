@@ -23,7 +23,9 @@ create type public.notification_category as enum (
   'expired_document',
   'expired_insurance',
   'high_risk_carrier',
-  'weekly_summary'
+  'weekly_summary',
+  'load_operation',
+  'archive_operation'
 );
 create type public.load_status as enum (
   'booked',
@@ -1197,7 +1199,11 @@ using (
     'load.status_changed',
     'load.rate_confirmation_uploaded',
     'load.pod_uploaded',
-    'load.pod_sent'
+    'load.pod_sent',
+    'load.archive_exported',
+    'load.archive_downloaded',
+    'load.archive_status_changed',
+    'load.archive_files_deleted'
   )
 );
 

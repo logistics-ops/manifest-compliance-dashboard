@@ -48,7 +48,9 @@ export type NotificationCategory =
   | "expired_document"
   | "expired_insurance"
   | "high_risk_carrier"
-  | "weekly_summary";
+  | "weekly_summary"
+  | "load_operation"
+  | "archive_operation";
 
 export type NotificationStatus = "unread" | "read" | "dismissed";
 
@@ -68,6 +70,7 @@ export type ComplianceNotification = {
   dismissedAt: string | null;
   dueDate: string | null;
   ruleKey: string;
+  metadata?: Record<string, unknown>;
 };
 
 export type RequiredDocumentName =

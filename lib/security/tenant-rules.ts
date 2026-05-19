@@ -166,6 +166,14 @@ export function canExportLoadArchive(
   return canAccessLoadRecord(session, load, organizationIsActive);
 }
 
+export function canAccessLoadTimeline(
+  session: AuthSession | null,
+  load: LoadAccessRecord,
+  organizationIsActive = true,
+) {
+  return canAccessLoadRecord(session, load, organizationIsActive);
+}
+
 export function canExportOrganizationLoadArchive(session: AuthSession | null, organizationId: string | null) {
   if (!session) return false;
   if (session.platformSuperAdmin) return true;

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Archive, ArrowLeft, Download, Plus, Search, Trash2 } from "lucide-react";
 import { deleteArchivedLoadFilesAction, markLoadsArchivedAction } from "@/app/actions/loads";
+import { getRecentLoadActivity } from "@/lib/data/load-activity";
 import { getLoadArchiveMetrics, getLoadsResult } from "@/lib/data/loads";
 import { requireSession } from "@/lib/integrations/auth";
 import { canManageCompliance } from "@/lib/auth/permissions";
@@ -19,6 +20,7 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
   const session = await requireSession();
   const { loads, error: loadError } = await getLoadsResult();
   const archiveMetrics = await getLoadArchiveMetrics(loads);
+  const recentActivity = await getRecentLoadActivity(6);
   const params = await searchParams;
   const query = params?.query?.trim().toLowerCase() ?? "";
   const status = statuses.includes(params?.status as LoadStatus | "all") ? params?.status ?? "all" : "all";
@@ -47,6 +49,9 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
   const carrierOptions = Array.from(new Map(loads.map((load) => [load.carrierId, load.carrierName])).entries());
   const brokerOptions = Array.from(new Set(loads.map((load) => load.brokerName).filter(Boolean)));
   const filteredLoadIds = filteredLoads.map((load) => load.id).join(",");
+  const pendingPodMissing = loads.filter((load) => load.status === "delivered" && !latestDocument(load.documents, "pod")).length;
+  const pendingNotInvoiced = loads.filter((load) => ["delivered", "pod_sent"].includes(load.status)).length;
+  const pendingRateConMissing = loads.filter((load) => !latestDocument(load.documents, "rate_confirmation")).length;
 
   return (
     <main className="min-h-screen p-8 max-md:p-4">
@@ -143,6 +148,37 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
               <Metric label="Estimated storage" value={formatBytes(archiveMetrics.estimatedStorageBytes)} />
               <Metric label="Files deleted" value={archiveMetrics.archivedFilesDeletedCount} />
             </div>
+          </div>
+        </section>
+
+        <section className="mb-5 grid grid-cols-[minmax(0,0.7fr)_minmax(0,1fr)] gap-5 max-xl:grid-cols-1">
+          <div className="section-panel p-6 max-md:p-4">
+            <p className="eyebrow">Pending Actions</p>
+            <h2 className="mb-4 text-2xl font-extrabold tracking-normal text-white">Operational follow-up</h2>
+            <div className="grid gap-3">
+              <PendingAction label="POD missing" value={pendingPodMissing} />
+              <PendingAction label="Delivered not invoiced" value={pendingNotInvoiced} />
+              <PendingAction label="Rate con missing" value={pendingRateConMissing} />
+            </div>
+          </div>
+          <div className="section-panel p-6 max-md:p-4">
+            <p className="eyebrow">Recent Load Activity</p>
+            <h2 className="mb-4 text-2xl font-extrabold tracking-normal text-white">Latest operational events</h2>
+            {recentActivity.length ? (
+              <div className="grid gap-2">
+                {recentActivity.map((event) => (
+                  <div key={event.id} className="flex items-start justify-between gap-3 rounded-md border border-white/10 bg-black/25 p-3 max-md:flex-col">
+                    <div>
+                      <strong className="block text-sm text-white">{event.title}</strong>
+                      <span className="text-xs text-manifest-muted">Load {String(event.metadata.load_number ?? event.metadata.loadNumber ?? "")}</span>
+                    </div>
+                    <span className="text-xs font-bold text-manifest-muted">{formatDate(event.timestamp)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state">No recent load activity recorded yet.</div>
+            )}
           </div>
         </section>
 
@@ -327,6 +363,15 @@ function Metric({ label, value }: { label: string; value: string | number }) {
     <div className="rounded-md border border-white/10 bg-black/25 p-3">
       <span className="panel-label">{label}</span>
       <strong className="mt-2 block text-xl text-white">{value}</strong>
+    </div>
+  );
+}
+
+function PendingAction({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-black/25 p-3">
+      <span className="text-sm font-bold text-manifest-muted">{label}</span>
+      <strong className={value ? "text-xl text-manifest-amber" : "text-xl text-manifest-green"}>{value}</strong>
     </div>
   );
 }

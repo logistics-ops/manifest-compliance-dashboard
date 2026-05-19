@@ -6,6 +6,7 @@ import {
   canAccessAuditLogRecord,
   canAccessCarrierRecord,
   canAccessLoadRecord,
+  canAccessLoadTimeline,
   canDeleteArchivedLoadFiles,
   canExportLoadArchive,
   canExportOrganizationLoadArchive,
@@ -185,6 +186,10 @@ test("load access is scoped by organization, role, and linked carrier", () => {
   assert.equal(canAccessLoadRecord(carrierUser, { organizationId: orgA, carrierId: carrierB }, true), false);
   assert.equal(canAccessLoadRecord(otherCarrierUser, loadA, true), false);
   assert.equal(canAccessLoadRecord(carrierUser, loadA, false), false);
+  assert.equal(canAccessLoadTimeline(carrierUser, loadA, true), true);
+  assert.equal(canAccessLoadTimeline(carrierUser, { organizationId: orgA, carrierId: carrierB }, true), false);
+  assert.equal(canAccessLoadTimeline(admin, loadA, true), true);
+  assert.equal(canAccessLoadTimeline(platform, loadB, false), true);
 
   assert.equal(canManageLoadRecord(admin, loadA, true), true);
   assert.equal(canManageLoadRecord(staff, loadA, true), true);
@@ -225,6 +230,35 @@ test("carrier direct load route attempts are blocked across carriers and organiz
   assert.equal(canAccessLoadRecord(carrierUser, otherOrgOtherCarrierLoad, true), false);
   assert.equal(canUploadLoadDocument(carrierUser, sameOrgOtherCarrierLoad, true), false);
   assert.equal(canUploadLoadDocumentType(carrierUser, sameOrgOtherCarrierLoad, "pod", true), false);
+  assert.equal(canAccessLoadTimeline(carrierUser, sameOrgOtherCarrierLoad, true), false);
+  assert.equal(canAccessLoadTimeline(carrierUser, otherOrgSameCarrierIdLoad, true), false);
+});
+
+test("load notification scoping blocks organization-wide and cross-carrier load alerts for carriers", () => {
+  const admin = session({ role: "admin" });
+  const platform = session({ role: "admin", organizationId: null, platformSuperAdmin: true });
+  const carrierUser = session({ role: "carrier", userId: "carrier-user-a", carrierId: carrierA });
+
+  assert.equal(
+    canAccessNotificationRecord(carrierUser, { organizationId: orgA, carrierId: carrierA, assignedTo: null }, true),
+    true,
+  );
+  assert.equal(
+    canAccessNotificationRecord(carrierUser, { organizationId: orgA, carrierId: carrierB, assignedTo: null }, true),
+    false,
+  );
+  assert.equal(
+    canAccessNotificationRecord(carrierUser, { organizationId: orgA, carrierId: null, assignedTo: null }, true),
+    false,
+  );
+  assert.equal(
+    canAccessNotificationRecord(admin, { organizationId: orgA, carrierId: null, assignedTo: null }, true),
+    true,
+  );
+  assert.equal(
+    canAccessNotificationRecord(platform, { organizationId: orgB, carrierId: null, assignedTo: null }, false),
+    true,
+  );
 });
 
 test("load document storage paths are scoped under organization and load", () => {

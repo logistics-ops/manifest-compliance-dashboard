@@ -1,10 +1,11 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Mail, Route, Send, Truck } from "lucide-react";
+import { Archive, ArrowLeft, CheckCircle2, FileUp, Mail, Route, Send, Truck } from "lucide-react";
 import { sendPodToBrokerAction, updateLoadDetailsAction, updateLoadStatusAction } from "@/app/actions/loads";
 import { LoadDocumentUploader } from "@/components/load-document-uploader";
 import { StatusChip } from "@/components/status-chip";
+import { getLoadActivityTimeline, type LoadActivityItem } from "@/lib/data/load-activity";
 import { getLoad } from "@/lib/data/loads";
 import { requireSession } from "@/lib/integrations/auth";
 import { canAccessLoadRecord, canUploadLoadDocumentType } from "@/lib/security/tenant-rules";
@@ -34,6 +35,7 @@ export default async function LoadDetailPage({ params, searchParams }: LoadPageP
   const canEdit = canAccessLoadRecord(session, { organizationId: load.organizationId, carrierId: load.carrierId });
   const canUploadRateConfirmation = canUploadLoadDocumentType(session, { organizationId: load.organizationId, carrierId: load.carrierId }, "rate_confirmation");
   const canUploadPod = canUploadLoadDocumentType(session, { organizationId: load.organizationId, carrierId: load.carrierId }, "pod");
+  const timeline = await getLoadActivityTimeline(load);
 
   return (
     <main className="min-h-screen p-8 max-md:p-4">
@@ -177,9 +179,61 @@ export default async function LoadDetailPage({ params, searchParams }: LoadPageP
             </form>
           </section>
         ) : null}
+
+        <section className="section-panel mt-5 p-6 max-md:p-4">
+          <div className="mb-5">
+            <p className="eyebrow">Activity Timeline</p>
+            <h2 className="text-2xl font-extrabold tracking-normal text-white">Operational history</h2>
+          </div>
+          {timeline.length ? (
+            <div className="relative grid gap-4 before:absolute before:left-4 before:top-2 before:h-[calc(100%-1rem)] before:w-px before:bg-white/10">
+              {timeline.map((event) => (
+                <TimelineItem key={event.id} event={event} />
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">No activity recorded yet.</div>
+          )}
+        </section>
       </div>
     </main>
   );
+}
+
+function TimelineItem({ event }: { event: LoadActivityItem }) {
+  return (
+    <article className="relative grid grid-cols-[2rem_minmax(0,1fr)] gap-3">
+      <span className="relative z-10 grid h-8 w-8 place-items-center rounded-full border border-manifest-red/45 bg-[#111114] text-manifest-red">
+        {timelineIcon(event.action)}
+      </span>
+      <div className="rounded-md border border-white/10 bg-black/25 p-4">
+        <div className="flex items-start justify-between gap-3 max-md:flex-col">
+          <div>
+            <h3 className="text-base font-extrabold text-white">{event.title}</h3>
+            <p className="mt-1 text-xs font-bold text-manifest-muted">By {event.actor}</p>
+          </div>
+          <span className="text-xs font-bold text-manifest-muted">{formatDateTime(event.timestamp)}</span>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {Object.entries(event.metadata)
+            .filter(([key, value]) => !key.includes("note") && value !== null && value !== undefined && value !== "")
+            .slice(0, 8)
+            .map(([key, value]) => (
+              <span key={key} className="rounded-md border border-white/10 bg-white/[0.035] px-2 py-1 text-[11px] font-bold text-manifest-muted">
+                {formatMetadataKey(key)}: {String(value)}
+              </span>
+            ))}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function timelineIcon(action: string) {
+  if (action.includes("archive")) return <Archive className="h-4 w-4" />;
+  if (action.includes("uploaded")) return <FileUp className="h-4 w-4" />;
+  if (action.includes("pod_sent")) return <Send className="h-4 w-4" />;
+  return <CheckCircle2 className="h-4 w-4" />;
 }
 
 function Field({
@@ -226,4 +280,18 @@ function formatStatus(value: string) {
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatMetadataKey(value: string) {
+  return value.replace(/_/g, " ");
 }

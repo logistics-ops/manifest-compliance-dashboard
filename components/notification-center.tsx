@@ -21,6 +21,7 @@ export function NotificationCenter({
   const [query, setQuery] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<"all" | ComplianceNotification["priority"]>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | ComplianceNotification["status"]>("all");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | "compliance" | "load" | "archive">("all");
   const [toast, setToast] = useState<string | null>(null);
   const stats = getNotificationStats(notifications);
   const visibleNotifications = useMemo(() => {
@@ -29,6 +30,7 @@ export function NotificationCenter({
     return notifications
       .filter((notification) => priorityFilter === "all" || notification.priority === priorityFilter)
       .filter((notification) => statusFilter === "all" || notification.status === statusFilter)
+      .filter((notification) => categoryFilter === "all" || getCategoryGroup(notification.category) === categoryFilter)
       .filter((notification) => {
         if (!needle) return true;
 
@@ -44,7 +46,7 @@ export function NotificationCenter({
           .includes(needle);
       })
       .slice(0, 12);
-  }, [notifications, priorityFilter, query, statusFilter]);
+  }, [categoryFilter, notifications, priorityFilter, query, statusFilter]);
 
   function showToast(message: string) {
     setToast(message);
@@ -85,7 +87,7 @@ export function NotificationCenter({
         <NotificationStat label="Assigned" value={stats.assigned} tone="text-manifest-green" />
       </div>
 
-      <div className="mb-5 grid grid-cols-[minmax(0,1fr)_180px_180px] gap-3 max-lg:grid-cols-1">
+      <div className="mb-5 grid grid-cols-[minmax(0,1fr)_180px_180px_180px] gap-3 max-lg:grid-cols-1">
         <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
           Search alerts
           <span className="relative">
@@ -98,6 +100,15 @@ export function NotificationCenter({
               type="search"
             />
           </span>
+        </label>
+        <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+          Type
+          <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value as typeof categoryFilter)} className="form-control">
+            <option value="all">All types</option>
+            <option value="compliance">Compliance</option>
+            <option value="load">Load</option>
+            <option value="archive">Archive</option>
+          </select>
         </label>
         <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
           Priority
@@ -157,6 +168,11 @@ export function NotificationCenter({
                 </div>
 
                 <div className="flex flex-wrap content-start justify-end gap-2 max-md:justify-start">
+                  {getLoadId(notification) ? (
+                    <Link href={`/loads/${getLoadId(notification)}`} className="form-button">
+                      Open load
+                    </Link>
+                  ) : null}
                   {notification.carrierId ? (
                     <Link href={`/carriers/${notification.carrierId}`} className="form-button">
                       Open carrier
@@ -219,6 +235,17 @@ function NotificationStat({
 
 function formatCategory(category: string) {
   return category.replace(/_/g, " ");
+}
+
+function getCategoryGroup(category: string) {
+  if (category === "load_operation") return "load";
+  if (category === "archive_operation") return "archive";
+  return "compliance";
+}
+
+function getLoadId(notification: ComplianceNotification) {
+  const value = notification.metadata?.load_id;
+  return typeof value === "string" ? value : null;
 }
 
 function formatDateTime(value: string) {

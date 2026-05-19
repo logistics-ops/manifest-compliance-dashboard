@@ -1,4 +1,6 @@
 import { generateComplianceNotifications } from "@/lib/notifications";
+import { getLoads } from "@/lib/data/loads";
+import { generateLoadOperationalNotifications } from "@/lib/data/load-notifications";
 import { getCurrentSession } from "@/lib/integrations/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { Carrier, ComplianceNotification, NotificationPriority, NotificationStatus } from "@/types/carrier";
@@ -19,15 +21,17 @@ type NotificationRow = {
   dismissed_at: string | null;
   due_date: string | null;
   rule_key: string;
+  metadata: Record<string, unknown> | null;
 };
 
 export async function getNotifications(carriers: Carrier[]): Promise<ComplianceNotification[]> {
   const generated = generateComplianceNotifications(carriers);
+  const generatedLoadNotifications = generateLoadOperationalNotifications(await getLoads());
   const session = await getCurrentSession();
   const supabase = await createClient();
 
   if (!supabase) {
-    return generated;
+    return [...generatedLoadNotifications, ...generated];
   }
 
   let query = supabase
@@ -41,13 +45,18 @@ export async function getNotifications(carriers: Carrier[]): Promise<ComplianceN
     query = query.eq("organization_id", session.organizationId);
   }
 
+  if (session?.role === "carrier" && session.carrierId && !session.platformSuperAdmin) {
+    query = query.eq("carrier_id", session.carrierId);
+  }
+
   const { data, error } = await query;
 
   if (error || !data?.length) {
-    return generated;
+    return [...generatedLoadNotifications, ...generated];
   }
 
-  return (data as NotificationRow[]).map((row) => ({
+  return [
+    ...(data as NotificationRow[]).map((row) => ({
     id: row.id,
     carrierId: row.carrier_id,
     carrierName: row.carriers?.company_name ?? "Carrier",
@@ -63,5 +72,9 @@ export async function getNotifications(carriers: Carrier[]): Promise<ComplianceN
     dismissedAt: row.dismissed_at,
     dueDate: row.due_date,
     ruleKey: row.rule_key,
-  }));
+    metadata: row.metadata ?? {},
+  })),
+    ...generatedLoadNotifications,
+    ...generated,
+  ];
 }

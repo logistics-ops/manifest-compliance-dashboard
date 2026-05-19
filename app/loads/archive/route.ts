@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { writeAuditLog } from "@/lib/audit";
+import { upsertLoadNotification } from "@/lib/data/load-notifications";
 import { getLoads } from "@/lib/data/loads";
 import { requireSession } from "@/lib/integrations/auth";
 import { createLoadsSummaryXlsx, type ArchiveSummaryRow } from "@/lib/archives/xlsx";
@@ -36,21 +37,31 @@ export async function GET(request: NextRequest) {
     return response.body;
   });
 
-  await writeAuditLog({
-    organizationId: session.platformSuperAdmin ? null : session.organizationId,
-    actorUserId: session.userId,
-    action: "load.archive_downloaded",
-    entityType: "load_archive",
-    metadata: {
-      loadCount: loads.length,
-      carrierId: params.get("carrierId") || null,
-      broker: params.get("broker") || null,
-      status: params.get("status") || "all",
-      from: params.get("from") || null,
-      to: params.get("to") || null,
-      month: params.get("month") || null,
-    },
-  });
+  await Promise.all(loads.map(async (load) => {
+    await writeAuditLog({
+      organizationId: load.organizationId,
+      actorUserId: session.userId,
+      action: "load.archive_downloaded",
+      entityType: "load",
+      entityId: load.id,
+      metadata: {
+        load_number: load.loadNumber,
+        carrier_id: load.carrierId,
+        carrier_name: load.carrierName,
+        broker: params.get("broker") || null,
+        status: params.get("status") || "all",
+        from: params.get("from") || null,
+        to: params.get("to") || null,
+        month: params.get("month") || null,
+      },
+    });
+    await upsertLoadNotification({
+      session,
+      load,
+      kind: "archive_export_completed",
+      priority: "low",
+    });
+  }));
 
   return new Response(createZipStream(entries), {
     headers: {
