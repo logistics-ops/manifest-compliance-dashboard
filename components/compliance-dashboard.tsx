@@ -373,10 +373,10 @@ function Sidebar({
         })}
       </nav>
 
-      <div className="absolute bottom-7 left-7 right-7 rounded-md border border-white/10 bg-white/[0.035] p-4 shadow-premium max-xl:static max-xl:mt-5">
+      <div className="absolute bottom-7 left-7 right-7 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] p-4 shadow-premium max-xl:static max-xl:mt-5">
         <span className="panel-label">Audit Posture</span>
         <strong className="mb-2 block text-2xl">{auditReady}/{carriers.length} audit ready</strong>
-        <p className="text-sm leading-relaxed text-manifest-muted">
+        <p className="break-words text-sm leading-relaxed text-manifest-muted">
           Live tenant data is filtered by organization before it reaches this dashboard.
         </p>
       </div>
