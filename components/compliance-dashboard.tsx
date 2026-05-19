@@ -312,7 +312,7 @@ function Sidebar({
 
   return (
     <aside
-      className={`sticky top-0 z-40 h-screen border-r border-white/10 bg-black/75 p-7 backdrop-blur-2xl transition-transform max-xl:fixed max-xl:inset-y-0 max-xl:left-0 max-xl:w-[min(340px,calc(100vw-2rem))] max-xl:shadow-premium ${
+      className={`sticky top-0 z-40 flex h-screen flex-col overflow-hidden border-r border-white/10 bg-black/75 p-7 backdrop-blur-2xl transition-transform max-xl:fixed max-xl:inset-y-0 max-xl:left-0 max-xl:w-[min(340px,calc(100vw-2rem))] max-xl:shadow-premium ${
         isOpen ? "max-xl:translate-x-0" : "max-xl:-translate-x-full"
       } xl:translate-x-0`}
     >
@@ -320,7 +320,7 @@ function Sidebar({
         <PanelLeftClose className="h-4 w-4" />
         Close
       </button>
-      <div className="flex items-center gap-3.5 border-b border-white/10 pb-7">
+      <div className="flex shrink-0 items-center gap-3.5 border-b border-white/10 pb-7">
         {branding.logoUrl ? (
           <img
             src={branding.logoUrl}
@@ -332,50 +332,50 @@ function Sidebar({
             {branding.name.charAt(0)}
           </div>
         )}
-        <div>
+        <div className="min-w-0">
           <p className="eyebrow">{branding.slug}</p>
-          <h2 className="text-lg font-extrabold leading-tight tracking-normal">{branding.name}</h2>
+          <h2 className="break-words text-lg font-extrabold leading-tight tracking-normal">{branding.name}</h2>
         </div>
       </div>
 
-      <nav className="mt-7 grid gap-2 max-xl:flex max-xl:flex-wrap" aria-label="Primary">
+      <nav className="mt-7 grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pr-1 max-xl:flex max-xl:flex-wrap max-xl:content-start" aria-label="Primary">
         {session.platformSuperAdmin ? (
           <Link
             href="/platform"
-            className="flex min-h-11 items-center gap-3 rounded-md border border-manifest-red/30 bg-manifest-red/10 px-3.5 text-sm font-semibold text-white transition hover:border-manifest-red/60 hover:bg-manifest-red/15"
+            className="flex min-h-11 min-w-0 items-center gap-3 rounded-md border border-manifest-red/30 bg-manifest-red/10 px-3.5 text-sm font-semibold text-white transition hover:border-manifest-red/60 hover:bg-manifest-red/15"
           >
-            <Building2 className="h-4 w-4" />
-            Platform Console
+            <Building2 className="h-4 w-4 shrink-0" />
+            <span className="truncate">Platform Console</span>
           </Link>
         ) : null}
         {canManageCarriers(session) && !session.platformSuperAdmin ? (
           <Link
             href="/onboarding"
-            className="flex min-h-11 items-center gap-3 rounded-md border border-transparent px-3.5 text-sm font-semibold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white"
+            className="flex min-h-11 min-w-0 items-center gap-3 rounded-md border border-transparent px-3.5 text-sm font-semibold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white"
           >
-            <Flag className="h-4 w-4" />
-            Onboarding
+            <Flag className="h-4 w-4 shrink-0" />
+            <span className="truncate">Onboarding</span>
           </Link>
         ) : null}
         {navItems.map(({ label, icon: Icon, href }) => {
-          const className = "flex min-h-11 items-center gap-3 rounded-md border border-transparent px-3.5 text-sm font-semibold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white";
+          const className = "flex min-h-11 min-w-0 items-center gap-3 rounded-md border border-transparent px-3.5 text-sm font-semibold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white";
           return href.startsWith("/") ? (
             <Link key={label} href={href} className={className}>
-              <Icon className="h-4 w-4" />
-              {label}
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="truncate">{label}</span>
             </Link>
           ) : (
             <a key={label} href={href} className={className}>
-              <Icon className="h-4 w-4" />
-              {label}
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="truncate">{label}</span>
             </a>
           );
         })}
       </nav>
 
-      <div className="absolute bottom-7 left-7 right-7 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] p-4 shadow-premium max-xl:static max-xl:mt-5">
+      <div className="mt-6 shrink-0 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] p-4 shadow-premium">
         <span className="panel-label">Audit Posture</span>
-        <strong className="mb-2 block text-2xl">{auditReady}/{carriers.length} audit ready</strong>
+        <strong className="mb-2 block break-words text-2xl leading-tight">{auditReady}/{carriers.length} audit ready</strong>
         <p className="break-words text-sm leading-relaxed text-manifest-muted">
           Live tenant data is filtered by organization before it reaches this dashboard.
         </p>
