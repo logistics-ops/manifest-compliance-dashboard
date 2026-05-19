@@ -251,10 +251,9 @@ function DocumentUploadRow({
         <dl className="grid gap-2.5 rounded-md border border-white/10 bg-black/25 p-3">
           <ChecklistTerm label="Expiration" value={document.expirationDate ?? "No expiration"} />
           <ChecklistTerm label="Days" value={document.daysUntilExpiration ?? "N/A"} />
-          <ChecklistTerm
-            label="Storage Key"
-            value={document.storagePath ?? storageKeyPreview(carrier.organizationId, carrier.id, document.name)}
-          />
+          <ChecklistTerm label="Expiration" value={document.expirationDate ?? "No expiration"} />
+<ChecklistTerm label="Days" value={document.daysUntilExpiration ?? "N/A"} />
+<ChecklistTerm label="File" value={document.fileName ?? "No file uploaded"} />
           <ChecklistTerm label="File" value={document.fileName ?? "No file uploaded"} />
         </dl>
 
@@ -318,9 +317,4 @@ function documentBorder(status: string) {
   if (status === "Valid") return "border-manifest-green/30";
   if (status === "Expiring Soon") return "border-manifest-amber/55";
   return "border-manifest-danger/60";
-}
-
-function storageKeyPreview(organizationId: string | null, carrierId: string, documentName: string) {
-  const tenant = organizationId ?? "organization-id";
-  return `organizations/${tenant}/carriers/${carrierId}/${documentName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 }
