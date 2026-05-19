@@ -22,17 +22,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <div className="relative min-h-[560px] overflow-hidden bg-[linear-gradient(125deg,rgba(227,25,55,0.32),rgba(5,5,6,0.72)_42%,rgba(255,255,255,0.05)),repeating-linear-gradient(135deg,rgba(255,255,255,0.07)_0_1px,transparent_1px_20px)] p-8">
           <div className="relative z-10 flex h-full flex-col justify-between">
             <div>
-              <div className="mb-8 flex items-center gap-3">
-                <div className="grid h-12 w-12 place-items-center rounded-md border border-manifest-red/65 bg-gradient-to-br from-manifest-red to-manifest-redDark font-extrabold shadow-[0_14px_38px_rgba(227,25,55,0.28)]">
-                  M
-                </div>
-                <div>
-                  <p className="eyebrow">Manifest</p>
-                  <h1 className="text-lg font-extrabold leading-tight tracking-normal text-white">
-                    Global Logistics
-                  </h1>
-                </div>
-              </div>
+              <div className="mb-8 flex items-center">
+  <img
+    src="/logo.png"
+    alt="Manifest Global Logistics"
+    className="h-16 w-auto object-contain"
+  />
+</div>
 
               <p className="eyebrow">Secure Compliance Portal</p>
               <h2 className="max-w-xl text-5xl font-extrabold leading-[0.95] tracking-normal text-white max-md:text-3xl">
