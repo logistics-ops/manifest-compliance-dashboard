@@ -67,7 +67,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 required
                 autoComplete="email"
                 className="form-control"
-                placeholder="name@manifestgloballogistics.com"
+                placeholder="name@emailaddress.com"
               />
             </label>
             <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
