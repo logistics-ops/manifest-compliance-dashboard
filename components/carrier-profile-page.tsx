@@ -24,7 +24,7 @@ import {
 import type { Carrier, EnrichedDocument } from "@/types/carrier";
 import { StatusChip } from "@/components/status-chip";
 import { logoutAction } from "@/app/login/actions";
-import { canManageCarriers, canManageCompliance } from "@/lib/auth/permissions";
+import { canManageCarriers, canManageCompliance, canUploadCarrierDocuments } from "@/lib/auth/permissions";
 import type { AuthSession } from "@/types/carrier";
 import { CarrierDocumentUploader } from "@/components/carrier-document-uploader";
 
@@ -35,6 +35,7 @@ export function CarrierProfilePage({ carrier, session }: { carrier: Carrier; ses
   const scoreBreakdown = getComplianceScoreBreakdown(carrier);
   const mayManageCarriers = canManageCarriers(session);
   const mayManageCompliance = canManageCompliance(session);
+  const mayUploadDocuments = canUploadCarrierDocuments(session, carrier);
 
   return (
     <main className="min-h-screen p-8 max-md:p-4">
@@ -213,7 +214,7 @@ export function CarrierProfilePage({ carrier, session }: { carrier: Carrier; ses
 
           <div className="grid gap-3">
             {documents.map((doc) => (
-              <DocumentUploadRow key={doc.name} carrier={carrier} document={doc} canEdit={mayManageCompliance} />
+              <DocumentUploadRow key={doc.name} carrier={carrier} document={doc} canEdit={mayUploadDocuments} />
             ))}
           </div>
         </section>

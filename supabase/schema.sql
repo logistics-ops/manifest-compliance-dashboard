@@ -255,7 +255,7 @@ create table public.notifications (
   unique (organization_id, rule_key)
 );
 
-create table public.audit_logs (
+create table if not exists public.audit_logs (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid references public.organizations(id) on delete set null,
   actor_user_id uuid references public.users(id) on delete set null,
@@ -266,49 +266,49 @@ create table public.audit_logs (
   created_at timestamptz not null default now()
 );
 
-create index organizations_subdomain_idx on public.organizations(subdomain);
-create index users_organization_id_idx on public.users(organization_id);
-create index carriers_organization_id_idx on public.carriers(organization_id);
-create index carriers_status_idx on public.carriers(status);
-create index carriers_compliance_score_idx on public.carriers(compliance_score);
-create index users_role_idx on public.users(role);
-create index users_carrier_id_idx on public.users(carrier_id);
-create index carrier_documents_carrier_id_idx on public.carrier_documents(carrier_id);
-create index carrier_documents_organization_id_idx on public.carrier_documents(organization_id);
-create index carrier_documents_status_idx on public.carrier_documents(status);
-create index carrier_documents_expiration_date_idx on public.carrier_documents(expiration_date);
-create index carrier_document_versions_carrier_document_id_idx on public.carrier_document_versions(carrier_document_id);
-create index carrier_document_versions_carrier_id_idx on public.carrier_document_versions(carrier_id);
-create index carrier_document_versions_organization_id_idx on public.carrier_document_versions(organization_id);
-create index drivers_carrier_id_idx on public.drivers(carrier_id);
-create index drivers_organization_id_idx on public.drivers(organization_id);
-create index driver_documents_driver_id_idx on public.driver_documents(driver_id);
-create index driver_documents_status_idx on public.driver_documents(status);
-create index driver_documents_expiration_date_idx on public.driver_documents(expiration_date);
-create index equipment_carrier_id_idx on public.equipment(carrier_id);
-create index equipment_organization_id_idx on public.equipment(organization_id);
-create index equipment_documents_equipment_id_idx on public.equipment_documents(equipment_id);
-create index equipment_documents_status_idx on public.equipment_documents(status);
-create index equipment_documents_expiration_date_idx on public.equipment_documents(expiration_date);
-create index compliance_notes_carrier_id_idx on public.compliance_notes(carrier_id);
-create index compliance_notes_document_ref_idx on public.compliance_notes(document_table, document_id);
-create index compliance_notes_created_at_idx on public.compliance_notes(created_at desc);
-create index compliance_alerts_carrier_id_idx on public.compliance_alerts(carrier_id);
-create index compliance_alerts_document_ref_idx on public.compliance_alerts(document_table, document_id);
-create index compliance_alerts_status_idx on public.compliance_alerts(status);
-create index compliance_alerts_due_date_idx on public.compliance_alerts(due_date);
-create index notifications_status_idx on public.notifications(status);
-create index notifications_organization_id_idx on public.notifications(organization_id);
-create index notifications_priority_idx on public.notifications(priority);
-create index notifications_category_idx on public.notifications(category);
-create index notifications_carrier_id_idx on public.notifications(carrier_id);
-create index notifications_assigned_to_idx on public.notifications(assigned_to);
-create index notifications_created_at_idx on public.notifications(created_at desc);
-create index audit_logs_organization_id_idx on public.audit_logs(organization_id);
-create index audit_logs_actor_user_id_idx on public.audit_logs(actor_user_id);
-create index audit_logs_action_idx on public.audit_logs(action);
-create index audit_logs_entity_idx on public.audit_logs(entity_type, entity_id);
-create index audit_logs_created_at_idx on public.audit_logs(created_at desc);
+create index if not exists organizations_subdomain_idx on public.organizations(subdomain);
+create index if not exists users_organization_id_idx on public.users(organization_id);
+create index if not exists carriers_organization_id_idx on public.carriers(organization_id);
+create index if not exists carriers_status_idx on public.carriers(status);
+create index if not exists carriers_compliance_score_idx on public.carriers(compliance_score);
+create index if not exists users_role_idx on public.users(role);
+create index if not exists users_carrier_id_idx on public.users(carrier_id);
+create index if not exists carrier_documents_carrier_id_idx on public.carrier_documents(carrier_id);
+create index if not exists carrier_documents_organization_id_idx on public.carrier_documents(organization_id);
+create index if not exists carrier_documents_status_idx on public.carrier_documents(status);
+create index if not exists carrier_documents_expiration_date_idx on public.carrier_documents(expiration_date);
+create index if not exists carrier_document_versions_carrier_document_id_idx on public.carrier_document_versions(carrier_document_id);
+create index if not exists carrier_document_versions_carrier_id_idx on public.carrier_document_versions(carrier_id);
+create index if not exists carrier_document_versions_organization_id_idx on public.carrier_document_versions(organization_id);
+create index if not exists drivers_carrier_id_idx on public.drivers(carrier_id);
+create index if not exists drivers_organization_id_idx on public.drivers(organization_id);
+create index if not exists driver_documents_driver_id_idx on public.driver_documents(driver_id);
+create index if not exists driver_documents_status_idx on public.driver_documents(status);
+create index if not exists driver_documents_expiration_date_idx on public.driver_documents(expiration_date);
+create index if not exists equipment_carrier_id_idx on public.equipment(carrier_id);
+create index if not exists equipment_organization_id_idx on public.equipment(organization_id);
+create index if not exists equipment_documents_equipment_id_idx on public.equipment_documents(equipment_id);
+create index if not exists equipment_documents_status_idx on public.equipment_documents(status);
+create index if not exists equipment_documents_expiration_date_idx on public.equipment_documents(expiration_date);
+create index if not exists compliance_notes_carrier_id_idx on public.compliance_notes(carrier_id);
+create index if not exists compliance_notes_document_ref_idx on public.compliance_notes(document_table, document_id);
+create index if not exists compliance_notes_created_at_idx on public.compliance_notes(created_at desc);
+create index if not exists compliance_alerts_carrier_id_idx on public.compliance_alerts(carrier_id);
+create index if not exists compliance_alerts_document_ref_idx on public.compliance_alerts(document_table, document_id);
+create index if not exists compliance_alerts_status_idx on public.compliance_alerts(status);
+create index if not exists compliance_alerts_due_date_idx on public.compliance_alerts(due_date);
+create index if not exists notifications_status_idx on public.notifications(status);
+create index if not exists notifications_organization_id_idx on public.notifications(organization_id);
+create index if not exists notifications_priority_idx on public.notifications(priority);
+create index if not exists notifications_category_idx on public.notifications(category);
+create index if not exists notifications_carrier_id_idx on public.notifications(carrier_id);
+create index if not exists notifications_assigned_to_idx on public.notifications(assigned_to);
+create index if not exists notifications_created_at_idx on public.notifications(created_at desc);
+create index if not exists audit_logs_organization_id_idx on public.audit_logs(organization_id);
+create index if not exists audit_logs_actor_user_id_idx on public.audit_logs(actor_user_id);
+create index if not exists audit_logs_action_idx on public.audit_logs(action);
+create index if not exists audit_logs_entity_idx on public.audit_logs(entity_type, entity_id);
+create index if not exists audit_logs_created_at_idx on public.audit_logs(created_at desc);
 
 alter table public.carriers
 add constraint carriers_organization_id_id_unique unique (organization_id, id);
@@ -707,21 +707,66 @@ on public.carrier_documents for select
 to authenticated
 using (public.can_view_carrier(carrier_id));
 
-create policy "Staff can manage carrier documents"
-on public.carrier_documents for all
+create policy "Authorized users can insert carrier documents"
+on public.carrier_documents for insert
 to authenticated
-using (public.can_manage_compliance() and public.can_access_organization(organization_id))
-with check (public.can_manage_compliance() and public.can_access_organization(organization_id));
+with check (
+  (
+    public.can_manage_compliance()
+    and public.can_access_organization(organization_id)
+  )
+  or (
+    public.current_user_role() = 'carrier'::public.app_role
+    and public.current_user_carrier_id() = carrier_id
+    and public.can_access_organization(organization_id)
+  )
+);
+
+create policy "Authorized users can update carrier documents"
+on public.carrier_documents for update
+to authenticated
+using (
+  (
+    public.can_manage_compliance()
+    and public.can_access_organization(organization_id)
+  )
+  or (
+    public.current_user_role() = 'carrier'::public.app_role
+    and public.current_user_carrier_id() = carrier_id
+    and public.can_access_organization(organization_id)
+  )
+)
+with check (
+  (
+    public.can_manage_compliance()
+    and public.can_access_organization(organization_id)
+  )
+  or (
+    public.current_user_role() = 'carrier'::public.app_role
+    and public.current_user_carrier_id() = carrier_id
+    and public.can_access_organization(organization_id)
+  )
+);
 
 create policy "Authorized users can read carrier document versions"
 on public.carrier_document_versions for select
 to authenticated
 using (public.can_view_carrier(carrier_id));
 
-create policy "Staff can create carrier document versions"
+create policy "Authorized users can create carrier document versions"
 on public.carrier_document_versions for insert
 to authenticated
-with check (public.can_manage_compliance() and public.can_access_organization(organization_id));
+with check (
+  (
+    public.can_manage_compliance()
+    and public.can_access_organization(organization_id)
+  )
+  or (
+    public.current_user_role() = 'carrier'::public.app_role
+    and public.current_user_carrier_id() = carrier_id
+    and public.can_access_organization(organization_id)
+  )
+);
 
 create policy "Admins can delete carrier document versions"
 on public.carrier_document_versions for delete
@@ -969,10 +1014,12 @@ on storage.objects for insert
 to authenticated
 with check (
   bucket_id = 'carrier-documents'
-  and public.can_manage_compliance()
   and (storage.foldername(name))[1] = 'organizations'
   and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
   and public.can_access_organization(((storage.foldername(name))[2])::uuid)
+  and (storage.foldername(name))[3] = 'carriers'
+  and (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+  and public.can_view_carrier(((storage.foldername(name))[4])::uuid)
 );
 
 create policy "Authorized users can read carrier document files"
@@ -1003,17 +1050,21 @@ on storage.objects for update
 to authenticated
 using (
   bucket_id = 'carrier-documents'
-  and public.can_manage_compliance()
   and (storage.foldername(name))[1] = 'organizations'
   and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
   and public.can_access_organization(((storage.foldername(name))[2])::uuid)
+  and (storage.foldername(name))[3] = 'carriers'
+  and (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+  and public.can_view_carrier(((storage.foldername(name))[4])::uuid)
 )
 with check (
   bucket_id = 'carrier-documents'
-  and public.can_manage_compliance()
   and (storage.foldername(name))[1] = 'organizations'
   and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
   and public.can_access_organization(((storage.foldername(name))[2])::uuid)
+  and (storage.foldername(name))[3] = 'carriers'
+  and (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+  and public.can_view_carrier(((storage.foldername(name))[4])::uuid)
 );
 
 create policy "Admins can delete carrier document files"

@@ -69,6 +69,18 @@ export function canAccessCarrierRecord(
   return session.role === "carrier" && session.carrierId === carrier.carrierId;
 }
 
+export function canUploadCarrierDocument(
+  session: AuthSession | null,
+  carrier: CarrierAccessRecord,
+  organizationIsActive = true,
+) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  if (!canAccessOrganizationRecord(session, carrier.organizationId, organizationIsActive)) return false;
+  if (canRoleManageCompliance(session.role)) return true;
+  return session.role === "carrier" && session.carrierId === carrier.carrierId;
+}
+
 export function canMutateTenantRecord(
   session: AuthSession | null,
   organizationId: string | null,

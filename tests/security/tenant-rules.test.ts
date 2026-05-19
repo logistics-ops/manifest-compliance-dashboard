@@ -7,6 +7,7 @@ import {
   canAccessCarrierRecord,
   canAccessNotificationRecord,
   canAccessOrganizationRecord,
+  canUploadCarrierDocument,
   canMutateTenantRecord,
   canRoleAccessDashboard,
   canRoleManageCarriers,
@@ -73,6 +74,21 @@ test("carrier user can only access linked carrier in their active organization",
   assert.equal(canAccessCarrierRecord(carrierUser, { organizationId: orgA, carrierId: carrierB }, true), false);
   assert.equal(canAccessCarrierRecord(carrierUser, { organizationId: orgB, carrierId: carrierA }, true), false);
   assert.equal(canAccessCarrierRecord(carrierUser, { organizationId: orgA, carrierId: carrierA }, false), false);
+});
+
+test("linked carrier upload permission allows only own carrier document uploads", () => {
+  const admin = session({ role: "admin" });
+  const staff = session({ role: "staff" });
+  const carrierUser = session({ role: "carrier", carrierId: carrierA });
+  const otherCarrierUser = session({ role: "carrier", carrierId: carrierB });
+
+  assert.equal(canUploadCarrierDocument(admin, { organizationId: orgA, carrierId: carrierA }, true), true);
+  assert.equal(canUploadCarrierDocument(staff, { organizationId: orgA, carrierId: carrierA }, true), true);
+  assert.equal(canUploadCarrierDocument(admin, { organizationId: orgB, carrierId: carrierB }, true), false);
+  assert.equal(canUploadCarrierDocument(staff, { organizationId: orgA, carrierId: carrierA }, false), false);
+  assert.equal(canUploadCarrierDocument(carrierUser, { organizationId: orgA, carrierId: carrierA }, true), true);
+  assert.equal(canUploadCarrierDocument(carrierUser, { organizationId: orgA, carrierId: carrierB }, true), false);
+  assert.equal(canUploadCarrierDocument(otherCarrierUser, { organizationId: orgB, carrierId: carrierB }, true), false);
 });
 
 test("admin and staff can only access carriers in their own active organization", () => {

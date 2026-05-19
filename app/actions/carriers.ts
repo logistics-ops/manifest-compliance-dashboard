@@ -2,11 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireAdmin, requireStaffAccess } from "@/lib/integrations/auth";
+import { requireAdmin, requireSession, requireStaffAccess } from "@/lib/integrations/auth";
 import { writeAuditLog } from "@/lib/audit";
-import { assertTenantStoragePath as assertTenantUploadPath } from "@/lib/security/tenant-rules";
+import { assertTenantStoragePath as assertTenantUploadPath, canUploadCarrierDocument } from "@/lib/security/tenant-rules";
 import { createClient } from "@/lib/supabase/server";
-import type { CarrierStatus, RequiredDocumentName } from "@/types/carrier";
+import type { AuthSession, CarrierStatus, RequiredDocumentName } from "@/types/carrier";
 
 const STORAGE_BUCKET = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "carrier-documents";
 
@@ -159,7 +159,7 @@ export async function addComplianceNoteAction(formData: FormData) {
 }
 
 export async function updateCarrierDocumentAction(formData: FormData) {
-  const session = await requireStaffAccess();
+  const session = await requireSession();
 
   const carrierId = getString(formData, "carrierId");
   const documentName = getString(formData, "documentName");
@@ -169,8 +169,7 @@ export async function updateCarrierDocumentAction(formData: FormData) {
   const supabase = await createClient();
 
   if (supabase && carrierId && documentName) {
-    const organizationId = getWritableOrganizationId(session);
-    await assertCarrierIsInSessionOrganization(supabase, session, carrierId);
+    const organizationId = await assertCanUploadCarrierDocuments(supabase, session, carrierId);
     const { data: existingDocument } = await supabase
       .from("carrier_documents")
       .select("id, expiration_date")
@@ -226,7 +225,7 @@ export async function createCarrierDocumentUploadTargetAction(input: {
   documentName: RequiredDocumentName;
   fileName: string;
 }) {
-  const session = await requireStaffAccess();
+  const session = await requireSession();
 
   const supabase = await createClient();
   const carrierId = input.carrierId.trim();
@@ -237,8 +236,7 @@ export async function createCarrierDocumentUploadTargetAction(input: {
     throw new Error("Supabase Storage is not configured for uploads.");
   }
 
-  const organizationId = getWritableOrganizationId(session);
-  await assertCarrierIsInSessionOrganization(supabase, session, carrierId);
+  const organizationId = await assertCanUploadCarrierDocuments(supabase, session, carrierId);
 
   const { data: latestVersion } = await supabase
     .from("carrier_document_versions")
@@ -283,7 +281,7 @@ export async function finalizeCarrierDocumentUploadAction(input: {
   expirationDate: string | null;
   notes: string | null;
 }) {
-  const session = await requireStaffAccess();
+  const session = await requireSession();
   const supabase = await createClient();
 
   if (!supabase) {
@@ -291,8 +289,7 @@ export async function finalizeCarrierDocumentUploadAction(input: {
   }
 
   const uploadedAt = new Date().toISOString();
-  const organizationId = getWritableOrganizationId(session);
-  await assertCarrierIsInSessionOrganization(supabase, session, input.carrierId);
+  const organizationId = await assertCanUploadCarrierDocuments(supabase, session, input.carrierId);
   assertTenantUploadPath(input.storagePath, organizationId, input.carrierId);
 
   const status = getDocumentDatabaseStatus(true, input.expirationDate);
@@ -426,6 +423,35 @@ function getWritableOrganizationId(session: Awaited<ReturnType<typeof requireSta
   }
 
   return session.organizationId;
+}
+
+async function assertCanUploadCarrierDocuments(
+  supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
+  session: AuthSession,
+  carrierId: string,
+) {
+  const { data, error } = await supabase
+    .from("carriers")
+    .select("id, organization_id")
+    .eq("id", carrierId)
+    .maybeSingle();
+
+  if (
+    error ||
+    !data ||
+    !canUploadCarrierDocument(session, {
+      organizationId: data.organization_id,
+      carrierId: data.id,
+    })
+  ) {
+    throw new Error("Document uploads are only available for authorized carrier profiles.");
+  }
+
+  if (!data.organization_id) {
+    throw new Error("Carrier document uploads require an organization.");
+  }
+
+  return data.organization_id;
 }
 
 async function assertCarrierIsInSessionOrganization(
