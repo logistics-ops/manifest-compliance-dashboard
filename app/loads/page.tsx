@@ -205,7 +205,7 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
                 <input type="hidden" name="loadIds" value={filteredLoadIds} />
                 <strong className="block text-sm text-white">Delete archived files from storage</strong>
                 <p className="mt-2 text-sm leading-6 text-manifest-muted">This only removes archived POD/rate confirmation objects. Load metadata remains.</p>
-                <input name="confirmDelete" className="form-control mt-4" placeholder="Type DELETE_ARCHIVED_FILES" />
+                <input name="confirmDelete" className="form-control mt-4" placeholder="Type CONFIRM" />
                 <button className="form-button mt-3 w-fit">
                   <Trash2 className="h-4 w-4" />
                   Delete archived files

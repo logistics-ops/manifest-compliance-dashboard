@@ -443,10 +443,10 @@ export async function deleteArchivedLoadFilesAction(formData: FormData) {
   const session = await requireStaffAccess();
   const supabase = await createClient();
   const ids = getString(formData, "loadIds").split(",").map((id) => id.trim()).filter(Boolean);
-  const confirmed = getString(formData, "confirmDelete") === "DELETE_ARCHIVED_FILES";
+  const confirmed = getString(formData, "confirmDelete") === "CONFIRM";
 
   if (!supabase) redirectWithArchiveMessage("Supabase is not configured.", "error");
-  if (!confirmed) redirectWithArchiveMessage("Type DELETE_ARCHIVED_FILES to confirm storage deletion.", "error");
+  if (!confirmed) redirectWithArchiveMessage("Type CONFIRM to confirm storage deletion.", "error");
   if (!ids.length) redirectWithArchiveMessage("No archived loads matched the deletion request.", "error");
 
   const loads = await getLoads();
