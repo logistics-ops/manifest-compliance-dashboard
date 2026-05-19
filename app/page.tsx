@@ -1,5 +1,4 @@
 import { ComplianceDashboard } from "@/components/compliance-dashboard";
-import { AuditLogViewer } from "@/components/audit-log-viewer";
 import { getOrganizationAuditLogs } from "@/lib/audit";
 import { getCarriers } from "@/lib/data/carriers";
 import { getNotifications } from "@/lib/data/notifications";
@@ -13,16 +12,5 @@ export default async function Home() {
   const branding = await getCurrentOrganizationBranding();
   const auditLogs = await getOrganizationAuditLogs(40);
 
-  return (
-    <>
-      <ComplianceDashboard carriers={carriers} notifications={notifications} session={session} branding={branding} />
-      <div id="audit-logs" className="px-8 pb-8 max-md:px-4">
-        <AuditLogViewer
-          logs={auditLogs}
-          title="Organization audit log"
-          description="Recent tenant activity visible to your role."
-        />
-      </div>
-    </>
-  );
+  return <ComplianceDashboard carriers={carriers} notifications={notifications} auditLogs={auditLogs} session={session} branding={branding} />;
 }

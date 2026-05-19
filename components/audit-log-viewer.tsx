@@ -1,4 +1,7 @@
+"use client";
+
 import { Activity } from "lucide-react";
+import { useMemo, useState } from "react";
 import type { AuditLog } from "@/lib/audit";
 
 export function AuditLogViewer({
@@ -10,6 +13,31 @@ export function AuditLogViewer({
   title?: string;
   description?: string;
 }) {
+  const [query, setQuery] = useState("");
+  const [entityFilter, setEntityFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const entityTypes = useMemo(() => Array.from(new Set(logs.map((log) => log.entityType).filter(Boolean))).sort(), [logs]);
+  const filteredLogs = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return logs.filter((log) => {
+      const matchesEntity = entityFilter === "all" || log.entityType === entityFilter;
+      const haystack = [
+        log.action,
+        log.organizationName,
+        log.actorName,
+        log.actorEmail,
+        log.entityType,
+        log.entityId,
+        formatMetadata(log.metadata),
+      ].join(" ").toLowerCase();
+      return matchesEntity && haystack.includes(needle);
+    });
+  }, [entityFilter, logs, query]);
+  const pageSize = 12;
+  const pageCount = Math.max(1, Math.ceil(filteredLogs.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pagedLogs = filteredLogs.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   return (
     <section className="section-panel p-6">
       <div className="mb-5 flex items-center justify-between gap-3">
@@ -23,8 +51,42 @@ export function AuditLogViewer({
         </span>
       </div>
 
-      {logs.length ? (
-        <div className="overflow-x-auto">
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <label className="grid min-w-64 flex-1 gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+          Search activity
+          <input
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setPage(1);
+            }}
+            className="form-control"
+            placeholder="Action, actor, entity, metadata..."
+            type="search"
+          />
+        </label>
+        <label className="grid min-w-48 gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+          Entity
+          <select
+            value={entityFilter}
+            onChange={(event) => {
+              setEntityFilter(event.target.value);
+              setPage(1);
+            }}
+            className="form-control"
+          >
+            <option value="all">All entities</option>
+            {entityTypes.map((entityType) => (
+              <option key={entityType} value={entityType}>
+                {entityType}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {filteredLogs.length ? (
+        <div className="overflow-x-auto rounded-md border border-white/10">
           <table className="w-full min-w-[880px] border-collapse">
             <thead>
               <tr className="bg-white/[0.025] text-left text-[11px] uppercase tracking-[0.14em] text-manifest-quiet">
@@ -37,7 +99,7 @@ export function AuditLogViewer({
               </tr>
             </thead>
             <tbody>
-              {logs.map((log) => (
+              {pagedLogs.map((log) => (
                 <tr key={log.id}>
                   <td className="border-b border-white/10 px-4 py-4">
                     <strong className="block text-sm text-white">{formatAction(log.action)}</strong>
@@ -68,8 +130,35 @@ export function AuditLogViewer({
           </table>
         </div>
       ) : (
-        <div className="empty-state">No audit events have been recorded yet.</div>
+        <div className="empty-state">No audit events match the current filters.</div>
       )}
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-manifest-muted">
+        <span>
+          Showing {pagedLogs.length} of {filteredLogs.length} events
+        </span>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setPage((value) => Math.max(1, value - 1))}
+            disabled={currentPage === 1}
+            className="form-button min-h-9 px-3 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <span className="inline-flex min-h-9 items-center rounded-md border border-white/10 bg-black/30 px-3 text-xs font-bold text-white">
+            {currentPage} / {pageCount}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPage((value) => Math.min(pageCount, value + 1))}
+            disabled={currentPage === pageCount}
+            className="form-button min-h-9 px-3 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+      </div>
     </section>
   );
 }
