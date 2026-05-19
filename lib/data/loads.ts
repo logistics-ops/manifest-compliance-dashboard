@@ -1,5 +1,6 @@
 import { unstable_noStore as noStore } from "next/cache";
 import { getCurrentSession } from "@/lib/integrations/auth";
+import { getLoadQueryScope } from "@/lib/security/tenant-rules";
 import { createClient } from "@/lib/supabase/server";
 import type { Load, LoadDocument, LoadDocumentType, LoadStatus } from "@/types/load";
 
@@ -111,18 +112,19 @@ function buildLoadsQuery(
   supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
   session: NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>,
 ) {
+  const scope = getLoadQueryScope(session);
   let query = supabase
     .from("loads")
     .select("*")
     .order("pickup_date", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 
-  if (session.organizationId && !session.platformSuperAdmin) {
-    query = query.eq("organization_id", session.organizationId);
+  if (scope.organizationId) {
+    query = query.eq("organization_id", scope.organizationId);
   }
 
-  if (session.role === "carrier" && session.carrierId && !session.platformSuperAdmin) {
-    query = query.eq("id", session.carrierId);
+  if (scope.carrierId) {
+    query = query.eq("carrier_id", scope.carrierId);
   }
 
   return query;
@@ -161,6 +163,7 @@ async function getCarrierNamesByTenant(
   session: NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>,
   loads: LoadRow[],
 ) {
+  const scope = getLoadQueryScope(session);
   const carrierIds = Array.from(new Set(loads.map((load) => load.carrier_id).filter(Boolean)));
   if (!carrierIds.length) return new Map<string, string>();
 
@@ -169,12 +172,12 @@ async function getCarrierNamesByTenant(
     .select("id, organization_id, company_name")
     .in("id", carrierIds);
 
-  if (session.organizationId && !session.platformSuperAdmin) {
-    query = query.eq("organization_id", session.organizationId);
+  if (scope.organizationId) {
+    query = query.eq("organization_id", scope.organizationId);
   }
 
-  if (session.role === "carrier" && session.carrierId && !session.platformSuperAdmin) {
-    query = query.eq("carrier_id", session.carrierId);
+  if (scope.carrierId) {
+    query = query.eq("id", scope.carrierId);
   }
 
   const { data, error } = await query;

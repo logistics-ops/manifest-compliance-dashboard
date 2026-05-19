@@ -26,6 +26,7 @@ import {
   canRoleManageCompliance,
   canSendInvoiceRecord,
   canUpdateInvoiceStatusRecord,
+  getLoadQueryScope,
   isTenantStoragePath,
   isLoadStoragePath,
   isLoadDocumentStoragePath,
@@ -237,6 +238,16 @@ test("carrier direct load route attempts are blocked across carriers and organiz
   assert.equal(canUploadLoadDocumentType(carrierUser, sameOrgOtherCarrierLoad, "pod", true), false);
   assert.equal(canAccessLoadTimeline(carrierUser, sameOrgOtherCarrierLoad, true), false);
   assert.equal(canAccessLoadTimeline(carrierUser, otherOrgSameCarrierIdLoad, true), false);
+});
+
+test("carrier-created load remains fetchable by linked carrier query scope", () => {
+  const carrierUser = session({ role: "carrier", carrierId: carrierA, organizationId: orgA });
+  const createdLoad = { organizationId: orgA, carrierId: carrierA };
+  const scope = getLoadQueryScope(carrierUser);
+
+  assert.equal(canCreateLoadRecord(carrierUser, createdLoad, true), true);
+  assert.equal(canAccessLoadRecord(carrierUser, createdLoad, true), true);
+  assert.deepEqual(scope, { organizationId: orgA, carrierId: carrierA });
 });
 
 test("load notification scoping blocks organization-wide and cross-carrier load alerts for carriers", () => {

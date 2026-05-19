@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { Archive, ArrowLeft, CheckCircle2, FileUp, Mail, Route, Send, Truck } from "lucide-react";
 import { generateInvoiceAction, markInvoicePaidAction, sendInvoiceAction } from "@/app/actions/invoices";
 import { sendPodToBrokerAction, updateLoadDetailsAction, updateLoadStatusAction } from "@/app/actions/loads";
@@ -26,10 +26,12 @@ export default async function LoadDetailPage({ params, searchParams }: LoadPageP
   const session = await requireSession();
   const load = await getLoad(loadId);
 
-  if (!load) notFound();
+  if (!load) {
+    redirect(`/loads?error=${encodeURIComponent("Load not found or you do not have access to this load.")}`);
+  }
 
   if (!canAccessLoadRecord(session, { organizationId: load.organizationId, carrierId: load.carrierId })) {
-    redirect(session.carrierId ? "/loads" : "/unauthorized");
+    redirect(`/loads?error=${encodeURIComponent("You do not have access to this load.")}`);
   }
 
   const rateConfirmation = latestDocument(load.documents, "rate_confirmation");

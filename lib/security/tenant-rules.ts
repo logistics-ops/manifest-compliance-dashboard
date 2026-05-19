@@ -115,6 +115,17 @@ export function canAccessLoadRecord(
   return session.role === "carrier" && session.carrierId === load.carrierId;
 }
 
+export function getLoadQueryScope(session: AuthSession | null) {
+  if (!session || session.platformSuperAdmin) {
+    return { organizationId: null, carrierId: null };
+  }
+
+  return {
+    organizationId: session.organizationId,
+    carrierId: session.role === "carrier" ? session.carrierId : null,
+  };
+}
+
 export function canManageLoadRecord(
   session: AuthSession | null,
   load: LoadAccessRecord,
