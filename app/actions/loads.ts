@@ -25,23 +25,50 @@ export async function createLoadAction(formData: FormData) {
   const supabase = await createClient();
   const organizationId = requireOrganizationId(session);
   const carrierId = getString(formData, "carrierId");
+  const loadNumber = getString(formData, "loadNumber");
+  const originCity = getString(formData, "originCity");
+  const originState = getString(formData, "originState").toUpperCase();
+  const destinationCity = getString(formData, "destinationCity");
+  const destinationState = getString(formData, "destinationState").toUpperCase();
+  const rateAmount = Number(getString(formData, "rateAmount") || 0);
 
-  if (!supabase || !carrierId) redirect("/loads");
+  if (!supabase) {
+    redirectWithCreateError("Supabase is not configured. Check the project environment variables.");
+  }
+
+  if (!carrierId || !loadNumber || !originCity || !originState || !destinationCity || !destinationState) {
+    redirectWithCreateError("Load number, carrier, origin, and destination are required.");
+  }
+
+  if (!Number.isFinite(rateAmount) || rateAmount < 0) {
+    redirectWithCreateError("Rate amount must be a valid non-negative number.");
+  }
+
+  const { data: carrier, error: carrierError } = await supabase
+    .from("carriers")
+    .select("id")
+    .eq("id", carrierId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (carrierError || !carrier) {
+    redirectWithCreateError("Selected carrier is not available in your organization.");
+  }
 
   const payload = {
     organization_id: organizationId,
-    load_number: getString(formData, "loadNumber"),
+    load_number: loadNumber,
     carrier_id: carrierId,
     driver_name: getOptionalString(formData, "driverName"),
     broker_name: getOptionalString(formData, "brokerName"),
     broker_email: getOptionalString(formData, "brokerEmail"),
-    origin_city: getString(formData, "originCity"),
-    origin_state: getString(formData, "originState").toUpperCase(),
-    destination_city: getString(formData, "destinationCity"),
-    destination_state: getString(formData, "destinationState").toUpperCase(),
+    origin_city: originCity,
+    origin_state: originState,
+    destination_city: destinationCity,
+    destination_state: destinationState,
     pickup_date: getOptionalString(formData, "pickupDate"),
     delivery_date: getOptionalString(formData, "deliveryDate"),
-    rate_amount: Number(getString(formData, "rateAmount") || 0),
+    rate_amount: rateAmount,
     status: normalizeStatus(getString(formData, "status")),
     notes: getOptionalString(formData, "notes"),
     created_by: session.userId,
@@ -49,7 +76,10 @@ export async function createLoadAction(formData: FormData) {
 
   const { data, error } = await supabase.from("loads").insert(payload).select("id").single();
 
-  if (error || !data) redirect("/loads");
+  if (error || !data) {
+    console.error("Unable to create load", error?.message);
+    redirectWithCreateError(error?.message || "Unable to create load. Check the load details and try again.");
+  }
 
   await writeAuditLog({
     organizationId,
@@ -61,6 +91,7 @@ export async function createLoadAction(formData: FormData) {
   });
 
   revalidatePath("/loads");
+  revalidatePath(`/loads/${data.id}`);
   redirect(`/loads/${data.id}`);
 }
 
@@ -322,4 +353,8 @@ function getOptionalString(formData: FormData, key: string) {
 
 function sanitizeFileName(value: string) {
   return value.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+function redirectWithCreateError(message: string): never {
+  redirect(`/loads/new?error=${encodeURIComponent(message)}`);
 }

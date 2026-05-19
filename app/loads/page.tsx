@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, Plus, Search, Truck } from "lucide-react";
-import { getLoads } from "@/lib/data/loads";
+import { getLoadsResult } from "@/lib/data/loads";
 import { requireSession } from "@/lib/integrations/auth";
 import { canManageCompliance } from "@/lib/auth/permissions";
 import { LoadDocumentUploader } from "@/components/load-document-uploader";
@@ -16,7 +16,7 @@ type LoadsPageProps = {
 
 export default async function LoadsPage({ searchParams }: LoadsPageProps) {
   const session = await requireSession();
-  const loads = await getLoads();
+  const { loads, error: loadError } = await getLoadsResult();
   const params = await searchParams;
   const query = params?.query?.trim().toLowerCase() ?? "";
   const status = statuses.includes(params?.status as LoadStatus | "all") ? params?.status ?? "all" : "all";
@@ -86,6 +86,12 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
               <button className="form-button mb-0.5 self-end">Filter</button>
             </form>
           </div>
+
+          {loadError ? (
+            <div className="mb-5 rounded-md border border-manifest-danger/40 bg-manifest-danger/10 px-4 py-3 text-sm font-bold text-manifest-danger">
+              {loadError}
+            </div>
+          ) : null}
 
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1180px] border-collapse">

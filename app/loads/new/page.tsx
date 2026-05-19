@@ -4,9 +4,15 @@ import { createLoadAction } from "@/app/actions/loads";
 import { getCarriers } from "@/lib/data/carriers";
 import { requireStaffAccess } from "@/lib/integrations/auth";
 
-export default async function NewLoadPage() {
+type NewLoadPageProps = {
+  searchParams?: Promise<{ error?: string }>;
+};
+
+export default async function NewLoadPage({ searchParams }: NewLoadPageProps) {
   await requireStaffAccess();
   const carriers = await getCarriers();
+  const params = await searchParams;
+  const error = params?.error ? decodeURIComponent(params.error) : "";
 
   return (
     <main className="min-h-screen p-8 max-md:p-4">
@@ -24,6 +30,18 @@ export default async function NewLoadPage() {
             </div>
             <Route className="h-5 w-5 text-manifest-red" />
           </div>
+
+          {error ? (
+            <div className="mb-5 rounded-md border border-manifest-danger/40 bg-manifest-danger/10 px-4 py-3 text-sm font-bold text-manifest-danger">
+              {error}
+            </div>
+          ) : null}
+
+          {!carriers.length ? (
+            <div className="mb-5 rounded-md border border-manifest-amber/40 bg-manifest-amber/10 px-4 py-3 text-sm font-bold text-manifest-amber">
+              Create a carrier in this organization before creating a load.
+            </div>
+          ) : null}
 
           <form action={createLoadAction} className="grid gap-4">
             <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
@@ -65,7 +83,7 @@ export default async function NewLoadPage() {
               <textarea name="notes" className="form-control min-h-28 resize-y" />
             </label>
 
-            <button className="form-button min-h-11 w-fit px-4 text-sm">Create load</button>
+            <button className="form-button min-h-11 w-fit px-4 text-sm" disabled={!carriers.length}>Create load</button>
           </form>
         </section>
       </div>

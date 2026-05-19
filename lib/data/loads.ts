@@ -45,6 +45,42 @@ export async function getLoads(): Promise<Load[]> {
 
   if (!supabase || !session) return [];
 
+  const { data, error } = await buildLoadsQuery(supabase, session);
+
+  if (error || !data) {
+    console.error("Unable to load tenant loads", error?.message);
+    return [];
+  }
+
+  return (data as LoadRow[]).map(mapLoadRow);
+}
+
+export async function getLoadsResult(): Promise<{ loads: Load[]; error: string | null }> {
+  noStore();
+  const session = await getCurrentSession();
+  const supabase = await createClient();
+
+  if (!supabase || !session) return { loads: [], error: null };
+
+  const { data, error } = await buildLoadsQuery(supabase, session);
+
+  if (error || !data) {
+    console.error("Unable to load tenant loads", error?.message);
+    return { loads: [], error: error?.message || "Unable to load loads." };
+  }
+
+  return { loads: (data as LoadRow[]).map(mapLoadRow), error: null };
+}
+
+export async function getLoad(loadId: string): Promise<Load | null> {
+  const loads = await getLoads();
+  return loads.find((load) => load.id === loadId) ?? null;
+}
+
+function buildLoadsQuery(
+  supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
+  session: NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>,
+) {
   let query = supabase
     .from("loads")
     .select("*, carriers(company_name), load_documents(id, document_type, storage_path, file_name, file_size, mime_type, version_number, uploaded_at, uploaded_by_user:users!load_documents_uploaded_by_fkey(full_name, email))")
@@ -59,16 +95,7 @@ export async function getLoads(): Promise<Load[]> {
     query = query.eq("carrier_id", session.carrierId);
   }
 
-  const { data, error } = await query;
-
-  if (error || !data) return [];
-
-  return (data as LoadRow[]).map(mapLoadRow);
-}
-
-export async function getLoad(loadId: string): Promise<Load | null> {
-  const loads = await getLoads();
-  return loads.find((load) => load.id === loadId) ?? null;
+  return query;
 }
 
 function mapLoadRow(row: LoadRow): Load {
