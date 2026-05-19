@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FileUp, UploadCloud } from "lucide-react";
+import { Download, Eye, FileUp, RefreshCw, UploadCloud } from "lucide-react";
 import {
   createLoadDocumentUploadTargetAction,
   finalizeLoadDocumentUploadAction,
@@ -10,6 +10,8 @@ import {
 import { getDocumentMimeType, uploadStorageDocument, validateDocumentFile } from "@/lib/integrations/uploads";
 import { createClient } from "@/lib/supabase/client";
 import type { LoadDocument, LoadDocumentType } from "@/types/load";
+
+const storageBucket = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "carrier-documents";
 
 export function LoadDocumentUploader({
   loadId,
@@ -30,6 +32,7 @@ export function LoadDocumentUploader({
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [currentDocument, setCurrentDocument] = useState(document);
 
   async function handleUpload(file: File) {
     if (!canUpload) return;
@@ -70,6 +73,17 @@ export function LoadDocumentUploader({
         versionNumber: target.versionNumber,
       });
 
+      setCurrentDocument({
+        id: `${documentType}-${target.versionNumber}`,
+        documentType,
+        storagePath: target.path,
+        fileName: file.name,
+        fileSize: file.size,
+        mimeType: getDocumentMimeType(file),
+        versionNumber: target.versionNumber,
+        uploadedBy: "You",
+        uploadedAt: new Date().toISOString(),
+      });
       setMessage(`Uploaded v${target.versionNumber}: ${file.name}`);
       startTransition(() => router.refresh());
     } catch (uploadError) {
@@ -78,15 +92,46 @@ export function LoadDocumentUploader({
     }
   }
 
+  async function openSignedFile(download: boolean) {
+    setError(null);
+
+    if (!currentDocument?.storagePath) return;
+
+    const supabase = createClient();
+    if (!supabase) {
+      setError("Supabase is not configured.");
+      return;
+    }
+
+    const { data, error: signedUrlError } = await supabase.storage
+      .from(storageBucket)
+      .createSignedUrl(currentDocument.storagePath, 300);
+
+    if (signedUrlError || !data?.signedUrl) {
+      setError(signedUrlError?.message || "Unable to create file link.");
+      return;
+    }
+
+    if (download) {
+      const anchor = window.document.createElement("a");
+      anchor.href = data.signedUrl;
+      anchor.download = currentDocument.fileName;
+      anchor.click();
+      return;
+    }
+
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  }
+
   return (
     <section className="rounded-md border border-white/10 bg-black/25 p-4">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <p className="panel-label">{label}</p>
-          <h3 className="text-lg font-extrabold text-white">{document ? document.fileName : "No file uploaded"}</h3>
-          {document ? (
+          <h3 className="break-words text-lg font-extrabold text-white">{currentDocument ? currentDocument.fileName : "No file uploaded"}</h3>
+          {currentDocument ? (
             <p className="mt-1 text-xs font-bold text-manifest-muted">
-              v{document.versionNumber} · {formatDate(document.uploadedAt)} · {document.uploadedBy ?? "Unknown user"}
+              v{currentDocument.versionNumber} · {formatDate(currentDocument.uploadedAt)} · {currentDocument.uploadedBy ?? "Unknown user"}
             </p>
           ) : null}
         </div>
@@ -122,13 +167,33 @@ export function LoadDocumentUploader({
       {error ? <p className="mb-3 rounded-md border border-manifest-danger/35 bg-manifest-danger/10 px-3 py-2 text-xs font-bold text-manifest-danger">{error}</p> : null}
 
       {canUpload ? (
-        <button type="button" onClick={() => inputRef.current?.click()} className="form-button min-h-10 px-3 text-sm">
-          <FileUp className="h-4 w-4" />
-          {document ? "Replace document" : "Upload document"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => inputRef.current?.click()} className="form-button min-h-10 px-3 text-sm">
+            <FileUp className="h-4 w-4" />
+            {currentDocument ? "Select file" : "Upload document"}
+          </button>
+          {currentDocument ? (
+            <button type="button" onClick={() => inputRef.current?.click()} className="form-button min-h-10 px-3 text-sm">
+              <RefreshCw className="h-4 w-4" />
+              Replace
+            </button>
+          ) : null}
+        </div>
       ) : (
         <p className="text-sm text-manifest-muted">You can view this load, but uploads are not available for your role.</p>
       )}
+      {currentDocument ? (
+        <div className="mt-3 flex flex-wrap gap-2 border-t border-white/10 pt-3">
+          <button type="button" onClick={() => void openSignedFile(false)} className="form-button min-h-9 px-3 text-xs">
+            <Eye className="h-3.5 w-3.5" />
+            Preview
+          </button>
+          <button type="button" onClick={() => void openSignedFile(true)} className="form-button min-h-9 px-3 text-xs">
+            <Download className="h-3.5 w-3.5" />
+            Download
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

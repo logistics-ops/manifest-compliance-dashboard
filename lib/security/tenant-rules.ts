@@ -120,6 +120,19 @@ export function canUploadLoadDocument(
   return canAccessLoadRecord(session, load, organizationIsActive);
 }
 
+export function canUploadLoadDocumentType(
+  session: AuthSession | null,
+  load: LoadAccessRecord,
+  documentType: "rate_confirmation" | "pod",
+  organizationIsActive = true,
+) {
+  if (documentType === "rate_confirmation") {
+    return canManageLoadRecord(session, load, organizationIsActive);
+  }
+
+  return canUploadLoadDocument(session, load, organizationIsActive);
+}
+
 export function canMutateTenantRecord(
   session: AuthSession | null,
   organizationId: string | null,
@@ -176,7 +189,12 @@ export function getLoadStoragePrefix(organizationId: string, loadId: string) {
 }
 
 export function getLoadDocumentStoragePrefix(organizationId: string, loadId: string, documentType: string) {
-  return `${getLoadStoragePrefix(organizationId, loadId)}${documentType}/`;
+  const folder = documentType === "rate_confirmation" ? "rate-confirmation" : documentType;
+  return `${getLoadStoragePrefix(organizationId, loadId)}${folder}/`;
+}
+
+export function getLoadDocumentStorageFolder(documentType: "rate_confirmation" | "pod") {
+  return documentType === "rate_confirmation" ? "rate-confirmation" : "pod";
 }
 
 export function isLoadStoragePath(storagePath: string, organizationId: string, loadId: string) {

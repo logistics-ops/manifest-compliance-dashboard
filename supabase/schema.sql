@@ -1061,6 +1061,8 @@ to authenticated
 with check (
   (public.can_manage_compliance() and public.can_access_organization(organization_id))
   or (
+    document_type = 'pod'::public.load_document_type
+    and
     public.current_user_role() = 'carrier'::public.app_role
     and public.current_user_carrier_id() = carrier_id
     and public.can_access_organization(organization_id)
@@ -1236,15 +1238,24 @@ with check (
   and public.can_access_organization(((storage.foldername(name))[2])::uuid)
   and (storage.foldername(name))[3] = 'loads'
   and (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[5] in ('rate_confirmation', 'pod')
+  and (storage.foldername(name))[5] in ('rate-confirmation', 'pod')
   and exists (
     select 1
     from public.loads
     where loads.organization_id = ((storage.foldername(name))[2])::uuid
       and loads.id = ((storage.foldername(name))[4])::uuid
       and (
-        public.can_manage_compliance()
+        (
+          (storage.foldername(name))[5] = 'rate-confirmation'
+          and public.can_manage_compliance()
+        )
         or (
+          (storage.foldername(name))[5] = 'pod'
+          and public.can_manage_compliance()
+        )
+        or (
+          (storage.foldername(name))[5] = 'pod'
+          and
           public.current_user_role() = 'carrier'::public.app_role
           and public.current_user_carrier_id() = loads.carrier_id
         )
@@ -1262,7 +1273,7 @@ using (
   and public.can_access_organization(((storage.foldername(name))[2])::uuid)
   and (storage.foldername(name))[3] = 'loads'
   and (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[5] in ('rate_confirmation', 'pod')
+  and (storage.foldername(name))[5] in ('rate-confirmation', 'pod')
   and exists (
     select 1
     from public.loads

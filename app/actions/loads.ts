@@ -6,7 +6,12 @@ import { writeAuditLog } from "@/lib/audit";
 import { getLoads } from "@/lib/data/loads";
 import { createEmailDispatch, createPodDeliveryEmail } from "@/lib/integrations/email-alerts";
 import { requireSession, requireStaffAccess } from "@/lib/integrations/auth";
-import { assertLoadDocumentStoragePath, canManageLoadRecord, canUploadLoadDocument } from "@/lib/security/tenant-rules";
+import {
+  assertLoadDocumentStoragePath,
+  canManageLoadRecord,
+  canUploadLoadDocumentType,
+  getLoadDocumentStorageFolder,
+} from "@/lib/security/tenant-rules";
 import { createClient } from "@/lib/supabase/server";
 import type { AuthSession } from "@/types/carrier";
 import type { LoadDocumentType, LoadStatus } from "@/types/load";
@@ -96,7 +101,7 @@ export async function createLoadDocumentUploadTargetAction(input: {
     throw new Error("Supabase Storage is not configured for uploads.");
   }
 
-  const load = await assertCanUploadLoadDocument(supabase, session, loadId);
+  const load = await assertCanUploadLoadDocument(supabase, session, loadId, documentType);
   const { data: latestVersion } = await supabase
     .from("load_documents")
     .select("version_number")
@@ -108,7 +113,7 @@ export async function createLoadDocumentUploadTargetAction(input: {
     .maybeSingle();
 
   const versionNumber = Number(latestVersion?.version_number ?? 0) + 1;
-  const storagePath = `organizations/${load.organizationId}/loads/${loadId}/${documentType}/v${versionNumber}/${Date.now()}-${fileName}`;
+  const storagePath = `organizations/${load.organizationId}/loads/${loadId}/${getLoadDocumentStorageFolder(documentType)}/v${versionNumber}/${Date.now()}-${fileName}`;
 
   return {
     bucket: STORAGE_BUCKET,
@@ -131,8 +136,8 @@ export async function finalizeLoadDocumentUploadAction(input: {
 
   if (!supabase) throw new Error("Supabase is not configured.");
 
-  const load = await assertCanUploadLoadDocument(supabase, session, input.loadId);
   const documentType = normalizeDocumentType(input.documentType);
+  const load = await assertCanUploadLoadDocument(supabase, session, input.loadId, documentType);
   assertLoadDocumentStoragePath(input.storagePath, load.organizationId, input.loadId, documentType);
 
   const { data, error } = await supabase.from("load_documents").insert({
@@ -239,9 +244,17 @@ async function assertCanUploadLoadDocument(
   supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
   session: AuthSession,
   loadId: string,
+  documentType: LoadDocumentType,
 ): Promise<LoadAuthTarget> {
   const load = await getLoadAuthTarget(supabase, loadId);
-  if (!load || !canUploadLoadDocument(session, { organizationId: load.organizationId, carrierId: load.carrierId })) {
+  if (
+    !load ||
+    !canUploadLoadDocumentType(
+      session,
+      { organizationId: load.organizationId, carrierId: load.carrierId },
+      documentType,
+    )
+  ) {
     throw new Error("Load documents are only available for authorized load records.");
   }
   return load;

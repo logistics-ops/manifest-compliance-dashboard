@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { CarrierProfilePage } from "@/components/carrier-profile-page";
 import { getCarriers } from "@/lib/data/carriers";
+import { getLoads } from "@/lib/data/loads";
 import { canViewCarrier, requireSession } from "@/lib/integrations/auth";
 import { mockCarriers } from "@/lib/mock-data";
 
@@ -33,6 +34,7 @@ export default async function CarrierPage({ params }: CarrierPageProps) {
   const { carrierId } = await params;
   const session = await requireSession();
   const carriers = await getCarriers();
+  const loads = await getLoads();
   const carrier = carriers.find((item) => item.id === carrierId);
 
   if (!carrier) {
@@ -43,5 +45,5 @@ export default async function CarrierPage({ params }: CarrierPageProps) {
     redirect(session.carrierId ? `/carriers/${session.carrierId}` : "/unauthorized");
   }
 
-  return <CarrierProfilePage carrier={carrier} session={session} />;
+  return <CarrierProfilePage carrier={carrier} session={session} loads={loads.filter((load) => load.carrierId === carrier.id)} />;
 }

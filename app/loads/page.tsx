@@ -3,8 +3,10 @@ import { ArrowLeft, Plus, Search, Truck } from "lucide-react";
 import { getLoads } from "@/lib/data/loads";
 import { requireSession } from "@/lib/integrations/auth";
 import { canManageCompliance } from "@/lib/auth/permissions";
+import { LoadDocumentUploader } from "@/components/load-document-uploader";
 import { StatusChip } from "@/components/status-chip";
-import type { LoadStatus } from "@/types/load";
+import { canUploadLoadDocumentType } from "@/lib/security/tenant-rules";
+import type { LoadDocument, LoadDocumentType, LoadStatus } from "@/types/load";
 
 const statuses: Array<LoadStatus | "all"> = ["all", "booked", "in_transit", "delivered", "pod_uploaded", "pod_sent", "invoiced", "cancelled"];
 
@@ -86,7 +88,7 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1000px] border-collapse">
+            <table className="w-full min-w-[1180px] border-collapse">
               <thead>
                 <tr className="bg-white/[0.025] text-left text-[11px] uppercase tracking-[0.14em] text-manifest-quiet">
                   <th className="border-b border-white/10 px-4 py-4">Load</th>
@@ -95,12 +97,21 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
                   <th className="border-b border-white/10 px-4 py-4">Lane</th>
                   <th className="border-b border-white/10 px-4 py-4">Dates</th>
                   <th className="border-b border-white/10 px-4 py-4">Rate</th>
+                  <th className="border-b border-white/10 px-4 py-4">Rate Confirmation</th>
                   <th className="border-b border-white/10 px-4 py-4">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredLoads.length ? filteredLoads.map((load) => (
-                  <tr key={load.id} className="transition hover:bg-manifest-red/10">
+                {filteredLoads.length ? filteredLoads.map((load) => {
+                  const rateConfirmation = latestDocument(load.documents, "rate_confirmation");
+                  const canUploadRateConfirmation = canUploadLoadDocumentType(
+                    session,
+                    { organizationId: load.organizationId, carrierId: load.carrierId },
+                    "rate_confirmation",
+                  );
+
+                  return (
+                  <tr key={load.id} className="align-top transition hover:bg-manifest-red/10">
                     <td className="border-b border-white/10 px-4 py-4">
                       <Link href={`/loads/${load.id}`} className="font-extrabold text-white hover:text-manifest-red">{load.loadNumber}</Link>
                       <span className="mt-1 block text-xs text-manifest-muted">{load.driverName || "No driver"}</span>
@@ -117,11 +128,23 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
                       {load.pickupDate ?? "No pickup"} / {load.deliveryDate ?? "No delivery"}
                     </td>
                     <td className="border-b border-white/10 px-4 py-4 text-sm font-extrabold text-white">{formatMoney(load.rateAmount)}</td>
+                    <td className="border-b border-white/10 px-4 py-4">
+                      <div className="w-80">
+                        <LoadDocumentUploader
+                          loadId={load.id}
+                          documentType="rate_confirmation"
+                          label="Rate Confirmation"
+                          document={rateConfirmation}
+                          canUpload={canUploadRateConfirmation}
+                        />
+                      </div>
+                    </td>
                     <td className="border-b border-white/10 px-4 py-4"><StatusChip value={formatStatus(load.status)} /></td>
                   </tr>
-                )) : (
+                );
+                }) : (
                   <tr>
-                    <td colSpan={7} className="border-b border-white/10 px-4 py-8">
+                    <td colSpan={8} className="border-b border-white/10 px-4 py-8">
                       <div className="empty-state">No loads match the current filters.</div>
                     </td>
                   </tr>
@@ -142,4 +165,8 @@ function formatStatus(value: string) {
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
+}
+
+function latestDocument(documents: LoadDocument[], documentType: LoadDocumentType) {
+  return documents.filter((document) => document.documentType === documentType).sort((a, b) => b.versionNumber - a.versionNumber)[0] ?? null;
 }

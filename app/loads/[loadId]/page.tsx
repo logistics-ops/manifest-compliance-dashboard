@@ -7,7 +7,7 @@ import { LoadDocumentUploader } from "@/components/load-document-uploader";
 import { StatusChip } from "@/components/status-chip";
 import { getLoad } from "@/lib/data/loads";
 import { requireSession } from "@/lib/integrations/auth";
-import { canAccessLoadRecord, canManageLoadRecord, canUploadLoadDocument } from "@/lib/security/tenant-rules";
+import { canAccessLoadRecord, canManageLoadRecord, canUploadLoadDocumentType } from "@/lib/security/tenant-rules";
 import type { LoadDocument, LoadDocumentType, LoadStatus } from "@/types/load";
 
 type LoadPageProps = {
@@ -30,7 +30,8 @@ export default async function LoadDetailPage({ params }: LoadPageProps) {
   const rateConfirmation = latestDocument(load.documents, "rate_confirmation");
   const pod = latestDocument(load.documents, "pod");
   const canManage = canManageLoadRecord(session, { organizationId: load.organizationId, carrierId: load.carrierId });
-  const canUpload = canUploadLoadDocument(session, { organizationId: load.organizationId, carrierId: load.carrierId });
+  const canUploadRateConfirmation = canUploadLoadDocumentType(session, { organizationId: load.organizationId, carrierId: load.carrierId }, "rate_confirmation");
+  const canUploadPod = canUploadLoadDocumentType(session, { organizationId: load.organizationId, carrierId: load.carrierId }, "pod");
 
   return (
     <main className="min-h-screen p-8 max-md:p-4">
@@ -79,14 +80,14 @@ export default async function LoadDetailPage({ params }: LoadPageProps) {
             documentType="rate_confirmation"
             label="Rate Confirmation"
             document={rateConfirmation}
-            canUpload={canUpload}
+            canUpload={canUploadRateConfirmation}
           />
           <LoadDocumentUploader
             loadId={load.id}
             documentType="pod"
             label="Proof of Delivery"
             document={pod}
-            canUpload={canUpload}
+            canUpload={canUploadPod}
           />
         </section>
 

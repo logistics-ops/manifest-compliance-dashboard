@@ -11,6 +11,7 @@ import {
   canManageLoadRecord,
   canUploadCarrierDocument,
   canUploadLoadDocument,
+  canUploadLoadDocumentType,
   canMutateTenantRecord,
   canRoleAccessDashboard,
   canRoleManageCarriers,
@@ -185,10 +186,15 @@ test("load access is scoped by organization, role, and linked carrier", () => {
   assert.equal(canManageLoadRecord(carrierUser, loadA, true), false);
   assert.equal(canUploadLoadDocument(carrierUser, loadA, true), true);
   assert.equal(canUploadLoadDocument(otherCarrierUser, loadA, true), false);
+  assert.equal(canUploadLoadDocumentType(admin, loadA, "rate_confirmation", true), true);
+  assert.equal(canUploadLoadDocumentType(staff, loadA, "rate_confirmation", true), true);
+  assert.equal(canUploadLoadDocumentType(carrierUser, loadA, "rate_confirmation", true), false);
+  assert.equal(canUploadLoadDocumentType(carrierUser, loadA, "pod", true), true);
 });
 
 test("load document storage paths are scoped under organization and load", () => {
   const validPath = `organizations/${orgA}/loads/load-a/pod/v1/file.pdf`;
+  const rateConPath = `organizations/${orgA}/loads/load-a/rate-confirmation/v1/file.pdf`;
   const wrongOrgPath = `organizations/${orgB}/loads/load-a/pod/v1/file.pdf`;
   const wrongLoadPath = `organizations/${orgA}/loads/load-b/pod/v1/file.pdf`;
 
@@ -196,6 +202,7 @@ test("load document storage paths are scoped under organization and load", () =>
   assert.equal(isLoadStoragePath(wrongOrgPath, orgA, "load-a"), false);
   assert.equal(isLoadStoragePath(wrongLoadPath, orgA, "load-a"), false);
   assert.equal(isLoadDocumentStoragePath(validPath, orgA, "load-a", "pod"), true);
+  assert.equal(isLoadDocumentStoragePath(rateConPath, orgA, "load-a", "rate_confirmation"), true);
   assert.equal(isLoadDocumentStoragePath(validPath, orgA, "load-a", "rate_confirmation"), false);
 });
 

@@ -6,6 +6,7 @@ import {
   FileCheck2,
   Mail,
   Phone,
+  Route,
   ShieldAlert,
   Truck,
 } from "lucide-react";
@@ -22,13 +23,16 @@ import {
   getScoreSummary,
 } from "@/lib/compliance";
 import type { Carrier, EnrichedDocument } from "@/types/carrier";
+import type { Load, LoadDocument, LoadDocumentType } from "@/types/load";
 import { StatusChip } from "@/components/status-chip";
 import { logoutAction } from "@/app/login/actions";
 import { canManageCarriers, canManageCompliance, canUploadCarrierDocuments } from "@/lib/auth/permissions";
 import type { AuthSession } from "@/types/carrier";
 import { CarrierDocumentUploader } from "@/components/carrier-document-uploader";
+import { LoadDocumentUploader } from "@/components/load-document-uploader";
+import { canUploadLoadDocumentType } from "@/lib/security/tenant-rules";
 
-export function CarrierProfilePage({ carrier, session }: { carrier: Carrier; session: AuthSession }) {
+export function CarrierProfilePage({ carrier, session, loads = [] }: { carrier: Carrier; session: AuthSession; loads?: Load[] }) {
   const documents = getCarrierDocuments(carrier);
   const actions = getActionItems(carrier);
   const alerts = getCarrierAlerts(carrier);
@@ -50,10 +54,19 @@ export function CarrierProfilePage({ carrier, session }: { carrier: Carrier; ses
               Compliance dashboard
             </Link>
           ) : (
-            <span className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-3 text-sm font-bold text-manifest-muted">
-              <Truck className="h-4 w-4" />
-              Carrier portal
-            </span>
+            <div className="flex flex-wrap gap-2">
+              <span className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-3 text-sm font-bold text-manifest-muted">
+                <Truck className="h-4 w-4" />
+                Carrier portal
+              </span>
+              <Link
+                href="/loads"
+                className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-3 text-sm font-bold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white"
+              >
+                <Route className="h-4 w-4" />
+                Loads
+              </Link>
+            </div>
           )}
           <form action={logoutAction}>
             <button className="inline-flex min-h-10 items-center rounded-md border border-white/10 bg-black/30 px-3 text-sm font-bold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white">
@@ -218,6 +231,80 @@ export function CarrierProfilePage({ carrier, session }: { carrier: Carrier; ses
             ))}
           </div>
         </section>
+
+        <section className="section-panel mt-5 p-6 max-md:p-4">
+          <div className="mb-5 flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
+            <div>
+              <p className="eyebrow">Loads</p>
+              <h2 className="text-2xl font-extrabold tracking-normal">Assigned loads</h2>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <StatusChip value={`${loads.length} load${loads.length === 1 ? "" : "s"}`} />
+              <Route className="h-5 w-5 text-manifest-red" />
+            </div>
+          </div>
+
+          {loads.length ? (
+            <div className="grid gap-4">
+              {loads.map((load) => {
+                const pod = latestLoadDocument(load.documents, "pod");
+                const rateConfirmation = latestLoadDocument(load.documents, "rate_confirmation");
+                const canUploadPod = canUploadLoadDocumentType(
+                  session,
+                  { organizationId: load.organizationId, carrierId: load.carrierId },
+                  "pod",
+                );
+                const canUploadRateConfirmation = canUploadLoadDocumentType(
+                  session,
+                  { organizationId: load.organizationId, carrierId: load.carrierId },
+                  "rate_confirmation",
+                );
+
+                return (
+                  <article key={load.id} className="rounded-md border border-white/10 bg-black/25 p-4">
+                    <div className="mb-4 flex items-start justify-between gap-3 max-lg:flex-col">
+                      <div>
+                        <Link href={`/loads/${load.id}`} className="text-lg font-extrabold text-white hover:text-manifest-red">
+                          Load {load.loadNumber}
+                        </Link>
+                        <p className="mt-1 text-sm leading-6 text-manifest-muted">
+                          {load.originCity}, {load.originState} to {load.destinationCity}, {load.destinationState}
+                        </p>
+                      </div>
+                      <StatusChip value={formatLoadStatus(load.status)} />
+                    </div>
+
+                    <div className="mb-4 grid grid-cols-4 gap-3 max-xl:grid-cols-2 max-md:grid-cols-1">
+                      <InfoTile label="Broker" value={load.brokerName || "Broker"} icon={<Mail className="h-3.5 w-3.5" />} />
+                      <InfoTile label="Pickup" value={load.pickupDate ?? "No pickup date"} />
+                      <InfoTile label="Delivery" value={load.deliveryDate ?? "No delivery date"} />
+                      <InfoTile label="Rate" value={formatMoney(load.rateAmount)} />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 max-lg:grid-cols-1">
+                      <LoadDocumentUploader
+                        loadId={load.id}
+                        documentType="pod"
+                        label="Upload Load Document: POD"
+                        document={pod}
+                        canUpload={canUploadPod}
+                      />
+                      <LoadDocumentUploader
+                        loadId={load.id}
+                        documentType="rate_confirmation"
+                        label="Rate Confirmation"
+                        document={rateConfirmation}
+                        canUpload={canUploadRateConfirmation}
+                      />
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="empty-state">No loads assigned yet.</div>
+          )}
+        </section>
       </div>
     </main>
   );
@@ -251,9 +338,6 @@ function DocumentUploadRow({
         <dl className="grid gap-2.5 rounded-md border border-white/10 bg-black/25 p-3">
           <ChecklistTerm label="Expiration" value={document.expirationDate ?? "No expiration"} />
           <ChecklistTerm label="Days" value={document.daysUntilExpiration ?? "N/A"} />
-          <ChecklistTerm label="Expiration" value={document.expirationDate ?? "No expiration"} />
-<ChecklistTerm label="Days" value={document.daysUntilExpiration ?? "N/A"} />
-<ChecklistTerm label="File" value={document.fileName ?? "No file uploaded"} />
           <ChecklistTerm label="File" value={document.fileName ?? "No file uploaded"} />
         </dl>
 
@@ -317,4 +401,16 @@ function documentBorder(status: string) {
   if (status === "Valid") return "border-manifest-green/30";
   if (status === "Expiring Soon") return "border-manifest-amber/55";
   return "border-manifest-danger/60";
+}
+
+function latestLoadDocument(documents: LoadDocument[], documentType: LoadDocumentType) {
+  return documents.filter((document) => document.documentType === documentType).sort((a, b) => b.versionNumber - a.versionNumber)[0] ?? null;
+}
+
+function formatLoadStatus(value: string) {
+  return value.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+}
+
+function formatMoney(value: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
 }
