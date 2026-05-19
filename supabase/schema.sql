@@ -27,7 +27,8 @@ create type public.notification_category as enum (
   'load_operation',
   'archive_operation',
   'invoice_operation',
-  'broker_operation'
+  'broker_operation',
+  'user_operation'
 );
 create type public.load_status as enum (
   'booked',
@@ -71,6 +72,7 @@ create table public.users (
   role public.app_role not null default 'carrier',
   platform_super_admin boolean not null default false,
   is_active boolean not null default true,
+  last_login_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -413,6 +415,8 @@ create index if not exists carriers_status_idx on public.carriers(status);
 create index if not exists carriers_compliance_score_idx on public.carriers(compliance_score);
 create index if not exists users_role_idx on public.users(role);
 create index if not exists users_carrier_id_idx on public.users(carrier_id);
+create index if not exists users_is_active_idx on public.users(is_active);
+create index if not exists users_last_login_at_idx on public.users(last_login_at desc);
 create index if not exists carrier_documents_carrier_id_idx on public.carrier_documents(carrier_id);
 create index if not exists carrier_documents_organization_id_idx on public.carrier_documents(organization_id);
 create index if not exists carrier_documents_status_idx on public.carrier_documents(status);
@@ -905,7 +909,14 @@ with check (public.is_platform_super_admin());
 create policy "Users can read own profile"
 on public.users for select
 to authenticated
-using (id = auth.uid() or public.is_platform_super_admin() or public.can_access_organization(organization_id));
+using (
+  id = auth.uid()
+  or public.is_platform_super_admin()
+  or (
+    public.can_manage_compliance()
+    and public.can_access_organization(organization_id)
+  )
+);
 
 create policy "Admins can manage users"
 on public.users for all
@@ -1453,7 +1464,14 @@ using (
     'invoice.resent',
     'invoice.paid',
     'invoice.voided',
-    'invoice.downloaded'
+    'invoice.downloaded',
+    'broker.created',
+    'broker.updated',
+    'broker.approved',
+    'broker.blocked',
+    'broker.review_required',
+    'broker_check.requested',
+    'broker.selected_on_load'
   )
 );
 

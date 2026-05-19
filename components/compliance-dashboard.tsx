@@ -117,7 +117,7 @@ const organizationNavGroups: NavGroup[] = [
     title: "Company",
     items: [
       { label: "Onboarding", href: "/onboarding", icon: Flag },
-      { label: "Users", href: "#users", icon: Users, placeholder: true },
+      { label: "Users", href: "/users", icon: Users },
       { label: "Organization Settings", href: "#organization-settings", icon: Settings, placeholder: true },
       { label: "Branding", href: "#branding", icon: Palette, placeholder: true },
       { label: "Platform Admin", href: "/platform", icon: Building2, platformOnly: true },

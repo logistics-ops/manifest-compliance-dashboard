@@ -6,6 +6,7 @@ import {
   canAccessAuditLogRecord,
   canAccessBrokerRecord,
   canAccessCarrierRecord,
+  canAssignCarrierToUser,
   canAccessInvoiceRecord,
   canAccessLoadRecord,
   canAccessLoadTimeline,
@@ -17,7 +18,9 @@ import {
   canAccessOrganizationRecord,
   canCreateLoadRecord,
   canCreateBrokerCheckRequest,
+  canInviteOrganizationUsers,
   canManageBrokerRecord,
+  canManageOrganizationUsers,
   canManageLoadDocumentRecord,
   canManageLoadRecord,
   canUploadCarrierDocument,
@@ -29,6 +32,7 @@ import {
   canRoleManageCompliance,
   canSendInvoiceRecord,
   canUpdateInvoiceStatusRecord,
+  canViewOrganizationUsers,
   getLoadQueryScope,
   isTenantStoragePath,
   isLoadStoragePath,
@@ -349,6 +353,35 @@ test("broker registry permissions preserve tenant and carrier request scope", ()
   assert.equal(canCreateBrokerCheckRequest(carrierUser, orgA, carrierA, true), true);
   assert.equal(canCreateBrokerCheckRequest(carrierUser, orgA, carrierB, true), false);
   assert.equal(canCreateBrokerCheckRequest(carrierUser, orgB, carrierA, true), false);
+});
+
+test("organization user management permissions preserve tenant and role boundaries", () => {
+  const platform = session({ role: "admin", organizationId: null, platformSuperAdmin: true });
+  const admin = session({ role: "admin" });
+  const staff = session({ role: "staff" });
+  const carrierUser = session({ role: "carrier", carrierId: carrierA });
+
+  assert.equal(canViewOrganizationUsers(platform, orgB, false), true);
+  assert.equal(canViewOrganizationUsers(admin, orgA, true), true);
+  assert.equal(canViewOrganizationUsers(staff, orgA, true), true);
+  assert.equal(canViewOrganizationUsers(carrierUser, orgA, true), false);
+  assert.equal(canViewOrganizationUsers(admin, orgB, true), false);
+
+  assert.equal(canInviteOrganizationUsers(admin, orgA, true), true);
+  assert.equal(canInviteOrganizationUsers(staff, orgA, true), true);
+  assert.equal(canInviteOrganizationUsers(carrierUser, orgA, true), false);
+  assert.equal(canInviteOrganizationUsers(staff, orgB, true), false);
+
+  assert.equal(canManageOrganizationUsers(admin, orgA, true), true);
+  assert.equal(canManageOrganizationUsers(staff, orgA, true), false);
+  assert.equal(canManageOrganizationUsers(carrierUser, orgA, true), false);
+  assert.equal(canManageOrganizationUsers(admin, orgB, true), false);
+  assert.equal(canManageOrganizationUsers(platform, orgB, false), true);
+
+  assert.equal(canAssignCarrierToUser(admin, orgA, orgA, true), true);
+  assert.equal(canAssignCarrierToUser(staff, orgA, orgA, true), true);
+  assert.equal(canAssignCarrierToUser(admin, orgA, orgB, true), false);
+  assert.equal(canAssignCarrierToUser(carrierUser, orgA, orgA, true), false);
 });
 
 test("audit log access is scoped by platform, organization, and role sensitivity", () => {

@@ -261,6 +261,38 @@ export function canCreateBrokerCheckRequest(
   return session.role === "carrier" && Boolean(session.carrierId) && session.carrierId === carrierId;
 }
 
+export function canViewOrganizationUsers(session: AuthSession | null, organizationId: string | null, organizationIsActive = true) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  return canRoleManageCompliance(session.role) && canAccessOrganizationRecord(session, organizationId, organizationIsActive);
+}
+
+export function canInviteOrganizationUsers(session: AuthSession | null, organizationId: string | null, organizationIsActive = true) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  return (session.role === "admin" || session.role === "staff") && canAccessOrganizationRecord(session, organizationId, organizationIsActive);
+}
+
+export function canManageOrganizationUsers(session: AuthSession | null, organizationId: string | null, organizationIsActive = true) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  return session.role === "admin" && canAccessOrganizationRecord(session, organizationId, organizationIsActive);
+}
+
+export function canAssignCarrierToUser(
+  session: AuthSession | null,
+  userOrganizationId: string | null,
+  carrierOrganizationId: string | null,
+  organizationIsActive = true,
+) {
+  if (!canManageOrganizationUsers(session, userOrganizationId, organizationIsActive) && !canInviteOrganizationUsers(session, userOrganizationId, organizationIsActive)) {
+    return false;
+  }
+  if (!userOrganizationId || !carrierOrganizationId) return false;
+  if (session?.platformSuperAdmin) return userOrganizationId === carrierOrganizationId;
+  return session?.organizationId === userOrganizationId && userOrganizationId === carrierOrganizationId;
+}
+
 export function canGenerateInvoiceRecord(
   session: AuthSession | null,
   invoice: InvoiceAccessRecord,

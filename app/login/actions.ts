@@ -31,6 +31,8 @@ export async function loginAction(formData: FormData) {
       .eq("id", data.user.id)
       .maybeSingle();
 
+    await supabase.from("users").update({ last_login_at: new Date().toISOString() }).eq("id", data.user.id);
+
     await writeAuditLog({
       organizationId: profile?.organization_id ?? null,
       actorUserId: data.user.id,

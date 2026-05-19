@@ -5,6 +5,7 @@ do $$
 begin
   if exists (select 1 from pg_type where typname = 'notification_category') then
     alter type public.notification_category add value if not exists 'broker_operation';
+    alter type public.notification_category add value if not exists 'user_operation';
   end if;
 end $$;
 
