@@ -16,7 +16,7 @@ export default async function Home() {
   return (
     <>
       <ComplianceDashboard carriers={carriers} notifications={notifications} session={session} branding={branding} />
-      <div className="px-8 pb-8 max-md:px-4">
+      <div id="audit-logs" className="px-8 pb-8 max-md:px-4">
         <AuditLogViewer
           logs={auditLogs}
           title="Organization audit log"

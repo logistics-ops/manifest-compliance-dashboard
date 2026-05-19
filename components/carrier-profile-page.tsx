@@ -2,10 +2,13 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import {
   ArrowLeft,
+  Bell,
   ClipboardCheck,
   Download,
+  FileArchive,
   FileCheck2,
   FileText,
+  LayoutDashboard,
   Mail,
   Phone,
   Route,
@@ -44,7 +47,9 @@ export function CarrierProfilePage({ carrier, session, loads = [] }: { carrier: 
   const mayUploadDocuments = canUploadCarrierDocuments(session, carrier);
 
   return (
-    <main className="min-h-screen p-8 max-md:p-4">
+    <div className="grid min-h-screen grid-cols-[260px_minmax(0,1fr)] max-xl:grid-cols-1">
+      {!mayManageCompliance ? <CarrierPortalSidebar carrierId={carrier.id} /> : null}
+      <main className="min-h-screen p-8 max-md:p-4">
       <div className="mx-auto max-w-7xl">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           {mayManageCompliance ? (
@@ -222,7 +227,7 @@ export function CarrierProfilePage({ carrier, session, loads = [] }: { carrier: 
           </div>
         </section>
 
-        <section className="section-panel p-6 max-md:p-4">
+        <section id="documents" className="section-panel p-6 max-md:p-4">
           <div className="mb-5 flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
             <div>
               <p className="eyebrow">Compliance Checklist</p>
@@ -321,7 +326,8 @@ export function CarrierProfilePage({ carrier, session, loads = [] }: { carrier: 
           )}
         </section>
       </div>
-    </main>
+      </main>
+    </div>
   );
 }
 
@@ -359,6 +365,38 @@ function DocumentUploadRow({
         <CarrierDocumentUploader carrierId={carrier.id} document={document} canEdit={canEdit} />
       </div>
     </article>
+  );
+}
+
+function CarrierPortalSidebar({ carrierId }: { carrierId: string }) {
+  const items = [
+    { label: "Dashboard", href: `/carriers/${carrierId}`, icon: LayoutDashboard },
+    { label: "Loads", href: "/loads", icon: Route },
+    { label: "Documents", href: "#documents", icon: FileCheck2 },
+    { label: "Invoices", href: "/invoices", icon: FileText },
+    { label: "Archives", href: `/loads/archive?carrierId=${carrierId}&month=${currentMonth()}`, icon: FileArchive },
+    { label: "Notifications", href: "#notifications", icon: Bell },
+  ];
+
+  return (
+    <aside className="sticky top-0 flex h-screen flex-col border-r border-white/10 bg-black/75 p-6 backdrop-blur-2xl max-xl:static max-xl:h-auto max-xl:border-b max-xl:border-r-0">
+      <div className="border-b border-white/10 pb-5">
+        <p className="eyebrow">Carrier Portal</p>
+        <h2 className="text-xl font-extrabold tracking-normal text-white">ManifestOS</h2>
+      </div>
+      <nav className="mt-5 grid gap-2 max-xl:grid-cols-3 max-md:grid-cols-1" aria-label="Carrier portal">
+        {items.map(({ label, href, icon: Icon }) => (
+          <Link
+            key={label}
+            href={href}
+            className="flex min-h-10 items-center gap-3 rounded-md border border-transparent px-3 text-sm font-semibold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white"
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{label}</span>
+          </Link>
+        ))}
+      </nav>
+    </aside>
   );
 }
 

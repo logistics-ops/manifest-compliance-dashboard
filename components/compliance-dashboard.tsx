@@ -5,20 +5,28 @@ import {
   Activity,
   BarChart3,
   ClipboardCheck,
+  ClipboardList,
   FileCheck2,
+  FileArchive,
   FileText,
   LayoutDashboard,
+  Palette,
   Plus,
   Route,
   type LucideIcon,
   Search,
+  Settings,
   ShieldAlert,
   Truck,
   Bell,
   Building2,
+  DollarSign,
   Flag,
   PanelLeftClose,
   PanelLeftOpen,
+  Receipt,
+  Users,
+  Wrench,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
@@ -52,17 +60,77 @@ const alertLabels: AlertLabel[] = [
   "Audit Ready",
 ];
 
-const navItems: Array<{ label: string; href: string; icon: LucideIcon }> = [
-  { label: "Overview", href: "#overview", icon: LayoutDashboard },
-  { label: "Analytics", href: "#analytics", icon: BarChart3 },
-  { label: "Notifications", href: "#notifications", icon: Bell },
-  { label: "Loads", href: "/loads", icon: Route },
-  { label: "Invoices", href: "/invoices", icon: FileText },
-  { label: "Timeline", href: "#timeline", icon: ClipboardCheck },
-  { label: "Carrier Profiles", href: "#carriers", icon: Truck },
-  { label: "Required Documents", href: "#documents", icon: FileCheck2 },
-  { label: "Alerts", href: "#alerts", icon: ShieldAlert },
-  { label: "Carrier Detail", href: "#detail", icon: ClipboardCheck },
+type NavItem = { label: string; href: string; icon: LucideIcon; placeholder?: boolean; platformOnly?: boolean };
+type NavGroup = { title: string; items: NavItem[] };
+
+const organizationNavGroups: NavGroup[] = [
+  {
+    title: "Command Center",
+    items: [
+      { label: "Overview", href: "#overview", icon: LayoutDashboard },
+      { label: "Analytics", href: "#analytics", icon: BarChart3 },
+      { label: "Notifications", href: "#notifications", icon: Bell },
+      { label: "Audit Logs", href: "#audit-logs", icon: ClipboardList },
+    ],
+  },
+  {
+    title: "Compliance",
+    items: [
+      { label: "Carrier Profiles", href: "#carriers", icon: Truck },
+      { label: "Required Documents", href: "#documents", icon: FileCheck2 },
+      { label: "Driver Qualification Files", href: "#driver-qualification-files", icon: ClipboardCheck, placeholder: true },
+      { label: "Safety / Audit Prep", href: "#safety-audit-prep", icon: ShieldAlert, placeholder: true },
+    ],
+  },
+  {
+    title: "Operations",
+    items: [
+      { label: "Loads", href: "/loads", icon: Route },
+      { label: "POD Workflow", href: "/loads", icon: FileCheck2 },
+      { label: "Rate Confirmations", href: "/loads", icon: ClipboardCheck },
+      { label: "Activity Timeline", href: "#timeline", icon: Activity },
+    ],
+  },
+  {
+    title: "Billing",
+    items: [
+      { label: "Invoices", href: "/invoices", icon: FileText },
+      { label: "Payment Status", href: "/invoices", icon: DollarSign },
+      { label: "Archive Exports", href: "/loads", icon: FileArchive },
+    ],
+  },
+  {
+    title: "Fleet / Maintenance",
+    items: [
+      { label: "Vehicles", href: "#vehicles", icon: Truck, placeholder: true },
+      { label: "Maintenance", href: "#maintenance", icon: Wrench, placeholder: true },
+      { label: "Pre-Trip / Post-Trip", href: "#trip-inspections", icon: ClipboardList, placeholder: true },
+    ],
+  },
+  {
+    title: "Company",
+    items: [
+      { label: "Onboarding", href: "/onboarding", icon: Flag },
+      { label: "Users", href: "#users", icon: Users, placeholder: true },
+      { label: "Organization Settings", href: "#organization-settings", icon: Settings, placeholder: true },
+      { label: "Branding", href: "#branding", icon: Palette, placeholder: true },
+      { label: "Platform Admin", href: "/platform", icon: Building2, platformOnly: true },
+    ],
+  },
+];
+
+const carrierNavGroups: NavGroup[] = [
+  {
+    title: "Carrier Portal",
+    items: [
+      { label: "Dashboard", href: "#overview", icon: LayoutDashboard },
+      { label: "Loads", href: "/loads", icon: Route },
+      { label: "Documents", href: "#documents", icon: FileCheck2 },
+      { label: "Invoices", href: "/invoices", icon: Receipt },
+      { label: "Archives", href: "/loads", icon: FileArchive },
+      { label: "Notifications", href: "#notifications", icon: Bell },
+    ],
+  },
 ];
 
 export function ComplianceDashboard({
@@ -292,6 +360,57 @@ export function ComplianceDashboard({
             )}
           </div>
         </section>
+
+        <section className="mt-5 grid grid-cols-2 gap-5 max-xl:grid-cols-1">
+          <ModulePlaceholder
+            id="driver-qualification-files"
+            eyebrow="Compliance"
+            title="Driver Qualification Files"
+            detail="Placeholder for DQF packets, CDL/medical card review, MVR evidence, and driver audit readiness."
+          />
+          <ModulePlaceholder
+            id="safety-audit-prep"
+            eyebrow="Compliance"
+            title="Safety / Audit Prep"
+            detail="Placeholder for safety scorecards, audit packages, corrective action tracking, and review queues."
+          />
+          <ModulePlaceholder
+            id="vehicles"
+            eyebrow="Fleet / Maintenance"
+            title="Vehicles"
+            detail="Placeholder for vehicle roster, VIN/unit tracking, registration, and equipment compliance."
+          />
+          <ModulePlaceholder
+            id="maintenance"
+            eyebrow="Fleet / Maintenance"
+            title="Maintenance"
+            detail="Placeholder for maintenance events, service intervals, inspection records, and repair follow-up."
+          />
+          <ModulePlaceholder
+            id="trip-inspections"
+            eyebrow="Fleet / Maintenance"
+            title="Pre-Trip / Post-Trip"
+            detail="Placeholder for inspection submissions, defects, sign-off workflow, and fleet safety evidence."
+          />
+          <ModulePlaceholder
+            id="users"
+            eyebrow="Company"
+            title="Users"
+            detail="Placeholder for organization user management, role assignments, invitations, and access reviews."
+          />
+          <ModulePlaceholder
+            id="organization-settings"
+            eyebrow="Company"
+            title="Organization Settings"
+            detail="Placeholder for tenant profile settings, operational defaults, billing configuration, and controls."
+          />
+          <ModulePlaceholder
+            id="branding"
+            eyebrow="Company"
+            title="Branding"
+            detail="Placeholder for logo, colors, subdomain, and white-label presentation settings."
+          />
+        </section>
       </main>
     </div>
   );
@@ -341,38 +460,18 @@ function Sidebar({
       </div>
 
       <nav className="mt-7 grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pr-1 max-xl:flex max-xl:flex-wrap max-xl:content-start" aria-label="Primary">
-        {session.platformSuperAdmin ? (
-          <Link
-            href="/platform"
-            className="flex min-h-11 min-w-0 items-center gap-3 rounded-md border border-manifest-red/30 bg-manifest-red/10 px-3.5 text-sm font-semibold text-white transition hover:border-manifest-red/60 hover:bg-manifest-red/15"
-          >
-            <Building2 className="h-4 w-4 shrink-0" />
-            <span className="truncate">Platform Console</span>
-          </Link>
-        ) : null}
-        {canManageCarriers(session) && !session.platformSuperAdmin ? (
-          <Link
-            href="/onboarding"
-            className="flex min-h-11 min-w-0 items-center gap-3 rounded-md border border-transparent px-3.5 text-sm font-semibold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white"
-          >
-            <Flag className="h-4 w-4 shrink-0" />
-            <span className="truncate">Onboarding</span>
-          </Link>
-        ) : null}
-        {navItems.map(({ label, icon: Icon, href }) => {
-          const className = "flex min-h-11 min-w-0 items-center gap-3 rounded-md border border-transparent px-3.5 text-sm font-semibold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white";
-          return href.startsWith("/") ? (
-            <Link key={label} href={href} className={className}>
-              <Icon className="h-4 w-4 shrink-0" />
-              <span className="truncate">{label}</span>
-            </Link>
-          ) : (
-            <a key={label} href={href} className={className}>
-              <Icon className="h-4 w-4 shrink-0" />
-              <span className="truncate">{label}</span>
-            </a>
-          );
-        })}
+        {(session.role === "carrier" && !session.platformSuperAdmin ? carrierNavGroups : organizationNavGroups).map((group) => (
+          <div key={group.title} className="grid gap-1.5">
+            <span className="px-3.5 pt-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-manifest-quiet">
+              {group.title}
+            </span>
+            {group.items
+              .filter((item) => !item.platformOnly || session.platformSuperAdmin)
+              .map((item) => (
+                <SidebarNavItem key={`${group.title}-${item.label}`} item={item} />
+              ))}
+          </div>
+        ))}
       </nav>
 
       <div className="mt-6 shrink-0 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] p-4 shadow-premium">
@@ -405,6 +504,59 @@ function EmptyDashboardState({ session }: { session: AuthSession }) {
             </Link>
           ) : null}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function SidebarNavItem({ item }: { item: NavItem }) {
+  const Icon = item.icon;
+  const className = `flex min-h-10 min-w-0 items-center gap-3 rounded-md border px-3.5 text-sm font-semibold transition ${
+    item.placeholder
+      ? "border-white/5 text-manifest-quiet opacity-80"
+      : "border-transparent text-manifest-muted hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white"
+  }`;
+  const content = (
+    <>
+      <Icon className="h-4 w-4 shrink-0" />
+      <span className="truncate">{item.label}</span>
+      {item.placeholder ? <span className="ml-auto text-[10px] font-extrabold uppercase tracking-[0.12em]">Soon</span> : null}
+    </>
+  );
+
+  return item.href.startsWith("/") ? (
+    <Link href={item.href} className={className}>
+      {content}
+    </Link>
+  ) : (
+    <a href={item.href} className={className}>
+      {content}
+    </a>
+  );
+}
+
+function ModulePlaceholder({
+  id,
+  eyebrow,
+  title,
+  detail,
+}: {
+  id: string;
+  eyebrow: string;
+  title: string;
+  detail: string;
+}) {
+  return (
+    <section id={id} className="section-panel p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="eyebrow">{eyebrow}</p>
+          <h2 className="text-xl font-extrabold tracking-normal text-white">{title}</h2>
+          <p className="mt-2 text-sm leading-6 text-manifest-muted">{detail}</p>
+        </div>
+        <span className="rounded-md border border-white/10 bg-white/[0.035] px-2 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-manifest-muted">
+          Soon
+        </span>
       </div>
     </section>
   );
