@@ -2,17 +2,20 @@ import Link from "next/link";
 import { ArrowLeft, Route } from "lucide-react";
 import { createLoadAction } from "@/app/actions/loads";
 import { getCarriers } from "@/lib/data/carriers";
-import { requireStaffAccess } from "@/lib/integrations/auth";
+import { requireSession } from "@/lib/integrations/auth";
+import { canManageCompliance } from "@/lib/auth/permissions";
 
 type NewLoadPageProps = {
   searchParams?: Promise<{ error?: string }>;
 };
 
 export default async function NewLoadPage({ searchParams }: NewLoadPageProps) {
-  await requireStaffAccess();
-  const carriers = await getCarriers();
+  const session = await requireSession();
+  const maySelectCarrier = canManageCompliance(session);
+  const carriers = maySelectCarrier ? await getCarriers() : [];
   const params = await searchParams;
   const error = params?.error ? decodeURIComponent(params.error) : "";
+  const cannotCreate = maySelectCarrier ? !carriers.length : session.role === "carrier" && !session.carrierId;
 
   return (
     <main className="min-h-screen p-8 max-md:p-4">
@@ -37,23 +40,41 @@ export default async function NewLoadPage({ searchParams }: NewLoadPageProps) {
             </div>
           ) : null}
 
-          {!carriers.length ? (
+          {maySelectCarrier && !carriers.length ? (
             <div className="mb-5 rounded-md border border-manifest-amber/40 bg-manifest-amber/10 px-4 py-3 text-sm font-bold text-manifest-amber">
               Create a carrier in this organization before creating a load.
+            </div>
+          ) : null}
+
+          {!maySelectCarrier && session.role === "carrier" && !session.carrierId ? (
+            <div className="mb-5 rounded-md border border-manifest-danger/40 bg-manifest-danger/10 px-4 py-3 text-sm font-bold text-manifest-danger">
+              Your user account must be linked to a carrier profile before creating loads.
             </div>
           ) : null}
 
           <form action={createLoadAction} className="grid gap-4">
             <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
               <Field label="Load Number" name="loadNumber" required />
-              <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
-                Carrier
-                <select name="carrierId" className="form-control" required>
-                  {carriers.map((carrier) => (
-                    <option key={carrier.id} value={carrier.id}>{carrier.companyName}</option>
-                  ))}
-                </select>
-              </label>
+              {maySelectCarrier ? (
+                <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                  Carrier
+                  <select name="carrierId" className="form-control" required>
+                    {carriers.map((carrier) => (
+                      <option key={carrier.id} value={carrier.id}>{carrier.companyName}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <div className="rounded-md border border-white/10 bg-black/30 p-3">
+                  <span className="mb-2 block text-[11px] font-extrabold uppercase tracking-[0.18em] text-manifest-quiet">
+                    Carrier
+                  </span>
+                  <strong className="text-sm text-white">Your linked carrier profile</strong>
+                  <p className="mt-1 text-xs leading-5 text-manifest-muted">
+                    ManifestOS will assign this load to your signed-in carrier account.
+                  </p>
+                </div>
+              )}
               <Field label="Driver Name" name="driverName" />
               <Field label="Broker Name" name="brokerName" />
               <Field label="Broker Email" name="brokerEmail" type="email" />
@@ -83,7 +104,7 @@ export default async function NewLoadPage({ searchParams }: NewLoadPageProps) {
               <textarea name="notes" className="form-control min-h-28 resize-y" />
             </label>
 
-            <button className="form-button min-h-11 w-fit px-4 text-sm" disabled={!carriers.length}>Create load</button>
+            <button className="form-button min-h-11 w-fit px-4 text-sm" disabled={cannotCreate}>Create load</button>
           </form>
         </section>
       </div>

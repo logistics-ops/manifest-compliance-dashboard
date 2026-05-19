@@ -53,10 +53,10 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
               Tenant-scoped load operations, broker POD workflow, and load document evidence.
             </p>
           </div>
-          {canManageCompliance(session) ? (
+          {canManageCompliance(session) || (session.role === "carrier" && Boolean(session.carrierId)) ? (
             <Link href="/loads/new" className="form-button min-h-11 px-4 text-sm">
               <Plus className="h-4 w-4" />
-              New load
+              Create Load
             </Link>
           ) : null}
         </header>

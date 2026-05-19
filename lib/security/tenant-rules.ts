@@ -112,6 +112,18 @@ export function canManageLoadRecord(
   return canRoleManageCompliance(session.role) && canAccessOrganizationRecord(session, load.organizationId, organizationIsActive);
 }
 
+export function canCreateLoadRecord(
+  session: AuthSession | null,
+  load: LoadAccessRecord,
+  organizationIsActive = true,
+) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  if (!canAccessOrganizationRecord(session, load.organizationId, organizationIsActive)) return false;
+  if (canRoleManageCompliance(session.role)) return true;
+  return session.role === "carrier" && session.carrierId === load.carrierId;
+}
+
 export function canUploadLoadDocument(
   session: AuthSession | null,
   load: LoadAccessRecord,
@@ -127,7 +139,7 @@ export function canUploadLoadDocumentType(
   organizationIsActive = true,
 ) {
   if (documentType === "rate_confirmation") {
-    return canManageLoadRecord(session, load, organizationIsActive);
+    return canCreateLoadRecord(session, load, organizationIsActive);
   }
 
   return canUploadLoadDocument(session, load, organizationIsActive);

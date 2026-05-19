@@ -230,8 +230,15 @@ create policy "Staff can insert loads"
 on public.loads for insert
 to authenticated
 with check (
-  public.can_manage_compliance()
-  and public.can_access_organization(organization_id)
+  (
+    public.can_manage_compliance()
+    and public.can_access_organization(organization_id)
+  )
+  or (
+    public.current_user_role() = 'carrier'::public.app_role
+    and public.current_user_carrier_id() = carrier_id
+    and public.can_access_organization(organization_id)
+  )
 );
 
 drop policy if exists "Staff can update loads" on public.loads;
@@ -280,7 +287,7 @@ with check (
     and public.can_access_organization(organization_id)
   )
   or (
-    document_type = 'pod'::public.load_document_type
+    document_type in ('pod'::public.load_document_type, 'rate_confirmation'::public.load_document_type)
     and public.current_user_role() = 'carrier'::public.app_role
     and public.current_user_carrier_id() = carrier_id
     and public.can_access_organization(organization_id)
@@ -326,17 +333,9 @@ with check (
     where loads.organization_id = ((storage.foldername(name))[2])::uuid
       and loads.id = ((storage.foldername(name))[4])::uuid
       and (
-        (
-          (storage.foldername(name))[5] = 'rate-confirmation'
-          and public.can_manage_compliance()
-        )
+        public.can_manage_compliance()
         or (
-          (storage.foldername(name))[5] = 'pod'
-          and public.can_manage_compliance()
-        )
-        or (
-          (storage.foldername(name))[5] = 'pod'
-          and public.current_user_role() = 'carrier'::public.app_role
+          public.current_user_role() = 'carrier'::public.app_role
           and public.current_user_carrier_id() = loads.carrier_id
         )
       )

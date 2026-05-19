@@ -8,6 +8,7 @@ import { createEmailDispatch, createPodDeliveryEmail } from "@/lib/integrations/
 import { requireSession, requireStaffAccess } from "@/lib/integrations/auth";
 import {
   assertLoadDocumentStoragePath,
+  canCreateLoadRecord,
   canManageLoadRecord,
   canUploadLoadDocumentType,
   getLoadDocumentStorageFolder,
@@ -21,10 +22,12 @@ const loadStatuses: LoadStatus[] = ["booked", "in_transit", "delivered", "pod_up
 const documentTypes: LoadDocumentType[] = ["rate_confirmation", "pod"];
 
 export async function createLoadAction(formData: FormData) {
-  const session = await requireStaffAccess();
+  const session = await requireSession();
   const supabase = await createClient();
   const organizationId = requireOrganizationId(session);
-  const carrierId = getString(formData, "carrierId");
+  const carrierId = session.role === "carrier" && !session.platformSuperAdmin
+    ? session.carrierId ?? ""
+    : getString(formData, "carrierId");
   const loadNumber = getString(formData, "loadNumber");
   const originCity = getString(formData, "originCity");
   const originState = getString(formData, "originState").toUpperCase();
@@ -38,6 +41,10 @@ export async function createLoadAction(formData: FormData) {
 
   if (!carrierId || !loadNumber || !originCity || !originState || !destinationCity || !destinationState) {
     redirectWithCreateError("Load number, carrier, origin, and destination are required.");
+  }
+
+  if (!canCreateLoadRecord(session, { organizationId, carrierId })) {
+    redirectWithCreateError("You can only create loads for your authorized carrier profile.");
   }
 
   if (!Number.isFinite(rateAmount) || rateAmount < 0) {
