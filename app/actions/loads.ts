@@ -328,6 +328,7 @@ export async function sendPodToBrokerAction(formData: FormData) {
 
   const { data } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(pod.storagePath, 60 * 60 * 24 * 7);
   if (!data?.signedUrl) redirectWithLoadMessage(loadId, "Unable to create POD link.", "error");
+  const carrierEmail = load.carrierEmail || null;
 
   const email = createPodDeliveryEmail({
     brokerName: fullLoad.brokerName,
@@ -342,6 +343,7 @@ export async function sendPodToBrokerAction(formData: FormData) {
   try {
     await createEmailDispatch({
       to: load.brokerEmail,
+      cc: carrierEmail,
       from: "pod@manifestgl.com",
       subject: email.subject,
       html: email.html,
@@ -379,6 +381,9 @@ export async function sendPodToBrokerAction(formData: FormData) {
       previous_status: fullLoad.status,
       new_status: "pod_sent",
       broker_email: load.brokerEmail,
+      cc: carrierEmail ? [carrierEmail] : [],
+      carrier_email: carrierEmail,
+      carrier_email_missing: !carrierEmail,
     },
   });
 
@@ -390,7 +395,11 @@ export async function sendPodToBrokerAction(formData: FormData) {
   });
 
   revalidateLoad(loadId);
-  redirectWithLoadMessage(loadId, "POD sent to broker.", "success");
+  redirectWithLoadMessage(
+    loadId,
+    carrierEmail ? "Sent to broker and CC’d carrier" : "Sent to broker. Carrier email missing.",
+    "success",
+  );
 }
 
 export async function markLoadsArchivedAction(formData: FormData) {
@@ -497,6 +506,7 @@ type LoadAuthTarget = {
   loadNumber: string;
   brokerEmail: string;
   carrierName: string;
+  carrierEmail: string;
   status: LoadStatus;
 };
 
@@ -550,7 +560,7 @@ async function getLoadAuthTarget(
 ): Promise<LoadAuthTarget | null> {
   const { data } = await supabase
     .from("loads")
-    .select("id, organization_id, carrier_id, load_number, broker_email, status, carriers!loads_organization_carrier_fkey(company_name)")
+    .select("id, organization_id, carrier_id, load_number, broker_email, status, carriers!loads_organization_carrier_fkey(company_name, email)")
     .eq("id", loadId)
     .maybeSingle();
 
@@ -564,6 +574,7 @@ async function getLoadAuthTarget(
     loadNumber: data.load_number,
     brokerEmail: data.broker_email ?? "",
     carrierName: carrier?.company_name ?? "Carrier",
+    carrierEmail: carrier?.email ?? "",
     status: data.status,
   };
 }

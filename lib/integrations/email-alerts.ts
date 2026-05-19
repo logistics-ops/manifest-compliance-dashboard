@@ -4,6 +4,7 @@ import type { Carrier, ComplianceNotification, NotificationCategory } from "@/ty
 
 export type EmailDispatchInput = {
   to: string;
+  cc?: string | string[] | null;
   subject: string;
   html: string;
   text: string;
@@ -27,6 +28,7 @@ export async function createEmailDispatch(input: EmailDispatchInput): Promise<vo
     body: JSON.stringify({
       from: input.from ?? "pod@manifestgl.com",
       to: [input.to],
+      ...(input.cc ? { cc: Array.isArray(input.cc) ? input.cc : [input.cc] } : {}),
       subject: input.subject,
       html: input.html,
       text: input.text,

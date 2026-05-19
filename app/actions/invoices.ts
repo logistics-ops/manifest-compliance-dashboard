@@ -112,6 +112,7 @@ export async function sendInvoiceAction(formData: FormData) {
   const invoiceUrl = await signedUrl(supabase, invoice.storagePath, 60 * 60 * 24 * 7);
   const pod = load.documents.find((document) => document.documentType === "pod");
   const podUrl = pod ? await signedUrl(supabase, pod.storagePath, 60 * 60 * 24 * 7) : null;
+  const carrierEmail = await getCarrierEmail(supabase, invoice.organizationId, invoice.carrierId);
   const email = createInvoiceDeliveryEmail({
     invoiceNumber: invoice.invoiceNumber,
     loadNumber: load.loadNumber,
@@ -128,6 +129,7 @@ export async function sendInvoiceAction(formData: FormData) {
   try {
     await createEmailDispatch({
       to: invoice.brokerEmail,
+      cc: carrierEmail,
       from: "pod@manifestgl.com",
       subject: email.subject,
       html: email.html,
@@ -153,7 +155,7 @@ export async function sendInvoiceAction(formData: FormData) {
     action,
     entityType: "invoice",
     entityId: invoice.id,
-    metadata: invoiceMetadata(invoice),
+    metadata: invoiceMetadata(invoice, carrierEmail),
   });
   await writeAuditLog({
     organizationId: invoice.organizationId,
@@ -161,12 +163,16 @@ export async function sendInvoiceAction(formData: FormData) {
     action,
     entityType: "load",
     entityId: invoice.loadId,
-    metadata: invoiceMetadata(invoice),
+    metadata: invoiceMetadata(invoice, carrierEmail),
   });
   await upsertInvoiceNotification({ session, invoice, kind: "invoice_sent", priority: "medium" });
 
   revalidateInvoicePaths(invoice.loadId, invoice.id);
-  redirectWithInvoiceMessage(invoiceId, invoice.sentAt ? "Invoice resent." : "Invoice sent.", "success");
+  redirectWithInvoiceMessage(
+    invoiceId,
+    carrierEmail ? "Sent to broker and CC’d carrier" : "Sent to broker. Carrier email missing.",
+    "success",
+  );
 }
 
 export async function markInvoicePaidAction(formData: FormData) {
@@ -223,8 +229,23 @@ async function signedUrl(supabase: NonNullable<Awaited<ReturnType<typeof createC
   return data.signedUrl;
 }
 
-function invoiceMetadata(invoice: Pick<Invoice, "invoiceNumber" | "loadId" | "loadNumber" | "carrierId" | "carrierName" | "brokerEmail">) {
-  return {
+async function getCarrierEmail(
+  supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
+  organizationId: string,
+  carrierId: string,
+) {
+  const { data } = await supabase
+    .from("carriers")
+    .select("email")
+    .eq("organization_id", organizationId)
+    .eq("id", carrierId)
+    .maybeSingle();
+
+  return data?.email || null;
+}
+
+function invoiceMetadata(invoice: Pick<Invoice, "invoiceNumber" | "loadId" | "loadNumber" | "carrierId" | "carrierName" | "brokerEmail">, carrierEmail?: string | null) {
+  const metadata = {
     invoice_number: invoice.invoiceNumber,
     load_id: invoice.loadId,
     load_number: invoice.loadNumber,
@@ -232,6 +253,15 @@ function invoiceMetadata(invoice: Pick<Invoice, "invoiceNumber" | "loadId" | "lo
     carrier_name: invoice.carrierName,
     broker_email: invoice.brokerEmail,
   };
+
+  return carrierEmail === undefined
+    ? metadata
+    : {
+        ...metadata,
+        cc: carrierEmail ? [carrierEmail] : [],
+        carrier_email: carrierEmail,
+        carrier_email_missing: !carrierEmail,
+      };
 }
 
 function revalidateInvoicePaths(loadId: string, invoiceId: string) {
