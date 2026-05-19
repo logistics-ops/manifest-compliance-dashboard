@@ -103,15 +103,20 @@ export async function createLoadAction(formData: FormData) {
 }
 
 export async function updateLoadStatusAction(formData: FormData) {
-  const session = await requireStaffAccess();
+  const session = await requireSession();
   const supabase = await createClient();
   const loadId = getString(formData, "loadId");
   const status = normalizeStatus(getString(formData, "status"));
 
-  if (!supabase || !loadId) return;
+  if (!supabase || !loadId) redirectWithLoadMessage(loadId, "Supabase is not configured.", "error");
 
-  const load = await assertCanManageLoad(supabase, session, loadId);
-  await supabase.from("loads").update({ status }).eq("id", loadId).eq("organization_id", load.organizationId);
+  const load = await assertCanEditLoad(supabase, session, loadId);
+  const { error } = await supabase.from("loads").update({ status }).eq("id", loadId).eq("organization_id", load.organizationId);
+
+  if (error) {
+    redirectWithLoadMessage(loadId, error.message, "error");
+  }
+
   await writeAuditLog({
     organizationId: load.organizationId,
     actorUserId: session.userId,
@@ -122,6 +127,62 @@ export async function updateLoadStatusAction(formData: FormData) {
   });
 
   revalidateLoad(loadId);
+  redirectWithLoadMessage(loadId, "Load status updated.", "success");
+}
+
+export async function updateLoadDetailsAction(formData: FormData) {
+  const session = await requireSession();
+  const supabase = await createClient();
+  const loadId = getString(formData, "loadId");
+  const rateAmount = Number(getString(formData, "rateAmount") || 0);
+
+  if (!supabase || !loadId) redirectWithLoadMessage(loadId, "Supabase is not configured.", "error");
+
+  const load = await assertCanEditLoad(supabase, session, loadId);
+  const payload = {
+    load_number: getString(formData, "loadNumber"),
+    driver_name: getOptionalString(formData, "driverName"),
+    broker_name: getOptionalString(formData, "brokerName"),
+    broker_email: getOptionalString(formData, "brokerEmail"),
+    origin_city: getString(formData, "originCity"),
+    origin_state: getString(formData, "originState").toUpperCase(),
+    destination_city: getString(formData, "destinationCity"),
+    destination_state: getString(formData, "destinationState").toUpperCase(),
+    pickup_date: getOptionalString(formData, "pickupDate"),
+    delivery_date: getOptionalString(formData, "deliveryDate"),
+    rate_amount: rateAmount,
+    notes: getOptionalString(formData, "notes"),
+  };
+
+  if (!payload.load_number || !payload.origin_city || !payload.origin_state || !payload.destination_city || !payload.destination_state) {
+    redirectWithLoadMessage(loadId, "Load number, origin, and destination are required.", "error");
+  }
+
+  if (!Number.isFinite(rateAmount) || rateAmount < 0) {
+    redirectWithLoadMessage(loadId, "Rate amount must be a valid non-negative number.", "error");
+  }
+
+  const { error } = await supabase
+    .from("loads")
+    .update(payload)
+    .eq("id", loadId)
+    .eq("organization_id", load.organizationId);
+
+  if (error) {
+    redirectWithLoadMessage(loadId, error.message, "error");
+  }
+
+  await writeAuditLog({
+    organizationId: load.organizationId,
+    actorUserId: session.userId,
+    action: "load.updated",
+    entityType: "load",
+    entityId: loadId,
+    metadata: { loadNumber: payload.load_number },
+  });
+
+  revalidateLoad(loadId);
+  redirectWithLoadMessage(loadId, "Load details updated.", "success");
 }
 
 export async function createLoadDocumentUploadTargetAction(input: {
@@ -310,6 +371,18 @@ async function assertCanManageLoad(
   return load;
 }
 
+async function assertCanEditLoad(
+  supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
+  session: AuthSession,
+  loadId: string,
+): Promise<LoadAuthTarget> {
+  const load = await getLoadAuthTarget(supabase, loadId);
+  if (!load || !canCreateLoadRecord(session, { organizationId: load.organizationId, carrierId: load.carrierId })) {
+    throw new Error("Load editing is only available for authorized load records.");
+  }
+  return load;
+}
+
 async function getLoadAuthTarget(
   supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
   loadId: string,
@@ -364,4 +437,9 @@ function sanitizeFileName(value: string) {
 
 function redirectWithCreateError(message: string): never {
   redirect(`/loads/new?error=${encodeURIComponent(message)}`);
+}
+
+function redirectWithLoadMessage(loadId: string, message: string, type: "success" | "error"): never {
+  const target = loadId ? `/loads/${loadId}` : "/loads";
+  redirect(`${target}?${type}=${encodeURIComponent(message)}`);
 }

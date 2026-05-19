@@ -38,6 +38,7 @@ export const staffAuditActions = new Set([
   "onboarding.carrier_created",
   "onboarding.carrier_user_invited",
   "load.created",
+  "load.updated",
   "load.status_changed",
   "load.rate_confirmation_uploaded",
   "load.pod_uploaded",
@@ -143,6 +144,14 @@ export function canUploadLoadDocumentType(
   }
 
   return canUploadLoadDocument(session, load, organizationIsActive);
+}
+
+export function canManageLoadDocumentRecord(
+  session: AuthSession | null,
+  load: LoadAccessRecord,
+  organizationIsActive = true,
+) {
+  return canCreateLoadRecord(session, load, organizationIsActive);
 }
 
 export function canMutateTenantRecord(

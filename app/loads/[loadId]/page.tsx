@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Mail, Route, Send, Truck } from "lucide-react";
-import { sendPodToBrokerAction, updateLoadStatusAction } from "@/app/actions/loads";
+import { sendPodToBrokerAction, updateLoadDetailsAction, updateLoadStatusAction } from "@/app/actions/loads";
 import { LoadDocumentUploader } from "@/components/load-document-uploader";
 import { StatusChip } from "@/components/status-chip";
 import { getLoad } from "@/lib/data/loads";
@@ -12,12 +12,14 @@ import type { LoadDocument, LoadDocumentType, LoadStatus } from "@/types/load";
 
 type LoadPageProps = {
   params: Promise<{ loadId: string }>;
+  searchParams?: Promise<{ success?: string; error?: string }>;
 };
 
 const statuses: LoadStatus[] = ["booked", "in_transit", "delivered", "pod_uploaded", "pod_sent", "invoiced", "cancelled"];
 
-export default async function LoadDetailPage({ params }: LoadPageProps) {
+export default async function LoadDetailPage({ params, searchParams }: LoadPageProps) {
   const { loadId } = await params;
+  const messages = await searchParams;
   const session = await requireSession();
   const load = await getLoad(loadId);
 
@@ -30,6 +32,7 @@ export default async function LoadDetailPage({ params }: LoadPageProps) {
   const rateConfirmation = latestDocument(load.documents, "rate_confirmation");
   const pod = latestDocument(load.documents, "pod");
   const canManage = canManageLoadRecord(session, { organizationId: load.organizationId, carrierId: load.carrierId });
+  const canEdit = canAccessLoadRecord(session, { organizationId: load.organizationId, carrierId: load.carrierId });
   const canUploadRateConfirmation = canUploadLoadDocumentType(session, { organizationId: load.organizationId, carrierId: load.carrierId }, "rate_confirmation");
   const canUploadPod = canUploadLoadDocumentType(session, { organizationId: load.organizationId, carrierId: load.carrierId }, "pod");
 
@@ -73,6 +76,17 @@ export default async function LoadDetailPage({ params }: LoadPageProps) {
           <InfoPanel icon={<Mail className="h-4 w-4" />} label="Broker" title={load.brokerName || "Broker"} detail={load.brokerEmail || "No broker email"} />
           <InfoPanel icon={<Route className="h-4 w-4" />} label="Dates" title={`${load.pickupDate ?? "No pickup"} → ${load.deliveryDate ?? "No delivery"}`} detail={formatMoney(load.rateAmount)} />
         </section>
+
+        {messages?.success ? (
+          <div className="mb-5 rounded-md border border-manifest-green/35 bg-manifest-green/10 px-4 py-3 text-sm font-bold text-manifest-green">
+            {decodeURIComponent(messages.success)}
+          </div>
+        ) : null}
+        {messages?.error ? (
+          <div className="mb-5 rounded-md border border-manifest-danger/40 bg-manifest-danger/10 px-4 py-3 text-sm font-bold text-manifest-danger">
+            {decodeURIComponent(messages.error)}
+          </div>
+        ) : null}
 
         <section className="mb-5 grid grid-cols-2 gap-5 max-lg:grid-cols-1">
           <LoadDocumentUploader
@@ -126,8 +140,59 @@ export default async function LoadDetailPage({ params }: LoadPageProps) {
             ) : null}
           </div>
         </section>
+
+        {canEdit ? (
+          <section className="section-panel mt-5 p-6 max-md:p-4">
+            <div className="mb-5">
+              <p className="eyebrow">Edit Load Details</p>
+              <h2 className="text-2xl font-extrabold tracking-normal text-white">Operational fields</h2>
+            </div>
+            <form action={updateLoadDetailsAction} className="grid gap-4">
+              <input type="hidden" name="loadId" value={load.id} />
+              <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
+                <Field label="Load Number" name="loadNumber" defaultValue={load.loadNumber} required />
+                <Field label="Driver Name" name="driverName" defaultValue={load.driverName} />
+                <Field label="Broker Name" name="brokerName" defaultValue={load.brokerName} />
+                <Field label="Broker Email" name="brokerEmail" type="email" defaultValue={load.brokerEmail} />
+                <Field label="Origin City" name="originCity" defaultValue={load.originCity} required />
+                <Field label="Origin State" name="originState" defaultValue={load.originState} required />
+                <Field label="Destination City" name="destinationCity" defaultValue={load.destinationCity} required />
+                <Field label="Destination State" name="destinationState" defaultValue={load.destinationState} required />
+                <Field label="Pickup Date" name="pickupDate" type="date" defaultValue={load.pickupDate ?? ""} />
+                <Field label="Delivery Date" name="deliveryDate" type="date" defaultValue={load.deliveryDate ?? ""} />
+                <Field label="Rate Amount" name="rateAmount" type="number" defaultValue={String(load.rateAmount)} />
+              </div>
+              <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                Notes
+                <textarea name="notes" defaultValue={load.notes} className="form-control min-h-28 resize-y" />
+              </label>
+              <button className="form-button min-h-10 w-fit px-3 text-sm">Save load details</button>
+            </form>
+          </section>
+        ) : null}
       </div>
     </main>
+  );
+}
+
+function Field({
+  label,
+  name,
+  type = "text",
+  defaultValue = "",
+  required = false,
+}: {
+  label: string;
+  name: string;
+  type?: string;
+  defaultValue?: string;
+  required?: boolean;
+}) {
+  return (
+    <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+      {label}
+      <input name={name} type={type} defaultValue={defaultValue} required={required} className="form-control" />
+    </label>
   );
 }
 

@@ -1069,13 +1069,81 @@ create policy "Authorized users can insert load documents"
 on public.load_documents for insert
 to authenticated
 with check (
-  (public.can_manage_compliance() and public.can_access_organization(organization_id))
+  public.is_platform_super_admin()
+  or (
+    public.can_manage_compliance()
+    and public.can_access_organization(organization_id)
+    and exists (
+      select 1
+      from public.loads
+      where loads.id = load_documents.load_id
+        and loads.organization_id = load_documents.organization_id
+        and loads.carrier_id = load_documents.carrier_id
+    )
+  )
   or (
     document_type in ('pod'::public.load_document_type, 'rate_confirmation'::public.load_document_type)
     and
     public.current_user_role() = 'carrier'::public.app_role
     and public.current_user_carrier_id() = carrier_id
     and public.can_access_organization(organization_id)
+    and exists (
+      select 1
+      from public.loads
+      where loads.id = load_documents.load_id
+        and loads.organization_id = load_documents.organization_id
+        and loads.carrier_id = public.current_user_carrier_id()
+    )
+  )
+);
+
+create policy "Authorized users can update load documents"
+on public.load_documents for update
+to authenticated
+using (
+  public.is_platform_super_admin()
+  or (
+    public.can_manage_compliance()
+    and public.can_access_organization(organization_id)
+  )
+  or (
+    public.current_user_role() = 'carrier'::public.app_role
+    and public.current_user_carrier_id() = carrier_id
+    and public.can_access_organization(organization_id)
+    and exists (
+      select 1
+      from public.loads
+      where loads.id = load_documents.load_id
+        and loads.organization_id = load_documents.organization_id
+        and loads.carrier_id = public.current_user_carrier_id()
+    )
+  )
+)
+with check (
+  public.is_platform_super_admin()
+  or (
+    public.can_manage_compliance()
+    and public.can_access_organization(organization_id)
+    and exists (
+      select 1
+      from public.loads
+      where loads.id = load_documents.load_id
+        and loads.organization_id = load_documents.organization_id
+        and loads.carrier_id = load_documents.carrier_id
+    )
+  )
+  or (
+    document_type in ('pod'::public.load_document_type, 'rate_confirmation'::public.load_document_type)
+    and public.current_user_role() = 'carrier'::public.app_role
+    and public.current_user_carrier_id() = carrier_id
+    and public.can_access_organization(organization_id)
+    and exists (
+      select 1
+      from public.loads
+      where loads.id = load_documents.load_id
+        and loads.organization_id = load_documents.organization_id
+        and loads.carrier_id = public.current_user_carrier_id()
+    )
   )
 );
 
@@ -1117,6 +1185,7 @@ using (
     'onboarding.carrier_created',
     'onboarding.carrier_user_invited',
     'load.created',
+    'load.updated',
     'load.status_changed',
     'load.rate_confirmation_uploaded',
     'load.pod_uploaded',
@@ -1249,6 +1318,7 @@ with check (
   and (storage.foldername(name))[3] = 'loads'
   and (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
   and (storage.foldername(name))[5] in ('rate-confirmation', 'pod')
+  and (storage.foldername(name))[6] ~ '^v[0-9]+$'
   and exists (
     select 1
     from public.loads

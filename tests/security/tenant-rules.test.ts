@@ -9,6 +9,7 @@ import {
   canAccessNotificationRecord,
   canAccessOrganizationRecord,
   canCreateLoadRecord,
+  canManageLoadDocumentRecord,
   canManageLoadRecord,
   canUploadCarrierDocument,
   canUploadLoadDocument,
@@ -190,6 +191,9 @@ test("load access is scoped by organization, role, and linked carrier", () => {
   assert.equal(canCreateLoadRecord(carrierUser, loadA, true), true);
   assert.equal(canCreateLoadRecord(carrierUser, { organizationId: orgA, carrierId: carrierB }, true), false);
   assert.equal(canCreateLoadRecord(carrierUser, { organizationId: orgB, carrierId: carrierA }, true), false);
+  assert.equal(canManageLoadDocumentRecord(carrierUser, loadA, true), true);
+  assert.equal(canManageLoadDocumentRecord(carrierUser, { organizationId: orgA, carrierId: carrierB }, true), false);
+  assert.equal(canManageLoadDocumentRecord(carrierUser, { organizationId: orgB, carrierId: carrierA }, true), false);
   assert.equal(canUploadLoadDocument(carrierUser, loadA, true), true);
   assert.equal(canUploadLoadDocument(otherCarrierUser, loadA, true), false);
   assert.equal(canUploadLoadDocumentType(admin, loadA, "rate_confirmation", true), true);
