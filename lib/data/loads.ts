@@ -22,7 +22,6 @@ type LoadRow = {
   notes: string | null;
   pod_sent_at: string | null;
   created_at: string;
-  carriers?: { company_name: string | null } | Array<{ company_name: string | null }> | null;
   load_documents?: LoadDocumentRow[];
 };
 
@@ -36,6 +35,12 @@ type LoadDocumentRow = {
   version_number: number;
   uploaded_at: string;
   uploaded_by_user?: { full_name: string | null; email: string | null } | null;
+};
+
+type CarrierNameRow = {
+  id: string;
+  organization_id: string;
+  company_name: string | null;
 };
 
 export async function getLoads(): Promise<Load[]> {
@@ -52,7 +57,8 @@ export async function getLoads(): Promise<Load[]> {
     return [];
   }
 
-  return (data as LoadRow[]).map(mapLoadRow);
+  const carrierNames = await getCarrierNamesByTenant(supabase, session, data as LoadRow[]);
+  return (data as LoadRow[]).map((row) => mapLoadRow(row, carrierNames));
 }
 
 export async function getLoadsResult(): Promise<{ loads: Load[]; error: string | null }> {
@@ -69,7 +75,8 @@ export async function getLoadsResult(): Promise<{ loads: Load[]; error: string |
     return { loads: [], error: error?.message || "Unable to load loads." };
   }
 
-  return { loads: (data as LoadRow[]).map(mapLoadRow), error: null };
+  const carrierNames = await getCarrierNamesByTenant(supabase, session, data as LoadRow[]);
+  return { loads: (data as LoadRow[]).map((row) => mapLoadRow(row, carrierNames)), error: null };
 }
 
 export async function getLoad(loadId: string): Promise<Load | null> {
@@ -83,7 +90,7 @@ function buildLoadsQuery(
 ) {
   let query = supabase
     .from("loads")
-    .select("*, carriers(company_name), load_documents(id, document_type, storage_path, file_name, file_size, mime_type, version_number, uploaded_at, uploaded_by_user:users!load_documents_uploaded_by_fkey(full_name, email))")
+    .select("*, load_documents(id, document_type, storage_path, file_name, file_size, mime_type, version_number, uploaded_at, uploaded_by_user:users!load_documents_uploaded_by_fkey(full_name, email))")
     .order("pickup_date", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 
@@ -98,15 +105,45 @@ function buildLoadsQuery(
   return query;
 }
 
-function mapLoadRow(row: LoadRow): Load {
-  const carrier = Array.isArray(row.carriers) ? row.carriers[0] : row.carriers;
+async function getCarrierNamesByTenant(
+  supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
+  session: NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>,
+  loads: LoadRow[],
+) {
+  const carrierIds = Array.from(new Set(loads.map((load) => load.carrier_id).filter(Boolean)));
+  if (!carrierIds.length) return new Map<string, string>();
 
+  let query = supabase
+    .from("carriers")
+    .select("id, organization_id, company_name")
+    .in("id", carrierIds);
+
+  if (session.organizationId && !session.platformSuperAdmin) {
+    query = query.eq("organization_id", session.organizationId);
+  }
+
+  const { data, error } = await query;
+
+  if (error || !data) {
+    console.error("Unable to load carrier names for loads", error?.message);
+    return new Map<string, string>();
+  }
+
+  return new Map(
+    (data as CarrierNameRow[]).map((carrier) => [
+      `${carrier.organization_id}:${carrier.id}`,
+      carrier.company_name ?? "Carrier",
+    ]),
+  );
+}
+
+function mapLoadRow(row: LoadRow, carrierNames: Map<string, string>): Load {
   return {
     id: row.id,
     organizationId: row.organization_id,
     loadNumber: row.load_number,
     carrierId: row.carrier_id,
-    carrierName: carrier?.company_name ?? "Carrier",
+    carrierName: carrierNames.get(`${row.organization_id}:${row.carrier_id}`) ?? "Carrier",
     driverName: row.driver_name ?? "",
     brokerName: row.broker_name ?? "",
     brokerEmail: row.broker_email ?? "",
