@@ -19,12 +19,14 @@ export function LoadDocumentUploader({
   label,
   document,
   canUpload,
+  fileDeleted = false,
 }: {
   loadId: string;
   documentType: LoadDocumentType;
   label: string;
   document: LoadDocument | null;
   canUpload: boolean;
+  fileDeleted?: boolean;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -33,6 +35,7 @@ export function LoadDocumentUploader({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [currentDocument, setCurrentDocument] = useState(document);
+  const [fileMissing, setFileMissing] = useState(fileDeleted);
 
   async function handleUpload(file: File) {
     if (!canUpload) return;
@@ -84,6 +87,7 @@ export function LoadDocumentUploader({
         uploadedBy: "You",
         uploadedAt: new Date().toISOString(),
       });
+      setFileMissing(false);
       setMessage(`Uploaded v${target.versionNumber}: ${file.name}`);
       startTransition(() => router.refresh());
     } catch (uploadError) {
@@ -108,7 +112,13 @@ export function LoadDocumentUploader({
       .createSignedUrl(currentDocument.storagePath, 300);
 
     if (signedUrlError || !data?.signedUrl) {
-      setError(signedUrlError?.message || "Unable to create file link.");
+      const message = signedUrlError?.message || "Unable to create file link.";
+      if (/not found|does not exist|missing/i.test(message)) {
+        setFileMissing(true);
+        setMessage("File removed from storage.");
+        return;
+      }
+      setError(message);
       return;
     }
 
@@ -131,7 +141,9 @@ export function LoadDocumentUploader({
           <h3 className="break-words text-lg font-extrabold text-white">{currentDocument ? currentDocument.fileName : "No file uploaded"}</h3>
           {currentDocument ? (
             <p className="mt-1 text-xs font-bold text-manifest-muted">
-              v{currentDocument.versionNumber} · {formatDate(currentDocument.uploadedAt)} · {currentDocument.uploadedBy ?? "Unknown user"}
+              {fileMissing
+                ? "Archived file deleted"
+                : `v${currentDocument.versionNumber} · ${formatDate(currentDocument.uploadedAt)} · ${currentDocument.uploadedBy ?? "Unknown user"}`}
             </p>
           ) : null}
         </div>
@@ -165,6 +177,11 @@ export function LoadDocumentUploader({
 
       {message ? <p className="mb-3 rounded-md border border-manifest-green/30 bg-manifest-green/10 px-3 py-2 text-xs font-bold text-manifest-green">{message}</p> : null}
       {error ? <p className="mb-3 rounded-md border border-manifest-danger/35 bg-manifest-danger/10 px-3 py-2 text-xs font-bold text-manifest-danger">{error}</p> : null}
+      {fileMissing && currentDocument ? (
+        <p className="mb-3 rounded-md border border-white/10 bg-white/[0.035] px-3 py-2 text-xs font-bold text-manifest-muted">
+          File removed from storage. Metadata is retained for the load archive record.
+        </p>
+      ) : null}
 
       {canUpload ? (
         <div className="flex flex-wrap gap-2">
@@ -182,7 +199,7 @@ export function LoadDocumentUploader({
       ) : (
         <p className="text-sm text-manifest-muted">You can view this load, but uploads are not available for your role.</p>
       )}
-      {currentDocument ? (
+      {currentDocument && !fileMissing ? (
         <div className="mt-3 flex flex-wrap gap-2 border-t border-white/10 pt-3">
           <button type="button" onClick={() => void openSignedFile(false)} className="form-button min-h-9 px-3 text-xs">
             <Eye className="h-3.5 w-3.5" />

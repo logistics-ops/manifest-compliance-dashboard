@@ -301,6 +301,7 @@ export function CarrierProfilePage({ carrier, session, loads = [] }: { carrier: 
                         label="Upload Load Document: POD"
                         document={pod}
                         canUpload={canUploadPod}
+                        fileDeleted={Boolean(load.filesDeletedAt)}
                       />
                       <LoadDocumentUploader
                         loadId={load.id}
@@ -308,6 +309,7 @@ export function CarrierProfilePage({ carrier, session, loads = [] }: { carrier: 
                         label="Rate Confirmation"
                         document={rateConfirmation}
                         canUpload={canUploadRateConfirmation}
+                        fileDeleted={Boolean(load.filesDeletedAt)}
                       />
                     </div>
                   </article>

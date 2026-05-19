@@ -52,6 +52,7 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
   const pendingPodMissing = loads.filter((load) => load.status === "delivered" && !latestDocument(load.documents, "pod")).length;
   const pendingNotInvoiced = loads.filter((load) => ["delivered", "pod_sent"].includes(load.status)).length;
   const pendingRateConMissing = loads.filter((load) => !latestDocument(load.documents, "rate_confirmation")).length;
+  const isCarrierPortal = session.role === "carrier" && !session.platformSuperAdmin;
 
   return (
     <main className="min-h-screen p-8 max-md:p-4">
@@ -104,11 +105,14 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
               </div>
               <Archive className="h-5 w-5 text-manifest-red" />
             </div>
-            <form action="/loads/archive" method="get" className="grid grid-cols-3 gap-3 max-lg:grid-cols-2 max-md:grid-cols-1">
+            <form action="/loads/archive" method="get" className={isCarrierPortal ? "grid grid-cols-[minmax(180px,280px)_auto] gap-3 max-md:grid-cols-1" : "grid grid-cols-3 gap-3 max-lg:grid-cols-2 max-md:grid-cols-1"}>
               <Field label="Month" name="month" type="month" />
-              <Field label="From" name="from" type="date" />
-              <Field label="To" name="to" type="date" />
-              {session.role !== "carrier" || session.platformSuperAdmin ? (
+              {isCarrierPortal ? (
+                <input type="hidden" name="carrierId" value={session.carrierId ?? ""} />
+              ) : (
+                <>
+                  <Field label="From" name="from" type="date" />
+                  <Field label="To" name="to" type="date" />
                 <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
                   Carrier
                   <select name="carrierId" className="form-control">
@@ -116,22 +120,21 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
                     {carrierOptions.map(([carrierId, carrierName]) => <option key={carrierId} value={carrierId}>{carrierName}</option>)}
                   </select>
                 </label>
-              ) : (
-                <input type="hidden" name="carrierId" value={session.carrierId ?? ""} />
+                  <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                    Broker
+                    <input name="broker" list="broker-options" className="form-control" placeholder="Any broker" />
+                  </label>
+                  <datalist id="broker-options">
+                    {brokerOptions.map((broker) => <option key={broker} value={broker} />)}
+                  </datalist>
+                  <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                    Status
+                    <select name="status" defaultValue="all" className="form-control">
+                      {statuses.map((option) => <option key={option} value={option}>{formatStatus(option)}</option>)}
+                    </select>
+                  </label>
+                </>
               )}
-              <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
-                Broker
-                <input name="broker" list="broker-options" className="form-control" placeholder="Any broker" />
-              </label>
-              <datalist id="broker-options">
-                {brokerOptions.map((broker) => <option key={broker} value={broker} />)}
-              </datalist>
-              <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
-                Status
-                <select name="status" defaultValue="all" className="form-control">
-                  {statuses.map((option) => <option key={option} value={option}>{formatStatus(option)}</option>)}
-                </select>
-              </label>
               <button className="form-button self-end">
                 <Download className="h-4 w-4" />
                 Export ZIP
@@ -256,18 +259,18 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
           ) : null}
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1180px] border-collapse">
+            <table className={`w-full border-collapse ${isCarrierPortal ? "min-w-[860px]" : "min-w-[1180px]"}`}>
               <thead>
                 <tr className="bg-white/[0.025] text-left text-[11px] uppercase tracking-[0.14em] text-manifest-quiet">
                   <th className="border-b border-white/10 px-4 py-4">Load</th>
-                  <th className="border-b border-white/10 px-4 py-4">Carrier</th>
+                  {!isCarrierPortal ? <th className="border-b border-white/10 px-4 py-4">Carrier</th> : null}
                   <th className="border-b border-white/10 px-4 py-4">Broker</th>
                   <th className="border-b border-white/10 px-4 py-4">Lane</th>
                   <th className="border-b border-white/10 px-4 py-4">Dates</th>
                   <th className="border-b border-white/10 px-4 py-4">Rate</th>
-                  <th className="border-b border-white/10 px-4 py-4">Rate Confirmation</th>
+                  {!isCarrierPortal ? <th className="border-b border-white/10 px-4 py-4">Rate Confirmation</th> : null}
                   <th className="border-b border-white/10 px-4 py-4">Status</th>
-                  <th className="border-b border-white/10 px-4 py-4">Archive</th>
+                  {!isCarrierPortal ? <th className="border-b border-white/10 px-4 py-4">Archive</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -285,7 +288,7 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
                       <Link href={`/loads/${load.id}`} className="font-extrabold text-white hover:text-manifest-red">{load.loadNumber}</Link>
                       <span className="mt-1 block text-xs text-manifest-muted">{load.driverName || "No driver"}</span>
                     </td>
-                    <td className="border-b border-white/10 px-4 py-4 text-sm font-bold text-white">{load.carrierName}</td>
+                    {!isCarrierPortal ? <td className="border-b border-white/10 px-4 py-4 text-sm font-bold text-white">{load.carrierName}</td> : null}
                     <td className="border-b border-white/10 px-4 py-4">
                       <strong className="block text-sm text-white">{load.brokerName || "Broker"}</strong>
                       <span className="text-xs text-manifest-muted">{load.brokerEmail || "No email"}</span>
@@ -297,7 +300,7 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
                       {load.pickupDate ?? "No pickup"} / {load.deliveryDate ?? "No delivery"}
                     </td>
                     <td className="border-b border-white/10 px-4 py-4 text-sm font-extrabold text-white">{formatMoney(load.rateAmount)}</td>
-                    <td className="border-b border-white/10 px-4 py-4">
+                    {!isCarrierPortal ? <td className="border-b border-white/10 px-4 py-4">
                       <div className="w-80">
                         <LoadDocumentUploader
                           loadId={load.id}
@@ -305,18 +308,19 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
                           label="Rate Confirmation"
                           document={rateConfirmation}
                           canUpload={canUploadRateConfirmation}
+                          fileDeleted={Boolean(load.filesDeletedAt)}
                         />
                       </div>
-                    </td>
+                    </td> : null}
                     <td className="border-b border-white/10 px-4 py-4"><StatusChip value={formatStatus(load.status)} /></td>
-                    <td className="border-b border-white/10 px-4 py-4 text-xs font-bold text-manifest-muted">
+                    {!isCarrierPortal ? <td className="border-b border-white/10 px-4 py-4 text-xs font-bold text-manifest-muted">
                       {load.archivedAt ? `Archived ${formatDate(load.archivedAt)}` : "Active"}
-                    </td>
+                    </td> : null}
                   </tr>
                 );
                 }) : (
                   <tr>
-                    <td colSpan={9} className="border-b border-white/10 px-4 py-8">
+                    <td colSpan={isCarrierPortal ? 6 : 9} className="border-b border-white/10 px-4 py-8">
                       <div className="empty-state">No loads match the current filters.</div>
                     </td>
                   </tr>

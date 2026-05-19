@@ -102,6 +102,7 @@ export default async function LoadDetailPage({ params, searchParams }: LoadPageP
             label="Rate Confirmation"
             document={rateConfirmation}
             canUpload={canUploadRateConfirmation}
+            fileDeleted={Boolean(load.filesDeletedAt)}
           />
           <LoadDocumentUploader
             loadId={load.id}
@@ -109,6 +110,7 @@ export default async function LoadDetailPage({ params, searchParams }: LoadPageP
             label="Proof of Delivery"
             document={pod}
             canUpload={canUploadPod}
+            fileDeleted={Boolean(load.filesDeletedAt)}
           />
         </section>
 

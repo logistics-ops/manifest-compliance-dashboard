@@ -16,15 +16,14 @@ export async function GET(request: NextRequest) {
   const session = await requireSession();
   const supabase = await createClient();
   const params = request.nextUrl.searchParams;
-  const loads = filterLoads(await getLoads(), params)
-    .filter((load) => canExportLoadArchive(session, { organizationId: load.organizationId, carrierId: load.carrierId }));
-
   if (session.role === "carrier" && !session.platformSuperAdmin && session.carrierId) {
     const carrierParam = params.get("carrierId");
     if (carrierParam && carrierParam !== session.carrierId) {
       return Response.json({ error: "Carrier exports are limited to your linked carrier profile." }, { status: 403 });
     }
   }
+  const loads = filterLoads(await getLoads(), params, session.role === "carrier" && !session.platformSuperAdmin)
+    .filter((load) => canExportLoadArchive(session, { organizationId: load.organizationId, carrierId: load.carrierId }));
 
   const summary = await createLoadsSummaryXlsx(loads.map(toSummaryRow));
   const archiveName = `${archiveLabel(params)}-Archive.zip`;
@@ -72,8 +71,15 @@ export async function GET(request: NextRequest) {
   });
 }
 
-function filterLoads(loads: Load[], params: URLSearchParams) {
+function filterLoads(loads: Load[], params: URLSearchParams, carrierMode = false) {
   const month = params.get("month") ?? "";
+  if (carrierMode) {
+    return loads.filter((load) => {
+      const loadDate = load.pickupDate || load.deliveryDate || load.createdAt.slice(0, 10);
+      return !month || loadDate.startsWith(month);
+    });
+  }
+
   const from = params.get("from") ?? "";
   const to = params.get("to") ?? "";
   const carrierId = params.get("carrierId") ?? "";
