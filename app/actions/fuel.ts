@@ -68,7 +68,8 @@ export async function createFuelReceiptAction(formData: FormData) {
     fileSize: file.size,
     storagePath,
   });
-  const missingFields = getMissingFuelReceiptFields(extraction);
+  const simpleCarrierUpload = session.role === "carrier" && !session.platformSuperAdmin;
+  const missingFields = simpleCarrierUpload ? getMissingSimpleFuelFields(extraction) : getMissingFuelReceiptFields(extraction);
   if (missingFields.length) extraction = { ...extraction, status: "needs_review" };
 
   const { error } = await supabase.from("fuel_receipts").insert({
@@ -134,7 +135,7 @@ export async function createFuelReceiptAction(formData: FormData) {
 
   await upsertFuelNotification(supabase, organizationId, carrierId, receiptId, extraction.status, missingFields);
   revalidatePath("/fuel");
-  redirect(`/fuel/${receiptId}?success=${encodeURIComponent("Fuel receipt uploaded. Review the AI extracted fields before approving.")}`);
+  redirect(`/fuel/${receiptId}?success=${encodeURIComponent(simpleCarrierUpload ? "Fuel receipt uploaded. Review the receipt details and save." : "Fuel receipt uploaded. Review the AI extracted fields before approving.")}`);
 }
 
 export async function updateFuelReceiptAction(formData: FormData) {
@@ -151,26 +152,27 @@ export async function updateFuelReceiptAction(formData: FormData) {
   }
 
   const approving = intent === "approve";
+  const simpleCarrierReview = session.role === "carrier" && !session.platformSuperAdmin;
   if (approving && !canApproveFuelReceiptRecord(session, { organizationId: current.organizationId, carrierId: current.carrierId })) {
     redirectWithFuelMessage(receiptId, "Only admins and staff can approve fuel receipts.", "error");
   }
 
   const payload = {
-    load_id: getOptionalString(formData, "loadId"),
-    driver_id: getOptionalString(formData, "driverId"),
-    vehicle_id: getOptionalString(formData, "vehicleId"),
-    vendor_name: getOptionalString(formData, "vendorName"),
+    load_id: simpleCarrierReview ? current.loadId : getOptionalString(formData, "loadId"),
+    driver_id: simpleCarrierReview ? current.driverId : getOptionalString(formData, "driverId"),
+    vehicle_id: simpleCarrierReview ? current.vehicleId : getOptionalString(formData, "vehicleId"),
+    vendor_name: simpleCarrierReview ? current.vendorName || null : getOptionalString(formData, "vendorName"),
     transaction_date: getOptionalString(formData, "transactionDate"),
-    transaction_time: getOptionalString(formData, "transactionTime"),
-    fuel_type: getOptionalString(formData, "fuelType"),
-    gallons: getOptionalNumber(formData, "gallons"),
-    price_per_gallon: getOptionalNumber(formData, "pricePerGallon"),
+    transaction_time: simpleCarrierReview ? current.transactionTime : getOptionalString(formData, "transactionTime"),
+    fuel_type: normalizeFuelType(getOptionalString(formData, "fuelType")),
+    gallons: simpleCarrierReview ? current.gallons || null : getOptionalNumber(formData, "gallons"),
+    price_per_gallon: simpleCarrierReview ? current.pricePerGallon || null : getOptionalNumber(formData, "pricePerGallon"),
     total_amount: getOptionalNumber(formData, "totalAmount"),
-    city: getOptionalString(formData, "city"),
-    state: getOptionalString(formData, "state")?.toUpperCase() ?? null,
-    odometer: getOptionalNumber(formData, "odometer"),
-    payment_method: getOptionalString(formData, "paymentMethod"),
-    card_last4: getOptionalString(formData, "cardLast4"),
+    city: simpleCarrierReview ? current.city || null : getOptionalString(formData, "city"),
+    state: simpleCarrierReview ? current.state || null : getOptionalString(formData, "state")?.toUpperCase() ?? null,
+    odometer: simpleCarrierReview ? current.odometer : getOptionalNumber(formData, "odometer"),
+    payment_method: simpleCarrierReview ? current.paymentMethod || null : getOptionalString(formData, "paymentMethod"),
+    card_last4: simpleCarrierReview ? current.cardLast4 || null : getOptionalString(formData, "cardLast4"),
     notes: getOptionalString(formData, "notes"),
     extraction_status: approving ? "approved" : normalizeReviewStatus(getString(formData, "extractionStatus")),
     approved_by: approving ? session.userId : current.approvedBy,
@@ -298,6 +300,25 @@ function validateReceiptFile(file: File) {
 
 function normalizeReviewStatus(value: string): FuelExtractionStatus {
   return value === "approved" || value === "failed" || value === "pending" || value === "extracted" ? value : "needs_review";
+}
+
+function normalizeFuelType(value: string | null) {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "diesel") return "Diesel";
+  if (normalized === "reefer") return "Reefer";
+  if (normalized === "def") return "DEF";
+  if (normalized === "gasoline" || normalized === "unleaded") return "Gasoline";
+  return "Other";
+}
+
+function getMissingSimpleFuelFields(extraction: Awaited<ReturnType<typeof extractFuelReceipt>>) {
+  const fields = [
+    ["transactionDate", extraction.transactionDate],
+    ["fuelType", extraction.fuelType],
+    ["totalAmount", extraction.totalAmount],
+  ] as const;
+  return fields.filter(([, value]) => !value).map(([field]) => field);
 }
 
 function getString(formData: FormData, key: string) {

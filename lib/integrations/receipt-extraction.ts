@@ -46,7 +46,7 @@ export async function extractFuelReceipt(input: ReceiptExtractionInput): Promise
     vendorName,
     transactionDate,
     transactionTime: normalizedName.match(/\b([0-2]\d[:.][0-5]\d)\b/)?.[1]?.replace(".", ":") ?? null,
-    fuelType: normalizedName.match(/\b(diesel|reefer|def|gasoline|unleaded)\b/i)?.[1] ?? null,
+    fuelType: normalizeFuelType(normalizedName.match(/\b(diesel|reefer|def|gasoline|unleaded)\b/i)?.[1] ?? null),
     gallons,
     pricePerGallon,
     totalAmount,
@@ -94,4 +94,12 @@ function parseNumberMatch(match: RegExpMatchArray | null) {
   if (!match?.[1]) return null;
   const value = Number(match[1].replace(/,/g, ""));
   return Number.isFinite(value) ? value : null;
+}
+
+function normalizeFuelType(value: string | null) {
+  if (!value) return null;
+  const normalized = value.toLowerCase();
+  if (normalized === "def") return "DEF";
+  if (normalized === "unleaded") return "Gasoline";
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }

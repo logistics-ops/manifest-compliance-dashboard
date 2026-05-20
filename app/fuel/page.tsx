@@ -88,7 +88,17 @@ export default async function FuelPage({ searchParams }: FuelPageProps) {
               </label>
             ) : null}
             <Field label="State" name="state" defaultValue={params?.state ?? ""} />
-            <Field label="Fuel Type" name="fuelType" defaultValue={params?.fuelType ?? ""} />
+            <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+              Fuel Type
+              <select name="fuelType" defaultValue={params?.fuelType ?? ""} className="form-control">
+                <option value="">All fuel types</option>
+                <option value="Diesel">Diesel</option>
+                <option value="Reefer">Reefer</option>
+                <option value="DEF">DEF</option>
+                <option value="Gasoline">Gasoline</option>
+                <option value="Other">Other</option>
+              </select>
+            </label>
             <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
               Status
               <select name="status" defaultValue={params?.status ?? "all"} className="form-control">

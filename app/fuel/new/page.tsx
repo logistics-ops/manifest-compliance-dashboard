@@ -14,7 +14,7 @@ export default async function NewFuelReceiptPage({ searchParams }: NewFuelPagePr
   const session = await requireSession();
   const isCarrier = session.role === "carrier" && !session.platformSuperAdmin;
   const carriers = isCarrier ? [] : await getCarriers();
-  const loads = await getLoads();
+  const loads = isCarrier ? [] : await getLoads();
 
   return (
     <main className="min-h-screen p-8 max-md:p-4">
@@ -33,14 +33,16 @@ export default async function NewFuelReceiptPage({ searchParams }: NewFuelPagePr
           <p className="eyebrow">AI-assisted Capture</p>
           <h1 className="text-5xl font-extrabold leading-[0.95] tracking-normal text-white max-md:text-3xl">Upload fuel receipt</h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-manifest-muted">
-            Upload a receipt image or PDF. ManifestOS will prefill fields server-side, then send you to a review screen before approval.
+            {isCarrier
+              ? "Upload a receipt image or PDF from your phone. ManifestOS will prefill the date, fuel type, and amount for quick review."
+              : "Upload a receipt image or PDF. ManifestOS will prefill fields server-side, then send you to a review screen before approval."}
           </p>
         </section>
 
         <form action={createFuelReceiptAction} encType="multipart/form-data" className="section-panel p-6 max-md:p-4">
-          <div className="grid grid-cols-[minmax(0,1fr)_minmax(260px,0.42fr)] gap-5 max-lg:grid-cols-1">
-            <div className="grid gap-4">
-              {!isCarrier ? (
+          <div className={`grid gap-5 max-lg:grid-cols-1 ${isCarrier ? "grid-cols-1" : "grid-cols-[minmax(0,1fr)_minmax(260px,0.42fr)]"}`}>
+            {!isCarrier ? (
+              <div className="grid gap-4">
                 <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
                   Carrier
                   <select name="carrierId" required className="form-control">
@@ -48,41 +50,48 @@ export default async function NewFuelReceiptPage({ searchParams }: NewFuelPagePr
                     {carriers.map((carrier) => <option key={carrier.id} value={carrier.id}>{carrier.companyName}</option>)}
                   </select>
                 </label>
-              ) : (
-                <div className="rounded-md border border-manifest-red/30 bg-manifest-red/10 p-4 text-sm font-bold text-white">
+
+                <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                  Optional Load
+                  <select name="loadId" className="form-control">
+                    <option value="">No load assignment</option>
+                    {loads.map((load) => <option key={load.id} value={load.id}>{load.loadNumber} · {load.carrierName}</option>)}
+                  </select>
+                </label>
+
+                <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
+                  <Field label="Driver ID placeholder" name="driverId" />
+                  <Field label="Vehicle ID placeholder" name="vehicleId" />
+                </div>
+
+                <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                  Notes
+                  <textarea name="notes" className="form-control min-h-28 resize-y" placeholder="Add route, card, or reporting context." />
+                </label>
+              </div>
+            ) : null}
+
+            <div className={`rounded-md border border-dashed border-manifest-red/35 bg-black/30 p-5 ${isCarrier ? "mx-auto w-full max-w-xl p-6 max-sm:p-4" : ""}`}>
+              {isCarrier ? (
+                <div className="mb-5 rounded-md border border-manifest-red/30 bg-manifest-red/10 p-4 text-sm font-bold text-white">
                   Receipt will be assigned to your linked carrier profile.
                 </div>
-              )}
-
-              <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
-                Optional Load
-                <select name="loadId" className="form-control">
-                  <option value="">No load assignment</option>
-                  {loads.map((load) => <option key={load.id} value={load.id}>{load.loadNumber} · {load.carrierName}</option>)}
-                </select>
-              </label>
-
-              <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
-                <Field label="Driver ID placeholder" name="driverId" />
-                <Field label="Vehicle ID placeholder" name="vehicleId" />
-              </div>
-
-              <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
-                Notes
-                <textarea name="notes" className="form-control min-h-28 resize-y" placeholder="Add route, card, or reporting context." />
-              </label>
-            </div>
-
-            <div className="rounded-md border border-dashed border-manifest-red/35 bg-black/30 p-5">
+              ) : null}
               <UploadCloud className="mb-4 h-9 w-9 text-manifest-red" />
               <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
                 Receipt file
                 <input name="receiptFile" type="file" accept="image/png,image/jpeg,image/webp,application/pdf" required className="form-control file:mr-3 file:rounded-md file:border-0 file:bg-manifest-red/20 file:px-3 file:py-2 file:text-xs file:font-extrabold file:text-white" />
               </label>
               <p className="mt-4 text-sm leading-6 text-manifest-muted">
-                Supported files: JPG, PNG, WebP, PDF. Max file size: 12MB. AI/OCR runs after upload and never exposes provider secrets in the browser.
+                Supported files: JPG, PNG, WebP, PDF. Max file size: 12MB.
               </p>
-              <button className="form-button mt-5 min-h-11 w-full px-4 text-sm">Upload and extract</button>
+              {isCarrier ? (
+                <label className="mt-4 grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                  Notes
+                  <textarea name="notes" className="form-control min-h-24 resize-y" placeholder="Optional note for your receipt." />
+                </label>
+              ) : null}
+              <button className="form-button mt-5 min-h-12 w-full px-4 text-sm">Upload receipt</button>
             </div>
           </div>
         </form>

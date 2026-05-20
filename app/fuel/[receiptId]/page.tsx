@@ -29,9 +29,10 @@ export default async function FuelReceiptPage({ params, searchParams }: FuelRece
   }
 
   const canApprove = canApproveFuelReceiptRecord(session, { organizationId: receipt.organizationId, carrierId: receipt.carrierId });
-  const loads = (await getLoads()).filter((load) => load.carrierId === receipt.carrierId);
+  const isCarrier = session.role === "carrier" && !session.platformSuperAdmin;
+  const loads = isCarrier ? [] : (await getLoads()).filter((load) => load.carrierId === receipt.carrierId);
   const signedUrl = await getSignedReceiptUrl(receipt.receiptFilePath);
-  const missingFields = getMissingFields(receipt);
+  const missingFields = getMissingFields(receipt, isCarrier);
 
   return (
     <main className="min-h-screen p-8 max-md:p-4">
@@ -55,31 +56,35 @@ export default async function FuelReceiptPage({ params, searchParams }: FuelRece
         <section className="section-panel mb-5 overflow-hidden border-manifest-red/30 bg-[linear-gradient(110deg,rgba(227,25,55,0.18),rgba(17,17,20,0.9)_48%,rgba(255,255,255,0.04))] p-7 max-md:p-5">
           <div className="flex items-start justify-between gap-6 max-lg:flex-col">
             <div>
-              <p className="eyebrow">Manual Review</p>
-              <h1 className="text-5xl font-extrabold leading-[0.95] tracking-normal text-white max-md:text-3xl">{receipt.vendorName || "Fuel Receipt"}</h1>
+              <p className="eyebrow">{isCarrier ? "Fuel Receipt" : "Manual Review"}</p>
+              <h1 className="text-5xl font-extrabold leading-[0.95] tracking-normal text-white max-md:text-3xl">
+                {isCarrier ? "Review fuel receipt" : receipt.vendorName || "Fuel Receipt"}
+              </h1>
               <p className="mt-4 max-w-2xl text-sm leading-6 text-manifest-muted">
-                AI extracted these fields. Please review before approving.
+                {isCarrier
+                  ? "Confirm the receipt date, fuel type, and amount. Admins can complete advanced IFTA details later."
+                  : "AI extracted these fields. Please review before approving."}
               </p>
             </div>
-            <div className="grid gap-2 rounded-md border border-white/10 bg-black/45 p-4">
+            {!isCarrier ? <div className="grid gap-2 rounded-md border border-white/10 bg-black/45 p-4">
               <StatusChip value={receipt.extractionStatus.replace("_", " ")} />
               <strong className="text-3xl text-white">{Math.round(receipt.extractionConfidence * 100)}%</strong>
               <span className="text-xs font-bold text-manifest-muted">extraction confidence</span>
-            </div>
+            </div> : null}
           </div>
         </section>
 
-        <section className="grid grid-cols-[minmax(0,1fr)_minmax(280px,0.36fr)] gap-5 max-xl:grid-cols-1">
+        <section className={isCarrier ? "mx-auto grid max-w-xl gap-5" : "grid grid-cols-[minmax(0,1fr)_minmax(280px,0.36fr)] gap-5 max-xl:grid-cols-1"}>
           <form action={updateFuelReceiptAction} className="section-panel p-6 max-md:p-4">
             <input type="hidden" name="receiptId" value={receipt.id} />
             <input type="hidden" name="extractionStatus" value={receipt.extractionStatus} />
             <div className="mb-5 flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
               <div>
                 <p className="eyebrow">Receipt Fields</p>
-                <h2 className="text-2xl font-extrabold text-white">Review and save</h2>
+                <h2 className="text-2xl font-extrabold text-white">{isCarrier ? "Quick review" : "Review and save"}</h2>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button name="intent" value="save" className="form-button min-h-10 px-4 text-sm">Save review</button>
+                <button name="intent" value="save" className="form-button min-h-10 px-4 text-sm">{isCarrier ? "Save receipt" : "Save review"}</button>
                 {canApprove ? (
                   <button name="intent" value="approve" className="form-button min-h-10 px-4 text-sm">
                     <CheckCircle2 className="h-4 w-4" />
@@ -95,34 +100,44 @@ export default async function FuelReceiptPage({ params, searchParams }: FuelRece
               </div>
             ) : null}
 
-            <div className="grid grid-cols-3 gap-4 max-lg:grid-cols-2 max-sm:grid-cols-1">
-              <Field label="Vendor Name" name="vendorName" defaultValue={receipt.vendorName} />
-              <Field label="Transaction Date" name="transactionDate" type="date" defaultValue={receipt.transactionDate ?? ""} />
-              <Field label="Transaction Time" name="transactionTime" type="time" defaultValue={receipt.transactionTime ?? ""} />
-              <Field label="Fuel Type" name="fuelType" defaultValue={receipt.fuelType} />
-              <Field label="Gallons" name="gallons" type="number" step="0.001" defaultValue={String(receipt.gallons || "")} />
-              <Field label="Price Per Gallon" name="pricePerGallon" type="number" step="0.001" defaultValue={String(receipt.pricePerGallon || "")} />
-              <Field label="Total Amount" name="totalAmount" type="number" step="0.01" defaultValue={String(receipt.totalAmount || "")} />
-              <Field label="City" name="city" defaultValue={receipt.city} />
-              <Field label="State" name="state" defaultValue={receipt.state} maxLength={2} />
-              <Field label="Odometer" name="odometer" type="number" defaultValue={receipt.odometer ? String(receipt.odometer) : ""} />
-              <Field label="Payment Method" name="paymentMethod" defaultValue={receipt.paymentMethod} />
-              <Field label="Card Last 4" name="cardLast4" defaultValue={receipt.cardLast4} maxLength={4} />
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-4 max-lg:grid-cols-1">
-              <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
-                Load Assignment
-                <select name="loadId" defaultValue={receipt.loadId ?? ""} className="form-control">
-                  <option value="">No load assignment</option>
-                  {loads.map((load) => <option key={load.id} value={load.id}>{load.loadNumber} · {load.brokerName || "No broker"}</option>)}
-                </select>
-              </label>
-              <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
-                <Field label="Driver ID placeholder" name="driverId" defaultValue={receipt.driverId ?? ""} />
-                <Field label="Vehicle ID placeholder" name="vehicleId" defaultValue={receipt.vehicleId ?? ""} />
+            {isCarrier ? (
+              <div className="grid gap-4">
+                <Field label="Date" name="transactionDate" type="date" defaultValue={receipt.transactionDate ?? ""} />
+                <FuelTypeSelect defaultValue={receipt.fuelType} />
+                <Field label="Amount" name="totalAmount" type="number" step="0.01" defaultValue={String(receipt.totalAmount || "")} />
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-4 max-lg:grid-cols-2 max-sm:grid-cols-1">
+                  <Field label="Vendor Name" name="vendorName" defaultValue={receipt.vendorName} />
+                  <Field label="Transaction Date" name="transactionDate" type="date" defaultValue={receipt.transactionDate ?? ""} />
+                  <Field label="Transaction Time" name="transactionTime" type="time" defaultValue={receipt.transactionTime ?? ""} />
+                  <FuelTypeSelect defaultValue={receipt.fuelType} />
+                  <Field label="Gallons" name="gallons" type="number" step="0.001" defaultValue={String(receipt.gallons || "")} />
+                  <Field label="Price Per Gallon" name="pricePerGallon" type="number" step="0.001" defaultValue={String(receipt.pricePerGallon || "")} />
+                  <Field label="Total Amount" name="totalAmount" type="number" step="0.01" defaultValue={String(receipt.totalAmount || "")} />
+                  <Field label="City" name="city" defaultValue={receipt.city} />
+                  <Field label="State" name="state" defaultValue={receipt.state} maxLength={2} />
+                  <Field label="Odometer" name="odometer" type="number" defaultValue={receipt.odometer ? String(receipt.odometer) : ""} />
+                  <Field label="Payment Method" name="paymentMethod" defaultValue={receipt.paymentMethod} />
+                  <Field label="Card Last 4" name="cardLast4" defaultValue={receipt.cardLast4} maxLength={4} />
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-4 max-lg:grid-cols-1">
+                  <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                    Load Assignment
+                    <select name="loadId" defaultValue={receipt.loadId ?? ""} className="form-control">
+                      <option value="">No load assignment</option>
+                      {loads.map((load) => <option key={load.id} value={load.id}>{load.loadNumber} · {load.brokerName || "No broker"}</option>)}
+                    </select>
+                  </label>
+                  <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
+                    <Field label="Driver ID placeholder" name="driverId" defaultValue={receipt.driverId ?? ""} />
+                    <Field label="Vehicle ID placeholder" name="vehicleId" defaultValue={receipt.vehicleId ?? ""} />
+                  </div>
+                </div>
+              </>
+            )}
 
             <label className="mt-4 grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
               Notes
@@ -130,7 +145,7 @@ export default async function FuelReceiptPage({ params, searchParams }: FuelRece
             </label>
           </form>
 
-          <aside className="grid gap-5">
+          {!isCarrier ? <aside className="grid gap-5">
             <section className="section-panel p-5">
               <p className="eyebrow">Receipt File</p>
               <div className="flex items-start gap-3">
@@ -162,7 +177,19 @@ export default async function FuelReceiptPage({ params, searchParams }: FuelRece
               <p className="eyebrow">Raw Extraction</p>
               <pre className="max-h-72 overflow-auto rounded-md border border-white/10 bg-black/35 p-3 text-xs leading-5 text-manifest-muted">{JSON.stringify(receipt.rawExtraction, null, 2)}</pre>
             </section>
-          </aside>
+          </aside> : (
+            <section className="section-panel p-5">
+              <p className="eyebrow">Receipt Upload</p>
+              <div className="flex items-start gap-3">
+                <FileText className="mt-1 h-5 w-5 text-manifest-red" />
+                <div className="min-w-0">
+                  <strong className="block break-words text-white">{receipt.fileName}</strong>
+                  <span className="text-xs font-bold text-manifest-muted">Uploaded receipt</span>
+                </div>
+              </div>
+              {signedUrl ? <a href={signedUrl} target="_blank" rel="noreferrer" className="form-button mt-4 min-h-11 w-full px-3 text-sm">Open receipt</a> : null}
+            </section>
+          )}
         </section>
       </div>
     </main>
@@ -176,7 +203,16 @@ async function getSignedReceiptUrl(path: string) {
   return data?.signedUrl ?? null;
 }
 
-function getMissingFields(receipt: FuelReceipt) {
+function getMissingFields(receipt: FuelReceipt, simple = false) {
+  if (simple) {
+    const simpleFields = [
+      ["date", receipt.transactionDate],
+      ["fuel type", receipt.fuelType],
+      ["amount", receipt.totalAmount],
+    ] as const;
+    return simpleFields.filter(([, value]) => !value).map(([label]) => label);
+  }
+
   const fields = [
     ["vendor name", receipt.vendorName],
     ["transaction date", receipt.transactionDate],
@@ -191,6 +227,23 @@ function getMissingFields(receipt: FuelReceipt) {
 
 function Field({ label, name, type = "text", step, defaultValue = "", maxLength }: { label: string; name: string; type?: string; step?: string; defaultValue?: string; maxLength?: number }) {
   return <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">{label}<input name={name} type={type} step={step} defaultValue={defaultValue} maxLength={maxLength} className="form-control" /></label>;
+}
+
+function FuelTypeSelect({ defaultValue }: { defaultValue: string }) {
+  const value = ["Diesel", "Reefer", "DEF", "Gasoline", "Other"].includes(defaultValue) ? defaultValue : defaultValue ? "Other" : "";
+  return (
+    <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+      Fuel Type
+      <select name="fuelType" defaultValue={value} className="form-control">
+        <option value="">Select fuel type</option>
+        <option value="Diesel">Diesel</option>
+        <option value="Reefer">Reefer</option>
+        <option value="DEF">DEF</option>
+        <option value="Gasoline">Gasoline</option>
+        <option value="Other">Other</option>
+      </select>
+    </label>
+  );
 }
 
 function Notice({ tone, message }: { tone: "success" | "error"; message: string }) {
