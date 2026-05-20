@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import {
   ArrowLeft,
   Bell,
-  Building2,
   ClipboardCheck,
   FileArchive,
   FileCheck2,
@@ -295,7 +294,6 @@ function CarrierPortalSidebar({ carrierId }: { carrierId: string }) {
   const items = [
     { label: "Dashboard", href: `/carriers/${carrierId}`, icon: LayoutDashboard },
     { label: "Loads", href: "/loads", icon: Route },
-    { label: "Broker Check", href: "/brokers", icon: Building2 },
     { label: "Documents", href: "#documents", icon: FileCheck2 },
     { label: "Invoices", href: "/invoices", icon: FileText },
     { label: "Archives", href: "/archives", icon: FileArchive },

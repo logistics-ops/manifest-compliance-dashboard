@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, Route } from "lucide-react";
 import { createLoadAction } from "@/app/actions/loads";
-import { BrokerStatusBadge } from "@/components/broker-status";
-import { getBrokers } from "@/lib/data/brokers";
 import { getCarriers } from "@/lib/data/carriers";
 import { requireSession } from "@/lib/integrations/auth";
 import { canManageCompliance } from "@/lib/auth/permissions";
@@ -15,7 +13,6 @@ export default async function NewLoadPage({ searchParams }: NewLoadPageProps) {
   const session = await requireSession();
   const maySelectCarrier = canManageCompliance(session);
   const carriers = maySelectCarrier ? await getCarriers() : [];
-  const brokers = await getBrokers();
   const params = await searchParams;
   const error = params?.error ? decodeURIComponent(params.error) : "";
   const cannotCreate = maySelectCarrier ? !carriers.length : session.role === "carrier" && !session.carrierId;
@@ -79,19 +76,7 @@ export default async function NewLoadPage({ searchParams }: NewLoadPageProps) {
                 </div>
               )}
               <Field label="Driver Name" name="driverName" />
-              <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
-                Broker Registry
-                <select name="brokerId" className="form-control">
-                  <option value="">Manual broker entry</option>
-                  {brokers.map((broker) => (
-                    <option key={broker.id} value={broker.id}>
-                      {broker.brokerName} {broker.mcNumber ? `(MC ${broker.mcNumber})` : ""} - {broker.approvedStatus.replace(/_/g, " ")} / {broker.riskLevel} risk
-                    </option>
-                  ))}
-                </select>
-              </label>
               <Field label="Broker Name" name="brokerName" />
-              <Field label="Broker MC Number" name="brokerMcNumber" />
               <Field label="Broker Email" name="brokerEmail" type="email" />
               <Field label="Rate Amount" name="rateAmount" type="number" />
               <Field label="Origin City" name="originCity" required />
@@ -113,20 +98,6 @@ export default async function NewLoadPage({ searchParams }: NewLoadPageProps) {
                 </select>
               </label>
             </div>
-
-            {brokers.some((broker) => broker.approvedStatus === "blocked" || broker.riskLevel === "high") ? (
-              <div className="rounded-md border border-manifest-amber/35 bg-manifest-amber/10 p-3 text-sm text-manifest-amber">
-                Registry selection will auto-fill broker name, MC number, and email on save. Blocked or high-risk brokers create admin review notifications.
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {brokers.filter((broker) => broker.approvedStatus === "blocked" || broker.riskLevel === "high").slice(0, 4).map((broker) => (
-                    <span key={broker.id} className="inline-flex items-center gap-2">
-                      {broker.brokerName}
-                      <BrokerStatusBadge value={broker.approvedStatus === "blocked" ? "blocked" : "high"} />
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
 
             <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
               Notes

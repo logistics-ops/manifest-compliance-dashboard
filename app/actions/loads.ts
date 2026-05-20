@@ -36,7 +36,6 @@ export async function createLoadAction(formData: FormData) {
   const destinationCity = getString(formData, "destinationCity");
   const destinationState = getString(formData, "destinationState").toUpperCase();
   const rateAmount = Number(getString(formData, "rateAmount") || 0);
-  const brokerId = getOptionalString(formData, "brokerId");
 
   if (!supabase) {
     redirectWithCreateError("Supabase is not configured. Check the project environment variables.");
@@ -65,16 +64,13 @@ export async function createLoadAction(formData: FormData) {
     redirectWithCreateError("Selected carrier is not available in your organization.");
   }
 
-  const broker = brokerId ? await getAuthorizedBroker(supabase, organizationId, brokerId) : null;
   const payload = {
     organization_id: organizationId,
     load_number: loadNumber,
     carrier_id: carrierId,
     driver_name: getOptionalString(formData, "driverName"),
-    broker_id: broker?.id ?? null,
-    broker_name: broker?.broker_name ?? getOptionalString(formData, "brokerName"),
-    broker_mc_number: broker?.mc_number ?? getOptionalString(formData, "brokerMcNumber"),
-    broker_email: broker?.contact_email ?? getOptionalString(formData, "brokerEmail"),
+    broker_name: getOptionalString(formData, "brokerName"),
+    broker_email: getOptionalString(formData, "brokerEmail"),
     origin_city: originCity,
     origin_state: originState,
     destination_city: destinationCity,
@@ -107,25 +103,6 @@ export async function createLoadAction(formData: FormData) {
       new_status: payload.status,
     },
   });
-
-  if (broker) {
-    await writeAuditLog({
-      organizationId,
-      actorUserId: session.userId,
-      action: "broker.selected_on_load",
-      entityType: "broker",
-      entityId: broker.id,
-      metadata: {
-        load_id: data.id,
-        load_number: payload.load_number,
-        broker_name: broker.broker_name,
-        mc_number: broker.mc_number,
-        approved_status: broker.approved_status,
-        risk_level: broker.risk_level,
-      },
-    });
-    await upsertBrokerLoadNotification(supabase, organizationId, data.id, broker, session.userId);
-  }
 
   revalidatePath("/loads");
   revalidatePath(`/loads/${data.id}`);
@@ -175,15 +152,11 @@ export async function updateLoadDetailsAction(formData: FormData) {
   if (!supabase || !loadId) redirectWithLoadMessage(loadId, "Supabase is not configured.", "error");
 
   const load = await assertCanEditLoad(supabase, session, loadId);
-  const brokerId = getOptionalString(formData, "brokerId");
-  const broker = brokerId ? await getAuthorizedBroker(supabase, load.organizationId, brokerId) : null;
   const payload = {
     load_number: getString(formData, "loadNumber"),
     driver_name: getOptionalString(formData, "driverName"),
-    broker_id: broker?.id ?? null,
-    broker_name: broker?.broker_name ?? getOptionalString(formData, "brokerName"),
-    broker_mc_number: broker?.mc_number ?? getOptionalString(formData, "brokerMcNumber"),
-    broker_email: broker?.contact_email ?? getOptionalString(formData, "brokerEmail"),
+    broker_name: getOptionalString(formData, "brokerName"),
+    broker_email: getOptionalString(formData, "brokerEmail"),
     origin_city: getString(formData, "originCity"),
     origin_state: getString(formData, "originState").toUpperCase(),
     destination_city: getString(formData, "destinationCity"),
@@ -224,25 +197,6 @@ export async function updateLoadDetailsAction(formData: FormData) {
       carrier_name: load.carrierName,
     },
   });
-
-  if (broker) {
-    await writeAuditLog({
-      organizationId: load.organizationId,
-      actorUserId: session.userId,
-      action: "broker.selected_on_load",
-      entityType: "broker",
-      entityId: broker.id,
-      metadata: {
-        load_id: loadId,
-        load_number: payload.load_number,
-        broker_name: broker.broker_name,
-        mc_number: broker.mc_number,
-        approved_status: broker.approved_status,
-        risk_level: broker.risk_level,
-      },
-    });
-    await upsertBrokerLoadNotification(supabase, load.organizationId, loadId, broker, session.userId);
-  }
 
   revalidateLoad(loadId);
   redirectWithLoadMessage(loadId, "Load details updated.", "success");
@@ -623,55 +577,6 @@ async function getLoadAuthTarget(
     carrierEmail: carrier?.email ?? "",
     status: data.status,
   };
-}
-
-async function getAuthorizedBroker(
-  supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
-  organizationId: string,
-  brokerId: string,
-) {
-  const { data } = await supabase
-    .from("brokers")
-    .select("id, broker_name, mc_number, contact_email, approved_status, risk_level")
-    .eq("id", brokerId)
-    .eq("organization_id", organizationId)
-    .maybeSingle();
-
-  return data;
-}
-
-async function upsertBrokerLoadNotification(
-  supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
-  organizationId: string,
-  loadId: string,
-  broker: {
-    id: string;
-    broker_name: string;
-    mc_number: string | null;
-    approved_status: string;
-    risk_level: string;
-  },
-  _userId: string,
-) {
-  if (broker.approved_status !== "blocked" && broker.risk_level !== "high") return;
-
-  await supabase.from("notifications").upsert({
-    organization_id: organizationId,
-    title: broker.approved_status === "blocked" ? "Blocked broker selected on load" : "High-risk broker selected on load",
-    message: `${broker.broker_name} was selected for a load and requires review.`,
-    category: "broker_operation",
-    priority: broker.approved_status === "blocked" ? "critical" : "high",
-    status: "unread",
-    rule_key: `broker.selected_on_load:${loadId}:${broker.id}`,
-    metadata: {
-      load_id: loadId,
-      broker_id: broker.id,
-      broker_name: broker.broker_name,
-      mc_number: broker.mc_number,
-      approved_status: broker.approved_status,
-      risk_level: broker.risk_level,
-    },
-  }, { onConflict: "organization_id,rule_key" });
 }
 
 function revalidateLoad(loadId: string) {
