@@ -8,6 +8,7 @@ import {
   FileArchive,
   FileCheck2,
   FileText,
+  Fuel,
   LayoutDashboard,
   Mail,
   Phone,
@@ -78,6 +79,13 @@ export function CarrierProfilePage({ carrier, session, loads = [] }: { carrier: 
               >
                 <FileText className="h-4 w-4" />
                 Invoices
+              </Link>
+              <Link
+                href="/fuel"
+                className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-3 text-sm font-bold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white"
+              >
+                <Fuel className="h-4 w-4" />
+                Fuel
               </Link>
             </div>
           )}
@@ -296,6 +304,7 @@ function CarrierPortalSidebar({ carrierId }: { carrierId: string }) {
     { label: "Dashboard", href: `/carriers/${carrierId}`, icon: LayoutDashboard },
     { label: "Loads", href: "/loads", icon: Route },
     { label: "Broker Check", href: "/brokers", icon: Building2 },
+    { label: "Fuel Receipts", href: "/fuel", icon: Fuel },
     { label: "Documents", href: "#documents", icon: FileCheck2 },
     { label: "Invoices", href: "/invoices", icon: FileText },
     { label: "Archives", href: `/loads/archive?carrierId=${carrierId}&month=${currentMonth()}`, icon: FileArchive },
