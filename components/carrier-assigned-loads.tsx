@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
-import { CalendarDays, Download, Mail, Route } from "lucide-react";
+import { CalendarDays, FileArchive, Mail, Route } from "lucide-react";
 import { LoadDocumentUploader } from "@/components/load-document-uploader";
 import { StatusChip } from "@/components/status-chip";
 import { canUploadLoadDocumentType } from "@/lib/security/tenant-rules";
@@ -13,7 +13,6 @@ import type { Load, LoadDocument, LoadDocumentType } from "@/types/load";
 type LoadFilter = "date" | "week" | "month" | "all";
 
 export function CarrierAssignedLoads({
-  carrierId,
   loads,
   session,
 }: {
@@ -36,9 +35,9 @@ export function CarrierAssignedLoads({
           <h2 className="text-2xl font-extrabold tracking-normal">Assigned loads</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <a href={`/loads/archive?carrierId=${carrierId}&month=${selectedDate.slice(0, 7)}`} className="form-button min-h-10 px-3 text-sm">
-            <Download className="h-4 w-4" />
-            Download Monthly Archive
+          <a href={`/archives?month=${selectedDate.slice(0, 7)}`} className="form-button min-h-10 px-3 text-sm">
+            <FileArchive className="h-4 w-4" />
+            Monthly Archive
           </a>
           <StatusChip value={`${filteredLoads.length} shown`} />
           <StatusChip value={`${loads.length} assigned`} />

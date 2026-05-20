@@ -73,15 +73,18 @@ export async function GET(request: NextRequest) {
 
 function filterLoads(loads: Load[], params: URLSearchParams, carrierMode = false) {
   const month = params.get("month") ?? "";
+  const from = params.get("from") ?? "";
+  const to = params.get("to") ?? "";
   if (carrierMode) {
     return loads.filter((load) => {
       const loadDate = load.pickupDate || load.deliveryDate || load.createdAt.slice(0, 10);
-      return !month || loadDate.startsWith(month);
+      if (month && !loadDate.startsWith(month)) return false;
+      if (from && loadDate < from) return false;
+      if (to && loadDate > to) return false;
+      return true;
     });
   }
 
-  const from = params.get("from") ?? "";
-  const to = params.get("to") ?? "";
   const carrierId = params.get("carrierId") ?? "";
   const broker = params.get("broker")?.trim().toLowerCase() ?? "";
   const statusParam = params.get("status") as LoadStatus | "all" | null;

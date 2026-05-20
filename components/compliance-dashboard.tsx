@@ -133,7 +133,7 @@ const carrierNavGroups: NavGroup[] = [
       { label: "Loads", href: "/loads", icon: Route },
       { label: "Documents", href: "#documents", icon: FileCheck2 },
       { label: "Invoices", href: "/invoices", icon: Receipt },
-      { label: "Archives", href: "/loads", icon: FileArchive },
+      { label: "Archives", href: "/archives", icon: FileArchive },
       { label: "Notifications", href: "#notifications", icon: Bell },
     ],
   },

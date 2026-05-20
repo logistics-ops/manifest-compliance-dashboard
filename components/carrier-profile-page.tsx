@@ -298,7 +298,7 @@ function CarrierPortalSidebar({ carrierId }: { carrierId: string }) {
     { label: "Broker Check", href: "/brokers", icon: Building2 },
     { label: "Documents", href: "#documents", icon: FileCheck2 },
     { label: "Invoices", href: "/invoices", icon: FileText },
-    { label: "Archives", href: `/loads/archive?carrierId=${carrierId}&month=${currentMonth()}`, icon: FileArchive },
+    { label: "Archives", href: "/archives", icon: FileArchive },
     { label: "Notifications", href: "#notifications", icon: Bell },
   ];
 
@@ -380,9 +380,4 @@ function documentBorder(status: string) {
   if (status === "Valid") return "border-manifest-green/30";
   if (status === "Expiring Soon") return "border-manifest-amber/55";
   return "border-manifest-danger/60";
-}
-
-function currentMonth() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }

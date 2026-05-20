@@ -73,10 +73,17 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
           </div>
           {canManageCompliance(session) || (session.role === "carrier" && Boolean(session.carrierId)) ? (
             <div className="flex flex-wrap gap-3">
-              <a href={archiveUrl({ carrierId: session.role === "carrier" && !session.platformSuperAdmin ? session.carrierId ?? "" : "" })} className="form-button min-h-11 px-4 text-sm">
-                <Download className="h-4 w-4" />
-                Download Monthly Archive
-              </a>
+              {isCarrierPortal ? (
+                <Link href="/archives" className="form-button min-h-11 px-4 text-sm">
+                  <Archive className="h-4 w-4" />
+                  Archives
+                </Link>
+              ) : (
+                <a href={archiveUrl()} className="form-button min-h-11 px-4 text-sm">
+                  <Download className="h-4 w-4" />
+                  Download Monthly Archive
+                </a>
+              )}
               <Link href="/loads/new" className="form-button min-h-11 px-4 text-sm">
                 <Plus className="h-4 w-4" />
                 Create Load
