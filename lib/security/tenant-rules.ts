@@ -19,10 +19,6 @@ export type LoadAccessRecord = TenantRecord & {
 
 export type InvoiceAccessRecord = LoadAccessRecord;
 
-export type FuelReceiptAccessRecord = TenantRecord & {
-  carrierId: string;
-};
-
 export type BrokerAccessRecord = TenantRecord & {
   linkedCarrierIds?: string[];
   requestedByCarrierId?: string | null;
@@ -71,12 +67,6 @@ export const staffAuditActions = new Set([
   "broker.review_required",
   "broker_check.requested",
   "broker.selected_on_load",
-  "fuel_receipt.uploaded",
-  "fuel_receipt.extraction_completed",
-  "fuel_receipt.extraction_failed",
-  "fuel_receipt.approved",
-  "fuel_receipt.edited",
-  "fuel_receipt.exported",
 ]);
 
 export function canRoleAccessDashboard(role: UserRole, platformSuperAdmin = false) {
@@ -235,40 +225,6 @@ export function canAccessInvoiceRecord(
   organizationIsActive = true,
 ) {
   return canAccessLoadRecord(session, invoice, organizationIsActive);
-}
-
-export function canAccessFuelReceiptRecord(
-  session: AuthSession | null,
-  receipt: FuelReceiptAccessRecord,
-  organizationIsActive = true,
-) {
-  return canAccessLoadRecord(session, receipt, organizationIsActive);
-}
-
-export function canManageFuelReceiptRecord(
-  session: AuthSession | null,
-  receipt: FuelReceiptAccessRecord,
-  organizationIsActive = true,
-) {
-  if (!session) return false;
-  if (session.platformSuperAdmin) return true;
-  if (!canAccessOrganizationRecord(session, receipt.organizationId, organizationIsActive)) return false;
-  if (canRoleManageCompliance(session.role)) return true;
-  return session.role === "carrier" && session.carrierId === receipt.carrierId;
-}
-
-export function canApproveFuelReceiptRecord(
-  session: AuthSession | null,
-  receipt: FuelReceiptAccessRecord,
-  organizationIsActive = true,
-) {
-  if (!session) return false;
-  if (session.platformSuperAdmin) return true;
-  return canRoleManageCompliance(session.role) && canAccessOrganizationRecord(session, receipt.organizationId, organizationIsActive);
-}
-
-export function getFuelReceiptQueryScope(session: AuthSession | null) {
-  return getLoadQueryScope(session);
 }
 
 export function canAccessBrokerRecord(
@@ -466,19 +422,5 @@ export function assertLoadDocumentStoragePath(
 ) {
   if (!isLoadDocumentStoragePath(storagePath, organizationId, loadId, documentType)) {
     throw new Error("Uploaded load document path does not match the requested document type.");
-  }
-}
-
-export function getFuelReceiptStoragePrefix(organizationId: string, carrierId: string, receiptId: string) {
-  return `organizations/${organizationId}/fuel-receipts/${carrierId}/${receiptId}/`;
-}
-
-export function isFuelReceiptStoragePath(storagePath: string, organizationId: string, carrierId: string, receiptId: string) {
-  return storagePath.startsWith(getFuelReceiptStoragePrefix(organizationId, carrierId, receiptId));
-}
-
-export function assertFuelReceiptStoragePath(storagePath: string, organizationId: string, carrierId: string, receiptId: string) {
-  if (!isFuelReceiptStoragePath(storagePath, organizationId, carrierId, receiptId)) {
-    throw new Error("Fuel receipt path does not match the current organization, carrier, and receipt.");
   }
 }

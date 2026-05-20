@@ -25,7 +25,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Receipt,
-  Fuel,
   Users,
   Wrench,
 } from "lucide-react";
@@ -93,7 +92,6 @@ const organizationNavGroups: NavGroup[] = [
     items: [
       { label: "Loads", href: "/loads", icon: Route },
       { label: "Broker Check", href: "/brokers", icon: Building2 },
-      { label: "Fuel Receipts", href: "/fuel", icon: Fuel },
       { label: "POD Workflow", href: "/loads", icon: FileCheck2 },
       { label: "Rate Confirmations", href: "/loads", icon: ClipboardCheck },
       { label: "Activity Timeline", href: "#timeline", icon: Activity },
@@ -110,7 +108,6 @@ const organizationNavGroups: NavGroup[] = [
   {
     title: "Fleet / Maintenance",
     items: [
-      { label: "Fuel Receipts", href: "/fuel", icon: Fuel },
       { label: "Vehicles", href: "#vehicles", icon: Truck, placeholder: true },
       { label: "Maintenance", href: "#maintenance", icon: Wrench, placeholder: true },
       { label: "Pre-Trip / Post-Trip", href: "#trip-inspections", icon: ClipboardList, placeholder: true },
@@ -134,7 +131,6 @@ const carrierNavGroups: NavGroup[] = [
     items: [
       { label: "Dashboard", href: "#overview", icon: LayoutDashboard },
       { label: "Loads", href: "/loads", icon: Route },
-      { label: "Fuel Receipts", href: "/fuel", icon: Fuel },
       { label: "Documents", href: "#documents", icon: FileCheck2 },
       { label: "Invoices", href: "/invoices", icon: Receipt },
       { label: "Archives", href: "/loads", icon: FileArchive },

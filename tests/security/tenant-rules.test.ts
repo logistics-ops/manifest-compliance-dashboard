@@ -8,21 +8,18 @@ import {
   canAccessCarrierRecord,
   canAssignCarrierToUser,
   canAccessInvoiceRecord,
-  canAccessFuelReceiptRecord,
   canAccessLoadRecord,
   canAccessLoadTimeline,
   canDeleteArchivedLoadFiles,
   canExportLoadArchive,
   canExportOrganizationLoadArchive,
   canGenerateInvoiceRecord,
-  canApproveFuelReceiptRecord,
   canAccessNotificationRecord,
   canAccessOrganizationRecord,
   canCreateLoadRecord,
   canCreateBrokerCheckRequest,
   canInviteOrganizationUsers,
   canManageBrokerRecord,
-  canManageFuelReceiptRecord,
   canManageOrganizationUsers,
   canManageLoadDocumentRecord,
   canManageLoadRecord,
@@ -41,7 +38,6 @@ import {
   isLoadStoragePath,
   isLoadDocumentStoragePath,
   isInvoiceStoragePath,
-  isFuelReceiptStoragePath,
 } from "../../lib/security/tenant-rules";
 
 const orgA = "org-a";
@@ -327,47 +323,6 @@ test("invoice permissions preserve carrier and organization isolation", () => {
   assert.equal(canUpdateInvoiceStatusRecord(carrierUser, invoiceA, false), false);
   assert.equal(isInvoiceStoragePath(`organizations/${orgA}/loads/load-a/invoices/v1/invoice.pdf`, orgA, "load-a"), true);
   assert.equal(isInvoiceStoragePath(`organizations/${orgB}/loads/load-a/invoices/v1/invoice.pdf`, orgA, "load-a"), false);
-});
-
-test("fuel receipt permissions preserve carrier and organization isolation", () => {
-  const platform = session({ role: "admin", organizationId: null, platformSuperAdmin: true });
-  const admin = session({ role: "admin" });
-  const staff = session({ role: "staff" });
-  const carrierUser = session({ role: "carrier", carrierId: carrierA });
-  const otherCarrierUser = session({ role: "carrier", carrierId: carrierB });
-  const receiptA = { organizationId: orgA, carrierId: carrierA };
-  const receiptB = { organizationId: orgB, carrierId: carrierB };
-
-  assert.equal(canAccessFuelReceiptRecord(platform, receiptB, false), true);
-  assert.equal(canAccessFuelReceiptRecord(admin, receiptA, true), true);
-  assert.equal(canAccessFuelReceiptRecord(staff, receiptA, true), true);
-  assert.equal(canAccessFuelReceiptRecord(carrierUser, receiptA, true), true);
-  assert.equal(canAccessFuelReceiptRecord(carrierUser, { organizationId: orgA, carrierId: carrierB }, true), false);
-  assert.equal(canAccessFuelReceiptRecord(otherCarrierUser, receiptA, true), false);
-  assert.equal(canAccessFuelReceiptRecord(carrierUser, receiptA, false), false);
-
-  assert.equal(canManageFuelReceiptRecord(admin, receiptA, true), true);
-  assert.equal(canManageFuelReceiptRecord(staff, receiptA, true), true);
-  assert.equal(canManageFuelReceiptRecord(carrierUser, receiptA, true), true);
-  assert.equal(canManageFuelReceiptRecord(carrierUser, { organizationId: orgA, carrierId: carrierB }, true), false);
-  assert.equal(canManageFuelReceiptRecord(carrierUser, { organizationId: orgB, carrierId: carrierA }, true), false);
-
-  assert.equal(canApproveFuelReceiptRecord(admin, receiptA, true), true);
-  assert.equal(canApproveFuelReceiptRecord(staff, receiptA, true), true);
-  assert.equal(canApproveFuelReceiptRecord(carrierUser, receiptA, true), false);
-  assert.equal(canApproveFuelReceiptRecord(platform, receiptB, false), true);
-});
-
-test("fuel receipt storage paths are scoped under organization, carrier, and receipt", () => {
-  const validPath = `organizations/${orgA}/fuel-receipts/${carrierA}/receipt-a/v1/file.pdf`;
-  const wrongOrgPath = `organizations/${orgB}/fuel-receipts/${carrierA}/receipt-a/v1/file.pdf`;
-  const wrongCarrierPath = `organizations/${orgA}/fuel-receipts/${carrierB}/receipt-a/v1/file.pdf`;
-  const wrongReceiptPath = `organizations/${orgA}/fuel-receipts/${carrierA}/receipt-b/v1/file.pdf`;
-
-  assert.equal(isFuelReceiptStoragePath(validPath, orgA, carrierA, "receipt-a"), true);
-  assert.equal(isFuelReceiptStoragePath(wrongOrgPath, orgA, carrierA, "receipt-a"), false);
-  assert.equal(isFuelReceiptStoragePath(wrongCarrierPath, orgA, carrierA, "receipt-a"), false);
-  assert.equal(isFuelReceiptStoragePath(wrongReceiptPath, orgA, carrierA, "receipt-a"), false);
 });
 
 test("broker registry permissions preserve tenant and carrier request scope", () => {
