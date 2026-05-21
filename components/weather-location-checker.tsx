@@ -100,18 +100,19 @@ function LookupPanel({
   isPending: boolean;
 }) {
   return (
-    <div className="grid gap-3 rounded-md border border-white/10 bg-black/25 p-4">
-      <div className="grid grid-cols-[minmax(0,1fr)_96px_auto] gap-3 max-sm:grid-cols-1">
-        <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+    <div className="grid gap-3 overflow-visible rounded-md border border-white/10 bg-black/25 p-4">
+      <div className="relative z-20 grid grid-cols-[minmax(0,1fr)_minmax(96px,112px)_max-content] items-end gap-4 overflow-visible max-sm:grid-cols-1">
+        <label className="relative z-30 grid min-w-0 gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
           {title} City
           <input
             value={state.city}
             onChange={(event) => setState((previous) => ({ ...previous, city: event.target.value }))}
             className="form-control"
             placeholder="City"
+            autoComplete="off"
           />
         </label>
-        <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+        <label className="relative z-30 grid min-w-0 gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
           State
           <input
             value={state.state}
@@ -119,13 +120,14 @@ function LookupPanel({
             className="form-control"
             maxLength={2}
             placeholder="TX"
+            autoComplete="off"
           />
         </label>
         <button
           type="button"
           onClick={onCheck}
           disabled={isPending || !state.city || !state.state}
-          className="form-button self-end disabled:cursor-not-allowed disabled:opacity-50"
+          className="form-button relative z-10 min-h-11 min-w-32 justify-center self-end whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 max-sm:w-full"
         >
           <Search className="h-4 w-4" />
           Check
