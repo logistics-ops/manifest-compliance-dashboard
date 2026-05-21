@@ -38,17 +38,21 @@ export default async function WeatherPage({ searchParams }: WeatherPageProps) {
           </div>
         </header>
 
-        <section className="section-panel mb-5 overflow-visible p-6 max-md:p-4">
-          <form className="relative z-20 grid grid-cols-[minmax(0,1fr)_minmax(96px,120px)_max-content] items-end gap-4 overflow-visible max-md:grid-cols-1">
-            <label className="relative z-30 grid min-w-0 gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
-              City
-              <input name="city" defaultValue={city} className="form-control" placeholder="Dallas" autoComplete="off" />
-            </label>
-            <label className="relative z-30 grid min-w-0 gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
-              State
-              <input name="state" defaultValue={state} className="form-control" maxLength={2} placeholder="TX" autoComplete="off" />
-            </label>
-            <button className="form-button relative z-10 min-h-11 min-w-40 justify-center self-end whitespace-nowrap max-md:w-full">Check Weather</button>
+        <section className="section-panel mb-5 p-6 max-md:p-4">
+          <form className="grid gap-4">
+            <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-4 max-md:grid-cols-1">
+              <label className="grid min-w-0 gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                City
+                <input name="city" defaultValue={city} className="form-control" placeholder="Dallas" autoComplete="off" />
+              </label>
+              <label className="grid min-w-0 gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                State
+                <input name="state" defaultValue={state} className="form-control" maxLength={2} placeholder="TX" autoComplete="off" />
+              </label>
+            </div>
+            <div className="flex justify-end max-md:block">
+              <button className="form-button min-h-11 min-w-40 justify-center whitespace-nowrap max-md:w-full">Check Weather</button>
+            </div>
           </form>
         </section>
 

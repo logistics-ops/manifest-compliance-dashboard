@@ -101,33 +101,27 @@ function LookupPanel({
 }) {
   return (
     <div className="grid gap-3 overflow-visible rounded-md border border-white/10 bg-black/25 p-4">
-      <div className="relative z-20 grid grid-cols-[minmax(0,1fr)_minmax(96px,112px)_max-content] items-end gap-4 overflow-visible max-sm:grid-cols-1">
-        <label className="relative z-30 grid min-w-0 gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
-          {title} City
-          <input
-            value={state.city}
-            onChange={(event) => setState((previous) => ({ ...previous, city: event.target.value }))}
-            className="form-control"
-            placeholder="City"
-            autoComplete="off"
-          />
-        </label>
-        <label className="relative z-30 grid min-w-0 gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
-          State
-          <input
-            value={state.state}
-            onChange={(event) => setState((previous) => ({ ...previous, state: event.target.value.toUpperCase() }))}
-            className="form-control"
-            maxLength={2}
-            placeholder="TX"
-            autoComplete="off"
-          />
-        </label>
+      <div className="grid grid-cols-[minmax(0,1fr)_112px] gap-4 max-sm:grid-cols-1">
+        <WeatherInput
+          label={`${title} City`}
+          value={state.city}
+          onChange={(value) => setState((previous) => ({ ...previous, city: value }))}
+          placeholder="City"
+        />
+        <WeatherInput
+          label="State"
+          value={state.state}
+          onChange={(value) => setState((previous) => ({ ...previous, state: value.toUpperCase() }))}
+          placeholder="TX"
+          maxLength={2}
+        />
+      </div>
+      <div className="flex justify-end max-sm:block">
         <button
           type="button"
           onClick={onCheck}
           disabled={isPending || !state.city || !state.state}
-          className="form-button relative z-10 min-h-11 min-w-32 justify-center self-end whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 max-sm:w-full"
+          className="form-button min-h-11 min-w-32 justify-center whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 max-sm:w-full"
         >
           <Search className="h-4 w-4" />
           Check
@@ -140,5 +134,33 @@ function LookupPanel({
       ) : null}
       {state.weather ? <WeatherCard title={`${title} Weather`} weather={state.weather} /> : null}
     </div>
+  );
+}
+
+function WeatherInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+  maxLength,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  maxLength?: number;
+}) {
+  return (
+    <label className="grid min-w-0 gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+      {label}
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="form-control"
+        maxLength={maxLength}
+        placeholder={placeholder}
+        autoComplete="off"
+      />
+    </label>
   );
 }
