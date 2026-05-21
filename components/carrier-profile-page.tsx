@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Bell,
   ClipboardCheck,
+  CloudSun,
   FileArchive,
   FileCheck2,
   FileText,
@@ -294,6 +295,7 @@ function CarrierPortalSidebar({ carrierId }: { carrierId: string }) {
   const items = [
     { label: "Dashboard", href: `/carriers/${carrierId}`, icon: LayoutDashboard },
     { label: "Loads", href: "/loads", icon: Route },
+    { label: "Weather", href: "/weather", icon: CloudSun },
     { label: "Documents", href: "#documents", icon: FileCheck2 },
     { label: "Invoices", href: "/invoices", icon: FileText },
     { label: "Archives", href: "/archives", icon: FileArchive },

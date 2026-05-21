@@ -6,10 +6,13 @@ import { generateInvoiceAction, markInvoicePaidAction, sendInvoiceAction } from 
 import { sendPodToBrokerAction, updateLoadDetailsAction, updateLoadStatusAction } from "@/app/actions/loads";
 import { LoadDocumentUploader } from "@/components/load-document-uploader";
 import { StatusChip } from "@/components/status-chip";
+import { WeatherCard } from "@/components/weather-card";
+import { WeatherLocationChecker } from "@/components/weather-location-checker";
 import { getLoadActivityTimeline, type LoadActivityItem } from "@/lib/data/load-activity";
 import { getInvoicesForLoad } from "@/lib/data/invoices";
 import { getLoad } from "@/lib/data/loads";
 import { requireSession } from "@/lib/integrations/auth";
+import { getWeatherForLocation } from "@/lib/integrations/weather";
 import { canAccessLoadRecord, canUploadLoadDocumentType } from "@/lib/security/tenant-rules";
 import type { LoadDocument, LoadDocumentType, LoadStatus } from "@/types/load";
 
@@ -42,6 +45,10 @@ export default async function LoadDetailPage({ params, searchParams }: LoadPageP
   const timeline = await getLoadActivityTimeline(load);
   const invoices = await getInvoicesForLoad(load.id);
   const latestInvoice = invoices[0] ?? null;
+  const [originWeather, destinationWeather] = await Promise.all([
+    getWeatherForLocation(load.originCity, load.originState),
+    getWeatherForLocation(load.destinationCity, load.destinationState),
+  ]);
 
   return (
     <main className="min-h-screen p-8 max-md:p-4">
@@ -82,6 +89,11 @@ export default async function LoadDetailPage({ params, searchParams }: LoadPageP
           <InfoPanel icon={<Truck className="h-4 w-4" />} label="Carrier" title={load.carrierName} detail={load.driverName || "No driver assigned"} />
           <InfoPanel icon={<Mail className="h-4 w-4" />} label="Broker" title={load.brokerName || "Broker"} detail={load.brokerEmail || "No broker email"} />
           <InfoPanel icon={<Route className="h-4 w-4" />} label="Dates" title={`${load.pickupDate ?? "No pickup"} → ${load.deliveryDate ?? "No delivery"}`} detail={formatMoney(load.rateAmount)} />
+        </section>
+
+        <section className="mb-5 grid grid-cols-2 gap-5 max-xl:grid-cols-1">
+          <WeatherCard title="Origin Weather" weather={originWeather} />
+          <WeatherCard title="Destination Weather" weather={destinationWeather} />
         </section>
 
         {messages?.success ? (
@@ -233,6 +245,15 @@ export default async function LoadDetailPage({ params, searchParams }: LoadPageP
               <button className="form-button min-h-10 w-fit px-3 text-sm">Save load details</button>
             </form>
           </section>
+        ) : null}
+
+        {canEdit ? (
+          <div className="mt-5">
+            <WeatherLocationChecker
+              origin={{ city: load.originCity, state: load.originState }}
+              destination={{ city: load.destinationCity, state: load.destinationState }}
+            />
+          </div>
         ) : null}
 
         <section className="section-panel mt-5 p-6 max-md:p-4">

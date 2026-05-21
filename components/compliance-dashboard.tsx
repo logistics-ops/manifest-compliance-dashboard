@@ -6,6 +6,7 @@ import {
   BarChart3,
   ClipboardCheck,
   ClipboardList,
+  CloudSun,
   FileCheck2,
   FileArchive,
   FileText,
@@ -91,6 +92,7 @@ const organizationNavGroups: NavGroup[] = [
     title: "Operations",
     items: [
       { label: "Loads", href: "/loads", icon: Route },
+      { label: "Weather Checker", href: "/weather", icon: CloudSun },
       { label: "Broker Check", href: "#broker-check", icon: Building2, placeholder: true },
       { label: "POD Workflow", href: "/loads", icon: FileCheck2 },
       { label: "Rate Confirmations", href: "/loads", icon: ClipboardCheck },
@@ -131,6 +133,7 @@ const carrierNavGroups: NavGroup[] = [
     items: [
       { label: "Dashboard", href: "#overview", icon: LayoutDashboard },
       { label: "Loads", href: "/loads", icon: Route },
+      { label: "Weather", href: "/weather", icon: CloudSun },
       { label: "Documents", href: "#documents", icon: FileCheck2 },
       { label: "Invoices", href: "/invoices", icon: Receipt },
       { label: "Archives", href: "/archives", icon: FileArchive },

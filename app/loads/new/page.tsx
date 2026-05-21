@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, Route } from "lucide-react";
 import { createLoadAction } from "@/app/actions/loads";
+import { WeatherLocationChecker } from "@/components/weather-location-checker";
 import { getCarriers } from "@/lib/data/carriers";
 import { requireSession } from "@/lib/integrations/auth";
 import { canManageCompliance } from "@/lib/auth/permissions";
@@ -107,6 +108,10 @@ export default async function NewLoadPage({ searchParams }: NewLoadPageProps) {
             <button className="form-button min-h-11 w-fit px-4 text-sm" disabled={cannotCreate}>Create load</button>
           </form>
         </section>
+
+        <div className="mt-5">
+          <WeatherLocationChecker />
+        </div>
       </div>
     </main>
   );
