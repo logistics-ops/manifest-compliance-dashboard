@@ -2,8 +2,6 @@
 
 import Link from "next/link";
 import {
-  Activity,
-  BarChart3,
   ClipboardCheck,
   ClipboardList,
   CloudSun,
@@ -21,7 +19,6 @@ import {
   Truck,
   Bell,
   Building2,
-  DollarSign,
   Flag,
   PanelLeftClose,
   PanelLeftOpen,
@@ -39,7 +36,6 @@ import {
   getComplianceScore,
   getComplianceScoreBreakdown,
   getComplianceTier,
-  getOverviewMetrics,
   getScoreSummary,
   isAuditReady,
   isHighRisk,
@@ -68,60 +64,63 @@ type DashboardTab = (typeof dashboardTabs)[number];
 type NavItem = { label: string; href: string; icon: LucideIcon; placeholder?: boolean; platformOnly?: boolean };
 type NavGroup = { title: string; items: NavItem[] };
 
+export type ExecutiveOverviewData = {
+  organizationAuditReadinessAverage: number;
+  dqReadinessAverage: number;
+  vehicleReadinessAverage: number;
+  totalCriticalBlockers: number;
+  driversNeedingAttention: number;
+  vehiclesNeedingAttention: number;
+  expiringDocuments: number;
+  openComplianceAlerts: number;
+  loadCount: number;
+  invoiceTotals: {
+    count: number;
+    totalAmount: number;
+    outstandingAmount: number;
+    paidAmount: number;
+    overdueCount: number;
+  };
+  needsAttention: {
+    carriers: string[];
+    drivers: string[];
+    vehicles: string[];
+    documents: string[];
+    alerts: string[];
+  };
+};
+
 const organizationNavGroups: NavGroup[] = [
   {
-    title: "Command Center",
+    title: "Owner Systems",
     items: [
-      { label: "Overview", href: "#overview", icon: LayoutDashboard },
-      { label: "Analytics", href: "#analytics", icon: BarChart3 },
-      { label: "Notifications", href: "#notifications", icon: Bell },
-      { label: "Audit Logs", href: "#audit-logs", icon: ClipboardList },
-      { label: "Broker Check", href: "#broker-check", icon: Building2, placeholder: true },
+      { label: "Executive Overview", href: "#overview", icon: LayoutDashboard },
+      { label: "Loads", href: "/loads", icon: Route },
+      { label: "Invoices", href: "/invoices", icon: FileText },
+      { label: "Archives", href: "/archives", icon: FileArchive },
+      { label: "Weather Checker", href: "/weather", icon: CloudSun },
+      { label: "Users", href: "/users", icon: Users },
     ],
   },
   {
-    title: "Compliance",
+    title: "Audit & Compliance",
     items: [
       { label: "Carrier Profiles", href: "#carriers", icon: Truck },
       { label: "Required Documents", href: "#documents", icon: FileCheck2 },
-      { label: "Driver Qualification Files", href: "#driver-qualification-files", icon: ClipboardCheck, placeholder: true },
-      { label: "Safety / Audit Prep", href: "#safety-audit-prep", icon: ShieldAlert, placeholder: true },
+      { label: "DQ Files", href: "/dq-files", icon: ClipboardCheck },
+      { label: "Vehicles", href: "/vehicles", icon: Truck },
+      { label: "Audit Readiness", href: "/audit-readiness", icon: ShieldAlert },
+      { label: "Notifications", href: "#notifications", icon: Bell },
+      { label: "Audit Logs", href: "#audit-logs", icon: ClipboardList },
     ],
   },
   {
-    title: "Operations",
-    items: [
-      { label: "Loads", href: "/loads", icon: Route },
-      { label: "Weather Checker", href: "/weather", icon: CloudSun },
-      { label: "Broker Check", href: "#broker-check", icon: Building2, placeholder: true },
-      { label: "POD Workflow", href: "/loads", icon: FileCheck2 },
-      { label: "Rate Confirmations", href: "/loads", icon: ClipboardCheck },
-      { label: "Activity Timeline", href: "#timeline", icon: Activity },
-    ],
-  },
-  {
-    title: "Billing",
-    items: [
-      { label: "Invoices", href: "/invoices", icon: FileText },
-      { label: "Payment Status", href: "/invoices", icon: DollarSign },
-      { label: "Archive Exports", href: "/loads", icon: FileArchive },
-    ],
-  },
-  {
-    title: "Fleet / Maintenance",
-    items: [
-      { label: "Vehicles", href: "#vehicles", icon: Truck, placeholder: true },
-      { label: "Maintenance", href: "#maintenance", icon: Wrench, placeholder: true },
-      { label: "Pre-Trip / Post-Trip", href: "#trip-inspections", icon: ClipboardList, placeholder: true },
-    ],
-  },
-  {
-    title: "Company",
+    title: "Shared Core",
     items: [
       { label: "Onboarding", href: "/onboarding", icon: Flag },
-      { label: "Users", href: "/users", icon: Users },
       { label: "Organization Settings", href: "#organization-settings", icon: Settings, placeholder: true },
       { label: "Branding", href: "#branding", icon: Palette, placeholder: true },
+      { label: "Maintenance", href: "#maintenance", icon: Wrench, placeholder: true },
       { label: "Platform Admin", href: "/platform", icon: Building2, platformOnly: true },
     ],
   },
@@ -148,12 +147,14 @@ export function ComplianceDashboard({
   auditLogs = [],
   session,
   branding,
+  executiveOverview,
 }: {
   carriers?: Carrier[];
   notifications?: ComplianceNotification[];
   auditLogs?: AuditLog[];
   session: AuthSession;
   branding: OrganizationBranding;
+  executiveOverview: ExecutiveOverviewData;
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<DashboardTab>(() => getInitialDashboardTab());
@@ -164,7 +165,6 @@ export function ComplianceDashboard({
 
   const selectedCarrier = activeCarriers.find((carrier) => carrier.id === selectedCarrierId) ?? activeCarriers[0] ?? null;
   const selectedDocuments = selectedCarrier ? getCarrierDocuments(selectedCarrier) : [];
-  const overviewMetrics = getOverviewMetrics(activeCarriers);
   const timelineEvents = getComplianceTimeline(activeCarriers, 90);
   const activeNotifications = notifications.length ? notifications : [];
 
@@ -257,10 +257,10 @@ export function ComplianceDashboard({
           <div>
             <p className="eyebrow">{branding.name}</p>
             <h1 className="max-w-4xl text-5xl font-extrabold leading-[0.95] tracking-normal text-white max-md:text-3xl">
-              Carrier Compliance Command Center
+              Manifest Operations Center
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-manifest-muted">
-              Executive visibility into carrier readiness, document exposure, and renewal risk across your active tenant network.
+              Owner-ready visibility across loads, billing, audit readiness, carrier documents, and operational risk.
             </p>
           </div>
 
@@ -345,30 +345,35 @@ export function ComplianceDashboard({
                 <div>
                   <p className="eyebrow">Executive Overview</p>
                   <h2 className="max-w-3xl text-4xl font-extrabold leading-tight tracking-normal text-white max-md:text-2xl">
-                    Fleet-ready visibility for renewals, audit exposure, and operational risk.
+                    Owner systems, audit posture, and operating work in one command view.
                   </h2>
                   <div className="mt-6 flex flex-wrap gap-3 text-xs font-bold text-manifest-muted">
                     <span className="rounded-md border border-white/10 bg-black/30 px-3 py-2">{branding.slug}</span>
                     <span className="rounded-md border border-white/10 bg-black/30 px-3 py-2">Tenant-scoped data</span>
-                    <span className="rounded-md border border-white/10 bg-black/30 px-3 py-2">90-day expiration view</span>
+                    <span className="rounded-md border border-white/10 bg-black/30 px-3 py-2">Manifest Operations Center</span>
                   </div>
                 </div>
                 <div className="grid min-h-36 min-w-44 place-items-center rounded-md border border-manifest-red/55 bg-black/45 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                  <span className="text-xs font-bold uppercase tracking-[0.18em] text-manifest-muted">Risk Watch</span>
-                  <strong className="text-6xl leading-none text-white">{activeCarriers.filter(isHighRisk).length}</strong>
-                  <span className="text-xs font-bold text-manifest-red">high-risk carriers</span>
+                  <span className="text-xs font-bold uppercase tracking-[0.18em] text-manifest-muted">Critical Blockers</span>
+                  <strong className="text-6xl leading-none text-white">{executiveOverview.totalCriticalBlockers}</strong>
+                  <span className="text-xs font-bold text-manifest-red">open across audit systems</span>
                 </div>
               </div>
             </section>
 
-            <section className="grid grid-cols-6 gap-4 max-2xl:grid-cols-3 max-md:grid-cols-1" aria-label="Dashboard overview metrics">
-              {overviewMetrics.map((metric) => (
-                <MetricCard key={metric.label} metric={metric} />
-              ))}
+            <section className="grid grid-cols-4 gap-4 max-2xl:grid-cols-2 max-md:grid-cols-1" aria-label="Dashboard overview metrics">
+              <ExecutiveMetricCard label="Org audit readiness" value={`${executiveOverview.organizationAuditReadinessAverage}%`} detail="Carrier, DQ, vehicle, alert posture" tone={scoreTone(executiveOverview.organizationAuditReadinessAverage)} />
+              <ExecutiveMetricCard label="DQ readiness" value={`${executiveOverview.dqReadinessAverage}%`} detail={`${executiveOverview.driversNeedingAttention} drivers need attention`} tone={scoreTone(executiveOverview.dqReadinessAverage)} />
+              <ExecutiveMetricCard label="Vehicle readiness" value={`${executiveOverview.vehicleReadinessAverage}%`} detail={`${executiveOverview.vehiclesNeedingAttention} units need attention`} tone={scoreTone(executiveOverview.vehicleReadinessAverage)} />
+              <ExecutiveMetricCard label="Critical blockers" value={executiveOverview.totalCriticalBlockers} detail="Missing, expired, or blocking records" tone={executiveOverview.totalCriticalBlockers ? "danger" : "good"} />
+              <ExecutiveMetricCard label="Expiring documents" value={executiveOverview.expiringDocuments} detail="Documents inside renewal watch" tone={executiveOverview.expiringDocuments ? "warn" : "good"} />
+              <ExecutiveMetricCard label="Open compliance alerts" value={executiveOverview.openComplianceAlerts} detail="Unread/read alerts not dismissed" tone={executiveOverview.openComplianceAlerts ? "warn" : "good"} />
+              <ExecutiveMetricCard label="Loads" value={executiveOverview.loadCount} detail="Tenant-scoped operational loads" tone="neutral" />
+              <ExecutiveMetricCard label="Invoices" value={formatCurrency(executiveOverview.invoiceTotals.totalAmount)} detail={`${executiveOverview.invoiceTotals.count} invoices · ${formatCurrency(executiveOverview.invoiceTotals.outstandingAmount)} outstanding`} tone={executiveOverview.invoiceTotals.overdueCount ? "danger" : "neutral"} />
             </section>
 
             <section className="grid grid-cols-[minmax(0,1fr)_minmax(320px,0.55fr)] gap-5 max-xl:grid-cols-1">
-              <ExecutiveSummary carriers={activeCarriers} notifications={activeNotifications} events={timelineEvents} />
+              <ExecutiveSummary carriers={activeCarriers} notifications={activeNotifications} events={timelineEvents} overview={executiveOverview} />
               <AlertPanel carriers={activeCarriers} />
             </section>
           </div>
@@ -447,10 +452,12 @@ function ExecutiveSummary({
   carriers,
   notifications,
   events,
+  overview,
 }: {
   carriers: Carrier[];
   notifications: ComplianceNotification[];
   events: ComplianceTimelineEvent[];
+  overview: ExecutiveOverviewData;
 }) {
   const analytics = getDashboardAnalytics(carriers);
   const highPriority = notifications.filter((notification) => ["critical", "high"].includes(notification.priority)).slice(0, 4);
@@ -466,17 +473,20 @@ function ExecutiveSummary({
         <StatusChip value={`${analytics.averageScore} avg score`} />
       </div>
       <div className="grid grid-cols-3 gap-3 max-lg:grid-cols-1">
-        <SummaryPanel title="Compliance Score Summary" value={`${analytics.averageScore}/100`} detail={`${carriers.filter(isAuditReady).length} audit-ready carriers`} />
-        <SummaryPanel title="High Priority Alerts" value={highPriority.length} detail="Critical and high priority notifications" />
-        <SummaryPanel title="Upcoming Expirations" value={upcomingExpirations.length} detail="Next renewal events in queue" />
+        <SummaryPanel title="Audit Readiness" value={`${overview.organizationAuditReadinessAverage}/100`} detail={`${carriers.filter(isAuditReady).length} audit-ready carriers`} />
+        <SummaryPanel title="Owner Work Queue" value={overview.totalCriticalBlockers + overview.openComplianceAlerts} detail="Critical blockers plus open alerts" />
+        <SummaryPanel title="Billing Pipeline" value={formatCurrency(overview.invoiceTotals.outstandingAmount)} detail={`${overview.invoiceTotals.overdueCount} overdue invoices`} />
       </div>
-      <div className="mt-5 grid grid-cols-2 gap-4 max-lg:grid-cols-1">
-        <ExecutiveList title="Risk watch" items={carriers.filter(isHighRisk).slice(0, 5).map((carrier) => carrier.companyName)} empty="No high-risk carriers." />
-        <ExecutiveList
-          title="Upcoming expirations"
-          items={upcomingExpirations.map((event) => `${event.carrierName}: ${event.documentName} in ${event.daysUntilExpiration} days`)}
-          empty="No upcoming expirations."
-        />
+      <div className="mt-5">
+        <p className="eyebrow">Needs Attention</p>
+        <div className="mt-3 grid grid-cols-3 gap-4 max-2xl:grid-cols-2 max-lg:grid-cols-1">
+          <ExecutiveList title="Carriers" items={overview.needsAttention.carriers} empty="No carrier issues surfaced." />
+          <ExecutiveList title="Drivers" items={overview.needsAttention.drivers} empty="No driver DQ issues surfaced." />
+          <ExecutiveList title="Vehicles" items={overview.needsAttention.vehicles} empty="No vehicle readiness issues surfaced." />
+          <ExecutiveList title="Documents" items={overview.needsAttention.documents.length ? overview.needsAttention.documents : upcomingExpirations.map((event) => `${event.carrierName}: ${event.documentName} in ${event.daysUntilExpiration} days`)} empty="No document renewals surfaced." />
+          <ExecutiveList title="Alerts" items={overview.needsAttention.alerts.length ? overview.needsAttention.alerts : highPriority.map((item) => item.message)} empty="No open alerts surfaced." />
+          <ExecutiveList title="Risk watch" items={carriers.filter(isHighRisk).slice(0, 5).map((carrier) => carrier.companyName)} empty="No high-risk carriers." />
+        </div>
       </div>
     </section>
   );
@@ -596,12 +606,10 @@ function UpcomingModules() {
         Upcoming Modules
       </summary>
       <div className="mt-5 grid grid-cols-2 gap-5 max-xl:grid-cols-1">
-        <ModulePlaceholder id="driver-qualification-files" eyebrow="Compliance" title="Driver Qualification Files" detail="Placeholder for DQF packets, CDL/medical card review, MVR evidence, and driver audit readiness." />
         <ModulePlaceholder id="safety-audit-prep" eyebrow="Compliance" title="Safety / Audit Prep" detail="Placeholder for safety scorecards, audit packages, corrective action tracking, and review queues." />
-        <ModulePlaceholder id="vehicles" eyebrow="Fleet / Maintenance" title="Vehicles" detail="Placeholder for vehicle roster, VIN/unit tracking, registration, and equipment compliance." />
         <ModulePlaceholder id="maintenance" eyebrow="Fleet / Maintenance" title="Maintenance" detail="Placeholder for maintenance events, service intervals, inspection records, and repair follow-up." />
         <ModulePlaceholder id="trip-inspections" eyebrow="Fleet / Maintenance" title="Pre-Trip / Post-Trip" detail="Placeholder for inspection submissions, defects, sign-off workflow, and fleet safety evidence." />
-        <ModulePlaceholder id="users" eyebrow="Company" title="Users" detail="Placeholder for organization user management, role assignments, invitations, and access reviews." />
+        <ModulePlaceholder id="growth-goals" eyebrow="Owner Systems" title="Growth Goals" detail="Placeholder for owner growth targets, milestones, and operating scorecards in a later phase." />
         <ModulePlaceholder id="organization-settings" eyebrow="Company" title="Organization Settings" detail="Placeholder for tenant profile settings, operational defaults, billing configuration, and controls." />
         <ModulePlaceholder id="branding" eyebrow="Company" title="Branding" detail="Placeholder for logo, colors, subdomain, and white-label presentation settings." />
       </div>
@@ -804,6 +812,7 @@ function getSidebarTabTarget(item: NavItem): { tab: DashboardTab; targetId?: str
 
   switch (item.label) {
     case "Overview":
+    case "Executive Overview":
     case "Dashboard":
     case "Analytics":
       return { tab: "overview", targetId: "overview" };
@@ -850,29 +859,36 @@ function ModulePlaceholder({
   );
 }
 
-function MetricCard({
-  metric,
+function ExecutiveMetricCard({
+  label,
+  value,
+  detail,
+  tone,
 }: {
-  metric: ReturnType<typeof getOverviewMetrics>[number];
+  label: string;
+  value: string | number;
+  detail: string;
+  tone: "neutral" | "good" | "warn" | "danger";
 }) {
-  const tone = {
+  const toneClass = {
     neutral: "border-white/10 text-white",
     good: "border-manifest-green/35 text-manifest-green",
     warn: "border-manifest-amber/35 text-manifest-amber",
     danger: "border-manifest-danger/45 text-manifest-danger",
-  }[metric.tone];
+  }[tone];
 
   return (
-    <article className={`section-panel min-h-36 overflow-hidden p-4 ${tone}`}>
+    <article className={`section-panel min-h-36 overflow-hidden p-4 ${toneClass}`}>
       <div className="mb-5 flex items-center justify-between gap-3">
-        <span className="block min-h-10 text-sm font-bold leading-5 text-manifest-muted">{metric.label}</span>
+        <span className="block min-h-10 text-sm font-bold leading-5 text-manifest-muted">{label}</span>
         <span className="grid h-9 w-9 place-items-center rounded-md border border-white/10 bg-black/30">
-          {metric.tone === "neutral" ? <BarChart3 className="h-4 w-4" /> : <Activity className="h-4 w-4" />}
+          {tone === "danger" ? <ShieldAlert className="h-4 w-4" /> : <ClipboardCheck className="h-4 w-4" />}
         </span>
       </div>
-      <strong className="block text-5xl leading-none tracking-normal">{metric.value}</strong>
+      <strong className="block text-4xl leading-none tracking-normal">{value}</strong>
+      <span className="mt-3 block text-xs font-bold leading-5 text-manifest-muted">{detail}</span>
       <div className="mt-4 h-1 rounded-full bg-white/10">
-        <div className={`h-full rounded-full ${metric.tone === "danger" ? "bg-manifest-danger" : metric.tone === "warn" ? "bg-manifest-amber" : metric.tone === "good" ? "bg-manifest-green" : "bg-manifest-red"}`} />
+        <div className={`h-full rounded-full ${tone === "danger" ? "bg-manifest-danger" : tone === "warn" ? "bg-manifest-amber" : tone === "good" ? "bg-manifest-green" : "bg-manifest-red"}`} />
       </div>
     </article>
   );

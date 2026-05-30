@@ -5,8 +5,8 @@ import { getCurrentOrganizationBranding } from "@/lib/data/organizations";
 import { getOrganizationBrandStyle } from "@/lib/tenancy";
 
 export const metadata: Metadata = {
-  title: "Manifest Global Logistics | Carrier Compliance",
-  description: "Carrier compliance tracking dashboard for Manifest Global Logistics.",
+  title: "Manifest Operations Center",
+  description: "Owner operations, audit readiness, carrier compliance, loads, and billing for ManifestOS.",
 };
 
 export default async function RootLayout({

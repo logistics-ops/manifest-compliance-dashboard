@@ -61,7 +61,7 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
           <div>
             <Link href="/" className="mb-4 inline-flex min-h-10 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-3 text-sm font-bold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white">
               <ArrowLeft className="h-4 w-4" />
-              Compliance dashboard
+              Operations Center
             </Link>
             <p className="eyebrow">Load Management</p>
             <h1 className="text-5xl font-extrabold leading-[0.95] tracking-normal text-white max-md:text-3xl">
