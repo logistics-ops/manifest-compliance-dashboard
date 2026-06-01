@@ -327,7 +327,7 @@ export async function finalizeCarrierDocumentUploadAction(input: {
     throw new Error(error?.message || "Unable to save uploaded document metadata.");
   }
 
-  await supabase.from("carrier_document_versions").insert({
+  const { error: versionError } = await supabase.from("carrier_document_versions").insert({
     organization_id: organizationId,
     carrier_document_id: data.id,
     carrier_id: input.carrierId,
@@ -340,6 +340,10 @@ export async function finalizeCarrierDocumentUploadAction(input: {
     uploaded_by: session.userId,
     uploaded_at: uploadedAt,
   });
+
+  if (versionError) {
+    throw new Error(`Unable to save carrier document version metadata: ${versionError.message}`);
+  }
 
   await writeAuditLog({
     organizationId,

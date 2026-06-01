@@ -8,6 +8,10 @@ export type CarrierAccessRecord = TenantRecord & {
   carrierId: string;
 };
 
+export type DriverAccessRecord = CarrierAccessRecord & {
+  driverId: string;
+};
+
 export type NotificationAccessRecord = TenantRecord & {
   carrierId: string | null;
   assignedTo: string | null;
@@ -36,6 +40,9 @@ export const staffAuditActions = new Set([
   "document.uploaded",
   "document.replaced",
   "document.expiration_changed",
+  "driver_document.uploaded",
+  "driver_document.replaced",
+  "driver_document.expiration_changed",
   "compliance_note.added",
   "notification.read",
   "notification.dismissed",
@@ -113,6 +120,18 @@ export function canUploadCarrierDocument(
   if (!canAccessOrganizationRecord(session, carrier.organizationId, organizationIsActive)) return false;
   if (canRoleManageCompliance(session.role)) return true;
   return session.role === "carrier" && session.carrierId === carrier.carrierId;
+}
+
+export function canManageDriverDocumentRecord(
+  session: AuthSession | null,
+  driver: DriverAccessRecord,
+  organizationIsActive = true,
+) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  if (!canAccessOrganizationRecord(session, driver.organizationId, organizationIsActive)) return false;
+  if (canRoleManageCompliance(session.role)) return true;
+  return session.role === "carrier" && session.carrierId === driver.carrierId;
 }
 
 export function canAccessLoadRecord(
@@ -379,6 +398,20 @@ export function isTenantStoragePath(storagePath: string, organizationId: string,
 export function assertTenantStoragePath(storagePath: string, organizationId: string, carrierId: string) {
   if (!isTenantStoragePath(storagePath, organizationId, carrierId)) {
     throw new Error("Uploaded document path does not match the current organization.");
+  }
+}
+
+export function getDriverDocumentStoragePrefix(organizationId: string, driverId: string) {
+  return `organizations/${organizationId}/drivers/${driverId}/`;
+}
+
+export function isDriverDocumentStoragePath(storagePath: string, organizationId: string, driverId: string) {
+  return storagePath.startsWith(getDriverDocumentStoragePrefix(organizationId, driverId));
+}
+
+export function assertDriverDocumentStoragePath(storagePath: string, organizationId: string, driverId: string) {
+  if (!isDriverDocumentStoragePath(storagePath, organizationId, driverId)) {
+    throw new Error("Uploaded driver document path does not match the current organization and driver.");
   }
 }
 

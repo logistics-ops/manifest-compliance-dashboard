@@ -954,14 +954,23 @@ create policy "Authorized users can insert carrier documents"
 on public.carrier_documents for insert
 to authenticated
 with check (
-  (
-    public.can_manage_compliance()
-    and public.can_access_organization(organization_id)
-  )
-  or (
-    public.current_user_role() = 'carrier'::public.app_role
-    and public.current_user_carrier_id() = carrier_id
-    and public.can_access_organization(organization_id)
+  exists (
+    select 1
+    from public.carriers
+    where carriers.id = carrier_documents.carrier_id
+      and carriers.organization_id = carrier_documents.organization_id
+      and (
+        public.is_platform_super_admin()
+        or (
+          public.can_manage_compliance()
+          and public.can_access_organization(carrier_documents.organization_id)
+        )
+        or (
+          public.current_user_role() = 'carrier'::public.app_role
+          and public.current_user_carrier_id() = carrier_documents.carrier_id
+          and public.can_access_organization(carrier_documents.organization_id)
+        )
+      )
   )
 );
 
@@ -969,25 +978,43 @@ create policy "Authorized users can update carrier documents"
 on public.carrier_documents for update
 to authenticated
 using (
-  (
-    public.can_manage_compliance()
-    and public.can_access_organization(organization_id)
-  )
-  or (
-    public.current_user_role() = 'carrier'::public.app_role
-    and public.current_user_carrier_id() = carrier_id
-    and public.can_access_organization(organization_id)
+  exists (
+    select 1
+    from public.carriers
+    where carriers.id = carrier_documents.carrier_id
+      and carriers.organization_id = carrier_documents.organization_id
+      and (
+        public.is_platform_super_admin()
+        or (
+          public.can_manage_compliance()
+          and public.can_access_organization(carrier_documents.organization_id)
+        )
+        or (
+          public.current_user_role() = 'carrier'::public.app_role
+          and public.current_user_carrier_id() = carrier_documents.carrier_id
+          and public.can_access_organization(carrier_documents.organization_id)
+        )
+      )
   )
 )
 with check (
-  (
-    public.can_manage_compliance()
-    and public.can_access_organization(organization_id)
-  )
-  or (
-    public.current_user_role() = 'carrier'::public.app_role
-    and public.current_user_carrier_id() = carrier_id
-    and public.can_access_organization(organization_id)
+  exists (
+    select 1
+    from public.carriers
+    where carriers.id = carrier_documents.carrier_id
+      and carriers.organization_id = carrier_documents.organization_id
+      and (
+        public.is_platform_super_admin()
+        or (
+          public.can_manage_compliance()
+          and public.can_access_organization(carrier_documents.organization_id)
+        )
+        or (
+          public.current_user_role() = 'carrier'::public.app_role
+          and public.current_user_carrier_id() = carrier_documents.carrier_id
+          and public.can_access_organization(carrier_documents.organization_id)
+        )
+      )
   )
 );
 
@@ -1000,14 +1027,30 @@ create policy "Authorized users can create carrier document versions"
 on public.carrier_document_versions for insert
 to authenticated
 with check (
-  (
-    public.can_manage_compliance()
-    and public.can_access_organization(organization_id)
+  exists (
+    select 1
+    from public.carriers
+    where carriers.id = carrier_document_versions.carrier_id
+      and carriers.organization_id = carrier_document_versions.organization_id
+      and (
+        public.is_platform_super_admin()
+        or (
+          public.can_manage_compliance()
+          and public.can_access_organization(carrier_document_versions.organization_id)
+        )
+        or (
+          public.current_user_role() = 'carrier'::public.app_role
+          and public.current_user_carrier_id() = carrier_document_versions.carrier_id
+          and public.can_access_organization(carrier_document_versions.organization_id)
+        )
+      )
   )
-  or (
-    public.current_user_role() = 'carrier'::public.app_role
-    and public.current_user_carrier_id() = carrier_id
-    and public.can_access_organization(organization_id)
+  and exists (
+    select 1
+    from public.carrier_documents
+    where carrier_documents.id = carrier_document_versions.carrier_document_id
+      and carrier_documents.organization_id = carrier_document_versions.organization_id
+      and carrier_documents.carrier_id = carrier_document_versions.carrier_id
   )
 );
 
@@ -1044,6 +1087,74 @@ on public.driver_documents for all
 to authenticated
 using (public.can_manage_compliance() and public.can_access_organization(organization_id))
 with check (public.can_manage_compliance() and public.can_access_organization(organization_id));
+
+create policy "Authorized users can insert driver documents"
+on public.driver_documents for insert
+to authenticated
+with check (
+  exists (
+    select 1
+    from public.drivers
+    where drivers.id = driver_documents.driver_id
+      and drivers.organization_id = driver_documents.organization_id
+      and (
+        public.is_platform_super_admin()
+        or (
+          public.can_manage_compliance()
+          and public.can_access_organization(driver_documents.organization_id)
+        )
+        or (
+          public.current_user_role() = 'carrier'::public.app_role
+          and public.current_user_carrier_id() = drivers.carrier_id
+          and public.can_access_organization(driver_documents.organization_id)
+        )
+      )
+  )
+);
+
+create policy "Authorized users can update driver documents"
+on public.driver_documents for update
+to authenticated
+using (
+  exists (
+    select 1
+    from public.drivers
+    where drivers.id = driver_documents.driver_id
+      and drivers.organization_id = driver_documents.organization_id
+      and (
+        public.is_platform_super_admin()
+        or (
+          public.can_manage_compliance()
+          and public.can_access_organization(driver_documents.organization_id)
+        )
+        or (
+          public.current_user_role() = 'carrier'::public.app_role
+          and public.current_user_carrier_id() = drivers.carrier_id
+          and public.can_access_organization(driver_documents.organization_id)
+        )
+      )
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.drivers
+    where drivers.id = driver_documents.driver_id
+      and drivers.organization_id = driver_documents.organization_id
+      and (
+        public.is_platform_super_admin()
+        or (
+          public.can_manage_compliance()
+          and public.can_access_organization(driver_documents.organization_id)
+        )
+        or (
+          public.current_user_role() = 'carrier'::public.app_role
+          and public.current_user_carrier_id() = drivers.carrier_id
+          and public.can_access_organization(driver_documents.organization_id)
+        )
+      )
+  )
+);
 
 create policy "Authorized users can read equipment"
 on public.equipment for select
@@ -1441,6 +1552,9 @@ using (
     'document.uploaded',
     'document.replaced',
     'document.expiration_changed',
+    'driver_document.uploaded',
+    'driver_document.replaced',
+    'driver_document.expiration_changed',
     'compliance_note.added',
     'notification.read',
     'notification.dismissed',
@@ -1521,17 +1635,35 @@ set
   file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
 
-create policy "Staff can upload carrier document files"
+create policy "Authorized users can upload carrier document files"
 on storage.objects for insert
 to authenticated
 with check (
   bucket_id = 'carrier-documents'
   and (storage.foldername(name))[1] = 'organizations'
   and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-  and public.can_access_organization(((storage.foldername(name))[2])::uuid)
   and (storage.foldername(name))[3] = 'carriers'
   and (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
-  and public.can_view_carrier(((storage.foldername(name))[4])::uuid)
+  and (storage.foldername(name))[5] is not null
+  and (storage.foldername(name))[6] ~ '^v[0-9]+$'
+  and exists (
+    select 1
+    from public.carriers
+    where carriers.organization_id = ((storage.foldername(name))[2])::uuid
+      and carriers.id = ((storage.foldername(name))[4])::uuid
+      and (
+        public.is_platform_super_admin()
+        or (
+          public.can_manage_compliance()
+          and public.can_access_organization(carriers.organization_id)
+        )
+        or (
+          public.current_user_role() = 'carrier'::public.app_role
+          and public.current_user_carrier_id() = carriers.id
+          and public.can_access_organization(carriers.organization_id)
+        )
+      )
+  )
 );
 
 create policy "Authorized users can read carrier document files"
@@ -1557,26 +1689,58 @@ using (
   )
 );
 
-create policy "Staff can replace carrier document files"
+create policy "Authorized users can replace carrier document files"
 on storage.objects for update
 to authenticated
 using (
   bucket_id = 'carrier-documents'
   and (storage.foldername(name))[1] = 'organizations'
   and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-  and public.can_access_organization(((storage.foldername(name))[2])::uuid)
   and (storage.foldername(name))[3] = 'carriers'
   and (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
-  and public.can_view_carrier(((storage.foldername(name))[4])::uuid)
+  and exists (
+    select 1
+    from public.carriers
+    where carriers.organization_id = ((storage.foldername(name))[2])::uuid
+      and carriers.id = ((storage.foldername(name))[4])::uuid
+      and (
+        public.is_platform_super_admin()
+        or (
+          public.can_manage_compliance()
+          and public.can_access_organization(carriers.organization_id)
+        )
+        or (
+          public.current_user_role() = 'carrier'::public.app_role
+          and public.current_user_carrier_id() = carriers.id
+          and public.can_access_organization(carriers.organization_id)
+        )
+      )
+  )
 )
 with check (
   bucket_id = 'carrier-documents'
   and (storage.foldername(name))[1] = 'organizations'
   and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-  and public.can_access_organization(((storage.foldername(name))[2])::uuid)
   and (storage.foldername(name))[3] = 'carriers'
   and (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
-  and public.can_view_carrier(((storage.foldername(name))[4])::uuid)
+  and exists (
+    select 1
+    from public.carriers
+    where carriers.organization_id = ((storage.foldername(name))[2])::uuid
+      and carriers.id = ((storage.foldername(name))[4])::uuid
+      and (
+        public.is_platform_super_admin()
+        or (
+          public.can_manage_compliance()
+          and public.can_access_organization(carriers.organization_id)
+        )
+        or (
+          public.current_user_role() = 'carrier'::public.app_role
+          and public.current_user_carrier_id() = carriers.id
+          and public.can_access_organization(carriers.organization_id)
+        )
+      )
+  )
 );
 
 create policy "Admins can delete carrier document files"
@@ -1588,6 +1752,109 @@ using (
   and (storage.foldername(name))[1] = 'organizations'
   and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
   and public.can_access_organization(((storage.foldername(name))[2])::uuid)
+);
+
+create policy "Authorized users can upload driver document files"
+on storage.objects for insert
+to authenticated
+with check (
+  bucket_id = 'carrier-documents'
+  and (storage.foldername(name))[1] = 'organizations'
+  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (storage.foldername(name))[3] = 'drivers'
+  and (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+  and (storage.foldername(name))[5] is not null
+  and (storage.foldername(name))[6] ~ '^v[0-9]+$'
+  and exists (
+    select 1
+    from public.drivers
+    where drivers.organization_id = ((storage.foldername(name))[2])::uuid
+      and drivers.id = ((storage.foldername(name))[4])::uuid
+      and (
+        public.is_platform_super_admin()
+        or (
+          public.can_manage_compliance()
+          and public.can_access_organization(drivers.organization_id)
+        )
+        or (
+          public.current_user_role() = 'carrier'::public.app_role
+          and public.current_user_carrier_id() = drivers.carrier_id
+          and public.can_access_organization(drivers.organization_id)
+        )
+      )
+  )
+);
+
+create policy "Authorized users can read driver document files"
+on storage.objects for select
+to authenticated
+using (
+  bucket_id = 'carrier-documents'
+  and (storage.foldername(name))[1] = 'organizations'
+  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (storage.foldername(name))[3] = 'drivers'
+  and (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+  and exists (
+    select 1
+    from public.drivers
+    where drivers.organization_id = ((storage.foldername(name))[2])::uuid
+      and drivers.id = ((storage.foldername(name))[4])::uuid
+      and public.can_view_carrier(drivers.carrier_id)
+  )
+);
+
+create policy "Authorized users can replace driver document files"
+on storage.objects for update
+to authenticated
+using (
+  bucket_id = 'carrier-documents'
+  and (storage.foldername(name))[1] = 'organizations'
+  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (storage.foldername(name))[3] = 'drivers'
+  and (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+  and exists (
+    select 1
+    from public.drivers
+    where drivers.organization_id = ((storage.foldername(name))[2])::uuid
+      and drivers.id = ((storage.foldername(name))[4])::uuid
+      and (
+        public.is_platform_super_admin()
+        or (
+          public.can_manage_compliance()
+          and public.can_access_organization(drivers.organization_id)
+        )
+        or (
+          public.current_user_role() = 'carrier'::public.app_role
+          and public.current_user_carrier_id() = drivers.carrier_id
+          and public.can_access_organization(drivers.organization_id)
+        )
+      )
+  )
+)
+with check (
+  bucket_id = 'carrier-documents'
+  and (storage.foldername(name))[1] = 'organizations'
+  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (storage.foldername(name))[3] = 'drivers'
+  and (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+  and exists (
+    select 1
+    from public.drivers
+    where drivers.organization_id = ((storage.foldername(name))[2])::uuid
+      and drivers.id = ((storage.foldername(name))[4])::uuid
+      and (
+        public.is_platform_super_admin()
+        or (
+          public.can_manage_compliance()
+          and public.can_access_organization(drivers.organization_id)
+        )
+        or (
+          public.current_user_role() = 'carrier'::public.app_role
+          and public.current_user_carrier_id() = drivers.carrier_id
+          and public.can_access_organization(drivers.organization_id)
+        )
+      )
+  )
 );
 
 create policy "Authorized users can upload load document files"

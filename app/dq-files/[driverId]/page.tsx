@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ClipboardCheck } from "lucide-react";
+import { DriverDocumentUploader } from "@/components/driver-document-uploader";
 import { documentSlug } from "@/lib/action-center";
 import { getDQFiles, type DQChecklistItem } from "@/lib/data/dq-files";
 import { requireSession } from "@/lib/integrations/auth";
+import { canManageDriverDocumentRecord } from "@/lib/security/tenant-rules";
 
 type PageProps = {
   params: Promise<{ driverId: string }>;
@@ -11,13 +13,18 @@ type PageProps = {
 };
 
 export default async function DQFileDetailPage({ params, searchParams }: PageProps) {
-  await requireSession();
+  const session = await requireSession();
   const { driverId } = await params;
   const query = await searchParams;
   const files = await getDQFiles();
   const file = files.find((item) => item.id === driverId);
 
   if (!file) notFound();
+  const canEdit = canManageDriverDocumentRecord(session, {
+    organizationId: file.organizationId,
+    carrierId: file.carrierId,
+    driverId: file.id,
+  });
 
   return (
     <main className="min-h-screen p-8 max-md:p-4">
@@ -31,7 +38,7 @@ export default async function DQFileDetailPage({ params, searchParams }: PagePro
             <p className="eyebrow">DQ Correction Target</p>
             <h1 className="text-5xl font-extrabold leading-[0.95] tracking-normal text-white max-md:text-3xl">{file.driverName || "Unnamed driver"}</h1>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-manifest-muted">
-              Read-only driver qualification checklist. Upload correction workflow is intentionally parked until Action Center is stable.
+              Upload and replace missing, expired, or expiring DQ documents for this driver.
             </p>
           </div>
           <div className="grid min-h-32 min-w-40 place-items-center rounded-md border border-manifest-red/45 bg-manifest-red/10 p-4 text-center">
@@ -51,7 +58,7 @@ export default async function DQFileDetailPage({ params, searchParams }: PagePro
 
           <div className="grid gap-3">
             {file.checklist.map((item) => (
-              <ChecklistRow key={item.name} item={item} highlight={query?.document === documentSlug(item.name)} />
+              <ChecklistRow key={item.name} item={item} highlight={query?.document === documentSlug(item.name)} canEdit={canEdit} />
             ))}
           </div>
         </section>
@@ -60,10 +67,12 @@ export default async function DQFileDetailPage({ params, searchParams }: PagePro
   );
 }
 
-function ChecklistRow({ item, highlight }: { item: DQChecklistItem; highlight: boolean }) {
+function ChecklistRow({ item, highlight, canEdit }: { item: DQChecklistItem; highlight: boolean; canEdit: boolean }) {
+  const needsCorrection = item.missing || item.expired || item.expiringSoon;
+
   return (
     <article id={`document-${documentSlug(item.name)}`} className={`scroll-mt-6 rounded-md border p-4 ${highlight ? "border-manifest-red/60 bg-manifest-red/10" : "border-white/10 bg-black/25"}`}>
-      <div className="flex items-start justify-between gap-4 max-md:flex-col">
+      <div className="mb-4 flex items-start justify-between gap-4 max-md:flex-col">
         <div>
           <strong className="block text-sm text-white">{item.name}</strong>
           <p className="mt-1 text-sm text-manifest-muted">{item.documentName ?? (item.notApplicable ? "Not applicable" : "No matching document")}</p>
@@ -73,6 +82,11 @@ function ChecklistRow({ item, highlight }: { item: DQChecklistItem; highlight: b
         </span>
       </div>
       <p className="mt-3 text-xs font-bold text-manifest-muted">Expiration: {item.expirationDate ?? "No expiration date"}</p>
+      {needsCorrection && !item.notApplicable ? (
+        <div className="mt-4">
+          <DriverDocumentUploader item={item} canEdit={canEdit} />
+        </div>
+      ) : null}
     </article>
   );
 }

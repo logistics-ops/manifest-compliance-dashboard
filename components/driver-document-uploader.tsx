@@ -1,0 +1,263 @@
+"use client";
+
+import { useRef, useState, type DragEvent } from "react";
+import { useRouter } from "next/navigation";
+import { Download, Eye, FileUp, RefreshCw, UploadCloud } from "lucide-react";
+import {
+  createDriverDocumentUploadTargetAction,
+  finalizeDriverDocumentUploadAction,
+} from "@/app/actions/driver-documents";
+import { getDocumentMimeType, uploadStorageDocument, validateDocumentFile } from "@/lib/integrations/uploads";
+import { createClient } from "@/lib/supabase/client";
+import type { DQChecklistItem } from "@/lib/data/dq-files";
+
+type DriverDocumentUploaderProps = {
+  item: DQChecklistItem;
+  canEdit: boolean;
+};
+
+const storageBucket = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "carrier-documents";
+
+export function DriverDocumentUploader({ item, canEdit }: DriverDocumentUploaderProps) {
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const expirationRef = useRef<HTMLInputElement>(null);
+  const [progress, setProgress] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [latestFile, setLatestFile] = useState({
+    storagePath: item.storagePath,
+    uploadedAt: item.uploadedAt,
+    fileName: item.storagePath ? fileNameFromPath(item.storagePath) : null,
+  });
+  const isUploading = progress > 0 && progress < 100;
+  const hasFile = Boolean(latestFile.storagePath);
+  const uploadState = isUploading ? "uploading" : progress === 100 ? "complete" : "idle";
+
+  function handleDrop(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+
+    const file = event.dataTransfer.files.item(0);
+    if (file) void handleUpload(file);
+  }
+
+  async function handleUpload(file: File) {
+    if (!canEdit) return;
+
+    setError(null);
+    setMessage(null);
+    setProgress(1);
+
+    try {
+      validateDocumentFile(file);
+      const supabase = createClient();
+      if (!supabase) throw new Error("Supabase is not configured for uploads.");
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("Sign in again before uploading documents.");
+      }
+
+      const target = await createDriverDocumentUploadTargetAction({
+        driverId: item.driverId,
+        documentName: item.name,
+        fileName: file.name,
+      });
+
+      await uploadStorageDocument({
+        file,
+        bucket: target.bucket,
+        path: target.path,
+        accessToken: session.access_token,
+        onProgress: setProgress,
+      });
+
+      const result = await finalizeDriverDocumentUploadAction({
+        driverId: item.driverId,
+        documentName: item.name,
+        storagePath: target.path,
+        fileName: file.name,
+        fileSize: file.size,
+        mimeType: getDocumentMimeType(file),
+        versionNumber: target.versionNumber,
+        expirationDate: expirationRef.current?.value || null,
+      });
+
+      setLatestFile({
+        storagePath: target.path,
+        uploadedAt: result.uploadedAt,
+        fileName: file.name,
+      });
+      setMessage(`Uploaded v${target.versionNumber}: ${file.name}`);
+      router.refresh();
+    } catch (uploadError) {
+      setProgress(0);
+      setError(uploadError instanceof Error ? uploadError.message : "Upload failed.");
+    }
+  }
+
+  async function openSignedFile(download: boolean) {
+    if (!latestFile.storagePath) return;
+
+    setError(null);
+    const supabase = createClient();
+    if (!supabase) {
+      setError("Supabase is not configured.");
+      return;
+    }
+
+    const { data, error: signedUrlError } = await supabase
+      .storage
+      .from(storageBucket)
+      .createSignedUrl(latestFile.storagePath, 60, {
+        download: download ? latestFile.fileName || item.name : undefined,
+      });
+
+    if (signedUrlError || !data?.signedUrl) {
+      setError(signedUrlError?.message || "Unable to create file link.");
+      return;
+    }
+
+    if (download) {
+      const anchor = window.document.createElement("a");
+      anchor.href = data.signedUrl;
+      anchor.download = latestFile.fileName || item.name;
+      anchor.click();
+      return;
+    }
+
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  }
+
+  return (
+    <div className="grid grid-cols-[minmax(260px,1fr)_minmax(240px,0.75fr)] gap-3 rounded-md border border-white/10 bg-black/25 p-3 max-lg:grid-cols-1">
+      <div className="grid gap-3">
+        <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+          Expiration Date
+          <input
+            ref={expirationRef}
+            type="date"
+            defaultValue={item.expirationDate ?? ""}
+            disabled={!canEdit}
+            className="form-control disabled:cursor-not-allowed disabled:opacity-60"
+          />
+        </label>
+
+        <label
+          onDragOver={(event) => {
+            event.preventDefault();
+            if (canEdit) setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+          className={`grid min-h-24 cursor-pointer place-items-center rounded-md border border-dashed px-4 py-3 text-center transition ${
+            isDragging
+              ? "border-manifest-red bg-manifest-red/15"
+              : uploadState === "complete"
+                ? "border-manifest-green/45 bg-manifest-green/10"
+                : "border-white/15 bg-black/25 hover:border-manifest-red/50 hover:bg-manifest-red/10"
+          } ${canEdit ? "" : "cursor-not-allowed opacity-60"}`}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            disabled={!canEdit || isUploading}
+            className="sr-only"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void handleUpload(file);
+              event.currentTarget.value = "";
+            }}
+          />
+          <span className="flex items-center justify-center gap-3 text-left max-sm:grid max-sm:justify-items-center max-sm:text-center">
+            <UploadCloud className="h-5 w-5 shrink-0 text-manifest-red" />
+            <span className="grid gap-1">
+              <span className="text-sm font-extrabold text-white">
+                {isUploading ? "Uploading DQ document..." : hasFile ? "Replace document" : "Drop file or browse"}
+              </span>
+              <span className="text-xs text-manifest-muted">PDF, JPG, PNG, DOC, or DOCX.</span>
+            </span>
+          </span>
+        </label>
+
+        {progress > 0 ? (
+          <div className="rounded-md border border-white/10 bg-black/25 p-3">
+            <div className="mb-2 flex items-center justify-between text-xs font-bold text-manifest-muted">
+              <span>{progress < 100 ? "Uploading securely" : "Upload complete"}</span>
+              <span>{progress}%</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full rounded-full bg-manifest-red transition-all" style={{ width: `${progress}%` }} />
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="grid gap-3">
+        <div className="rounded-md border border-white/10 bg-black/25 p-3">
+          <span className="mb-2 block text-[11px] font-extrabold uppercase tracking-[0.18em] text-manifest-quiet">
+            Current File
+          </span>
+          {hasFile ? (
+            <div className="grid gap-2">
+              <strong className="truncate text-sm text-white">{latestFile.fileName}</strong>
+              {latestFile.uploadedAt ? <span className="text-xs font-bold text-manifest-muted">{formatDateTime(latestFile.uploadedAt)}</span> : null}
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => void openSignedFile(false)} className="form-button">
+                  <Eye className="mr-1.5 h-3.5 w-3.5" />
+                  Preview
+                </button>
+                <button type="button" onClick={() => void openSignedFile(true)} className="form-button">
+                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                  Download
+                </button>
+              </div>
+            </div>
+          ) : (
+            <span className="text-sm text-manifest-muted">No file uploaded.</span>
+          )}
+        </div>
+
+        {message ? <p className="rounded-md border border-manifest-green/30 bg-manifest-green/10 px-3 py-2 text-xs font-bold text-manifest-green">{message}</p> : null}
+        {error ? <p className="rounded-md border border-manifest-danger/35 bg-manifest-danger/10 px-3 py-2 text-xs font-bold text-manifest-danger">{error}</p> : null}
+
+        {canEdit ? (
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={isUploading} onClick={() => fileInputRef.current?.click()} className="form-button">
+              <FileUp className="mr-1.5 h-3.5 w-3.5" />
+              Select file
+            </button>
+            {hasFile ? (
+              <button type="button" disabled={isUploading} onClick={() => fileInputRef.current?.click()} className="form-button">
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                Replace
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+      {message ? <div className="toast" role="status">{message}</div> : null}
+      {error ? <div className="toast border-manifest-danger/45" role="alert">{error}</div> : null}
+    </div>
+  );
+}
+
+function fileNameFromPath(path: string) {
+  return decodeURIComponent(path.split("/").pop() ?? path);
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}

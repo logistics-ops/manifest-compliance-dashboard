@@ -21,6 +21,8 @@ export type DQChecklistItem = DQChecklistStatus & {
   driverId: string;
   carrierId: string;
   expirationDate: string | null;
+  storagePath: string | null;
+  uploadedAt: string | null;
 };
 
 export type DQFileRecord = {
@@ -50,6 +52,8 @@ type DriverDocumentRow = {
   uploaded: boolean;
   status: string;
   expiration_date: string | null;
+  storage_path: string | null;
+  uploaded_at: string | null;
 };
 
 type DriverRow = {
@@ -92,7 +96,7 @@ export async function getDQFiles(): Promise<DQFileRecord[]> {
 
   let query = supabase
     .from("drivers")
-    .select("id, organization_id, carrier_id, first_name, last_name, cdl_number, cdl_state, status, carriers(company_name), driver_documents(id, driver_id, document_name, uploaded, status, expiration_date)")
+    .select("id, organization_id, carrier_id, first_name, last_name, cdl_number, cdl_state, status, carriers(company_name), driver_documents(id, driver_id, document_name, uploaded, status, expiration_date, storage_path, uploaded_at)")
     .order("last_name");
 
   if (session.organizationId && !session.platformSuperAdmin) {
@@ -172,6 +176,8 @@ function buildChecklist(documents: DriverDocumentRow[], driverId: string, carrie
       driverId,
       carrierId,
       expirationDate: document?.expiration_date ?? null,
+      storagePath: document?.storage_path ?? null,
+      uploadedAt: document?.uploaded_at ?? null,
       present,
       missing,
       expired,
