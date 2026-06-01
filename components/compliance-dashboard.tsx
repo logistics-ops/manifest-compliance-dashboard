@@ -62,6 +62,8 @@ const alertLabels: AlertLabel[] = [
 ];
 const dashboardTabs = ["overview", "compliance", "operations", "documents", "activity"] as const;
 type DashboardTab = (typeof dashboardTabs)[number];
+const lowerDashboardTabs = ["carriers", "drivers", "documents", "alerts", "risk-watch"] as const;
+type LowerDashboardTab = (typeof lowerDashboardTabs)[number];
 
 type NavItem = { label: string; href: string; icon: LucideIcon; placeholder?: boolean; platformOnly?: boolean };
 type NavGroup = { title: string; items: NavItem[] };
@@ -164,6 +166,7 @@ export function ComplianceDashboard({
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<DashboardTab>(() => getInitialDashboardTab());
+  const [activeLowerTab, setActiveLowerTab] = useState<LowerDashboardTab>("carriers");
   const activeCarriers = carriers;
   const [selectedCarrierId, setSelectedCarrierId] = useState(activeCarriers[0]?.id ?? "");
   const [query, setQuery] = useState("");
@@ -343,25 +346,27 @@ export function ComplianceDashboard({
 
         {activeTab === "overview" ? (
           <div className="grid gap-5">
+            <ActionCenterStrip overview={executiveOverview} onSelect={setActiveLowerTab} />
+
             <section
               id="overview"
-              className="section-panel overflow-hidden border-manifest-red/30 bg-[linear-gradient(110deg,rgba(227,25,55,0.24),rgba(17,17,20,0.88)_42%,rgba(255,255,255,0.045)),repeating-linear-gradient(135deg,rgba(255,255,255,0.06)_0_1px,transparent_1px_18px)] p-7 max-md:p-5"
+              className="section-panel overflow-hidden border-manifest-red/30 bg-[linear-gradient(110deg,rgba(227,25,55,0.20),rgba(17,17,20,0.88)_42%,rgba(255,255,255,0.04)),repeating-linear-gradient(135deg,rgba(255,255,255,0.05)_0_1px,transparent_1px_18px)] p-5 max-md:p-4"
             >
               <div className="flex items-center justify-between gap-8 max-lg:flex-col max-lg:items-stretch">
                 <div>
                   <p className="eyebrow">Executive Overview</p>
-                  <h2 className="max-w-3xl text-4xl font-extrabold leading-tight tracking-normal text-white max-md:text-2xl">
+                  <h2 className="max-w-3xl text-3xl font-extrabold leading-tight tracking-normal text-white max-md:text-2xl">
                     Owner systems, audit posture, and operating work in one command view.
                   </h2>
-                  <div className="mt-6 flex flex-wrap gap-3 text-xs font-bold text-manifest-muted">
+                  <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold text-manifest-muted">
                     <span className="rounded-md border border-white/10 bg-black/30 px-3 py-2">{branding.slug}</span>
                     <span className="rounded-md border border-white/10 bg-black/30 px-3 py-2">Tenant-scoped data</span>
                     <span className="rounded-md border border-white/10 bg-black/30 px-3 py-2">Manifest Operations Center</span>
                   </div>
                 </div>
-                <div className="grid min-h-36 min-w-44 place-items-center rounded-md border border-manifest-red/55 bg-black/45 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                <div className="grid min-h-24 min-w-40 place-items-center rounded-md border border-manifest-red/55 bg-black/45 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
                   <span className="text-xs font-bold uppercase tracking-[0.18em] text-manifest-muted">Critical Blockers</span>
-                  <strong className="text-6xl leading-none text-white">{executiveOverview.totalCriticalBlockers}</strong>
+                  <strong className="text-4xl leading-none text-white">{executiveOverview.totalCriticalBlockers}</strong>
                   <span className="text-xs font-bold text-manifest-red">open across audit systems</span>
                 </div>
               </div>
@@ -378,10 +383,60 @@ export function ComplianceDashboard({
               <ExecutiveMetricCard label="Invoices" value={formatCurrency(executiveOverview.invoiceTotals.totalAmount)} detail={`${executiveOverview.invoiceTotals.count} invoices · ${formatCurrency(executiveOverview.invoiceTotals.outstandingAmount)} outstanding`} tone={executiveOverview.invoiceTotals.overdueCount ? "danger" : "neutral"} />
             </section>
 
-            <section className="grid grid-cols-[minmax(0,1fr)_minmax(320px,0.55fr)] gap-5 max-xl:grid-cols-1">
-              <ExecutiveSummary carriers={activeCarriers} notifications={activeNotifications} events={timelineEvents} overview={executiveOverview} />
-              <AlertPanel carriers={activeCarriers} />
-            </section>
+            <AlertPanel carriers={activeCarriers} compact />
+
+            <details className="section-panel p-4">
+              <summary className="cursor-pointer text-sm font-extrabold uppercase tracking-[0.18em] text-manifest-muted">
+                Executive Summary
+              </summary>
+              <div className="mt-4">
+                <ExecutiveSummary carriers={activeCarriers} notifications={activeNotifications} events={timelineEvents} overview={executiveOverview} />
+              </div>
+            </details>
+
+            <LowerDashboardTabs activeTab={activeLowerTab} onChange={setActiveLowerTab} />
+
+            {activeLowerTab === "carriers" ? (
+              <CarrierRoster carriers={filteredCarriers} selectedCarrierId={selectedCarrierId} onSelectCarrier={setSelectedCarrierId} compact />
+            ) : null}
+
+            {activeLowerTab === "drivers" ? (
+              <IssueOverviewPanel
+                id="drivers"
+                eyebrow="DQ Files"
+                title="Drivers needing attention"
+                count={executiveOverview.driversNeedingAttention}
+                items={executiveOverview.needsAttention.drivers}
+                empty="No driver DQ issues surfaced."
+                href="/dq-files"
+              />
+            ) : null}
+
+            {activeLowerTab === "documents" ? (
+              <DocumentChecklist documents={selectedDocuments} selectedCarrier={selectedCarrier} compact />
+            ) : null}
+
+            {activeLowerTab === "alerts" ? (
+              <div className="grid gap-5">
+                <OperationalWorkspace carriers={activeCarriers} notifications={activeNotifications} />
+                <NotificationCenter notifications={activeNotifications} />
+              </div>
+            ) : null}
+
+            {activeLowerTab === "risk-watch" ? (
+              <div className="grid gap-5">
+                <IssueOverviewPanel
+                  id="risk-watch"
+                  eyebrow="Risk Watch"
+                  title="Top operating risks"
+                  count={executiveOverview.needsAttention.carriers.length}
+                  items={executiveOverview.needsAttention.carriers}
+                  empty="No carrier risk issues surfaced."
+                  href="/audit-readiness"
+                />
+                <ExecutiveAnalytics carriers={activeCarriers} />
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -454,6 +509,85 @@ function DashboardTabs({
   );
 }
 
+function ActionCenterStrip({
+  overview,
+  onSelect,
+}: {
+  overview: ExecutiveOverviewData;
+  onSelect: (tab: LowerDashboardTab) => void;
+}) {
+  const actions: Array<{
+    label: string;
+    value: number;
+    detail: string;
+    tab: LowerDashboardTab;
+    tone: "danger" | "warn" | "neutral";
+  }> = [
+    { label: "Critical Blockers", value: overview.totalCriticalBlockers, detail: "Audit stops", tab: "risk-watch", tone: overview.totalCriticalBlockers ? "danger" : "neutral" },
+    { label: "Missing Documents", value: overview.needsAttention.documents.length, detail: "Need correction", tab: "documents", tone: overview.needsAttention.documents.length ? "danger" : "neutral" },
+    { label: "Compliance Alerts", value: overview.openComplianceAlerts, detail: "Open alerts", tab: "alerts", tone: overview.openComplianceAlerts ? "warn" : "neutral" },
+    { label: "Expiring Records", value: overview.expiringDocuments, detail: "Renewal watch", tab: "documents", tone: overview.expiringDocuments ? "warn" : "neutral" },
+  ];
+
+  return (
+    <section className="sticky top-4 z-20 rounded-md border border-manifest-red/35 bg-black/80 p-3 shadow-premium backdrop-blur-xl">
+      <div className="grid grid-cols-4 gap-3 max-xl:grid-cols-2 max-md:grid-cols-1">
+        {actions.map((action) => (
+          <button
+            key={action.label}
+            type="button"
+            onClick={() => onSelect(action.tab)}
+            className={`flex min-h-16 items-center justify-between gap-3 rounded-md border bg-white/[0.035] px-4 text-left transition hover:border-manifest-red/50 hover:bg-manifest-red/10 ${
+              action.tone === "danger"
+                ? "border-manifest-danger/45"
+                : action.tone === "warn"
+                  ? "border-manifest-amber/40"
+                  : "border-white/10"
+            }`}
+          >
+            <span>
+              <span className="block text-xs font-extrabold uppercase tracking-[0.14em] text-manifest-quiet">{action.label}</span>
+              <span className="mt-1 block text-xs font-bold text-manifest-muted">{action.detail}</span>
+            </span>
+            <strong className={`text-3xl leading-none ${action.tone === "danger" ? "text-manifest-danger" : action.tone === "warn" ? "text-manifest-amber" : "text-white"}`}>
+              {action.value}
+            </strong>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function LowerDashboardTabs({
+  activeTab,
+  onChange,
+}: {
+  activeTab: LowerDashboardTab;
+  onChange: (tab: LowerDashboardTab) => void;
+}) {
+  return (
+    <nav className="overflow-x-auto rounded-md border border-white/10 bg-black/35 p-1.5" aria-label="Dashboard work areas">
+      <div className="flex min-w-max gap-1">
+        {lowerDashboardTabs.map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => onChange(tab)}
+            className={`inline-flex min-h-10 items-center rounded-md px-4 text-sm font-extrabold capitalize transition ${
+              activeTab === tab
+                ? "border border-manifest-red/50 bg-manifest-red/15 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                : "border border-transparent text-manifest-muted hover:border-white/10 hover:bg-white/[0.035] hover:text-white"
+            }`}
+          >
+            {tab.replace("-", " ")}
+          </button>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 function ExecutiveSummary({
   carriers,
   notifications,
@@ -485,13 +619,13 @@ function ExecutiveSummary({
       </div>
       <div className="mt-5">
         <p className="eyebrow">Needs Attention</p>
-        <div className="mt-3 grid grid-cols-3 gap-4 max-2xl:grid-cols-2 max-lg:grid-cols-1">
-          <ExecutiveList title="Carriers" items={overview.needsAttention.carriers} empty="No carrier issues surfaced." />
-          <ExecutiveList title="Drivers" items={overview.needsAttention.drivers} empty="No driver DQ issues surfaced." />
-          <ExecutiveList title="Vehicles" items={overview.needsAttention.vehicles} empty="No vehicle readiness issues surfaced." />
-          <ExecutiveList title="Documents" items={overview.needsAttention.documents.length ? overview.needsAttention.documents : upcomingExpirations.map((event) => `${event.carrierName}: ${event.documentName} in ${event.daysUntilExpiration} days`)} empty="No document renewals surfaced." />
-          <ExecutiveList title="Alerts" items={overview.needsAttention.alerts.length ? overview.needsAttention.alerts : highPriority.map((item) => item.message)} empty="No open alerts surfaced." />
-          <ExecutiveList title="Risk watch" items={carriers.filter(isHighRisk).slice(0, 5).map((carrier) => carrier.companyName)} empty="No high-risk carriers." />
+        <div className="mt-3 grid grid-cols-3 gap-3 max-2xl:grid-cols-2 max-lg:grid-cols-1">
+          <IssueCountTile title="Carriers" count={overview.needsAttention.carriers.length} href="/audit-readiness" />
+          <IssueCountTile title="Drivers" count={overview.needsAttention.drivers.length} href="/dq-files" />
+          <IssueCountTile title="Vehicles" count={overview.needsAttention.vehicles.length} href="/vehicles" />
+          <IssueCountTile title="Documents" count={(overview.needsAttention.documents.length ? overview.needsAttention.documents : upcomingExpirations.map((event) => `${event.carrierName}: ${event.documentName} in ${event.daysUntilExpiration} days`)).length} href="/documents-to-fix" />
+          <IssueCountTile title="Alerts" count={(overview.needsAttention.alerts.length ? overview.needsAttention.alerts : highPriority.map((item) => item.message)).length} href="/actions" />
+          <IssueCountTile title="Risk watch" count={carriers.filter(isHighRisk).length} href="/audit-readiness" />
         </div>
       </div>
     </section>
@@ -541,13 +675,15 @@ function OperationalWorkspace({
 function DocumentChecklist({
   documents,
   selectedCarrier,
+  compact = false,
 }: {
   documents: ReturnType<typeof getCarrierDocuments>;
   selectedCarrier: Carrier | null;
+  compact?: boolean;
 }) {
   return (
-    <section id="documents" className="section-panel p-6 max-md:p-4">
-      <div className="mb-5 flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
+    <section id="documents" className={`section-panel max-md:p-4 ${compact ? "p-4" : "p-6"}`}>
+      <div className={`${compact ? "mb-3" : "mb-5"} flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch`}>
         <div>
           <p className="eyebrow">Required Documents</p>
           <h2 className="text-2xl font-extrabold tracking-normal">Document checklist</h2>
@@ -560,7 +696,7 @@ function DocumentChecklist({
 
       <div className="grid grid-cols-4 gap-3 max-2xl:grid-cols-3 max-lg:grid-cols-2 max-md:grid-cols-1">
         {documents.length ? documents.map((doc) => (
-          <article key={doc.name} className={`section-panel min-h-40 p-4 ${documentBorder(doc.status)}`}>
+          <article key={doc.name} className={`section-panel ${compact ? "min-h-28 p-3" : "min-h-40 p-4"} ${documentBorder(doc.status)}`}>
             <div>
               <h3 className="mb-1.5 text-base font-bold leading-tight">{doc.name}</h3>
               <span className="text-xs font-bold text-manifest-muted">
@@ -568,10 +704,10 @@ function DocumentChecklist({
               </span>
             </div>
 
-            <dl className="mt-4 grid gap-2.5">
+            <dl className={`${compact ? "mt-3 grid-cols-2 gap-2" : "mt-4 gap-2.5"} grid`}>
               <DocumentTerm label="Expiration" value={doc.expirationDate ?? "No expiration"} />
               <DocumentTerm label="Days" value={doc.daysUntilExpiration ?? "N/A"} />
-              <div className="flex items-center justify-between gap-2 border-t border-manifest-line pt-2.5">
+              <div className="flex items-center justify-between gap-2 border-t border-manifest-line pt-2.5 max-sm:col-span-1 sm:col-span-2">
                 <dt className="text-[11px] font-extrabold uppercase text-manifest-quiet">Status</dt>
                 <dd>
                   <StatusChip value={doc.status} type="document" />
@@ -630,6 +766,69 @@ function SummaryPanel({ title, value, detail }: { title: string; value: string |
       <strong className="mt-3 block text-3xl leading-none text-white">{value}</strong>
       <span className="mt-2 block text-xs font-bold text-manifest-muted">{detail}</span>
     </article>
+  );
+}
+
+function IssueCountTile({ title, count, href }: { title: string; count: number; href: string }) {
+  return (
+    <div className="flex min-h-20 items-center justify-between gap-3 rounded-md border border-white/10 bg-black/25 p-3">
+      <span>
+        <span className="block text-sm font-extrabold text-white">{title}</span>
+        <span className="mt-1 block text-xs font-bold text-manifest-muted">{count ? "Items need review" : "Clear"}</span>
+      </span>
+      <span className="flex items-center gap-3">
+        <strong className={count ? "text-3xl leading-none text-manifest-red" : "text-3xl leading-none text-manifest-green"}>{count}</strong>
+        <Link href={href} className="form-button min-h-9 px-3 text-xs">
+          View Details
+        </Link>
+      </span>
+    </div>
+  );
+}
+
+function IssueOverviewPanel({
+  id,
+  eyebrow,
+  title,
+  count,
+  items,
+  empty,
+  href,
+}: {
+  id: string;
+  eyebrow: string;
+  title: string;
+  count: number;
+  items: string[];
+  empty: string;
+  href: string;
+}) {
+  return (
+    <section id={id} className="section-panel p-5 max-md:p-4">
+      <div className="mb-4 flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
+        <div>
+          <p className="eyebrow">{eyebrow}</p>
+          <h2 className="text-2xl font-extrabold tracking-normal text-white">{title}</h2>
+        </div>
+        <div className="flex items-center gap-3">
+          <StatusChip value={`${count} open`} />
+          <Link href={href} className="form-button min-h-10 px-4 text-sm">
+            View Details
+          </Link>
+        </div>
+      </div>
+      {items.length ? (
+        <div className="grid grid-cols-2 gap-3 max-xl:grid-cols-1">
+          {items.map((item) => (
+            <div key={item} className="rounded-md border border-white/10 bg-black/25 px-3 py-2 text-sm font-bold text-manifest-muted">
+              {item}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="empty-state">{empty}</div>
+      )}
+    </section>
   );
 }
 
@@ -898,16 +1097,16 @@ function ExecutiveMetricCard({
   }[tone];
 
   return (
-    <article className={`section-panel min-h-36 overflow-hidden p-4 ${toneClass}`}>
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <span className="block min-h-10 text-sm font-bold leading-5 text-manifest-muted">{label}</span>
-        <span className="grid h-9 w-9 place-items-center rounded-md border border-white/10 bg-black/30">
+    <article className={`section-panel min-h-24 overflow-hidden p-3 ${toneClass}`}>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <span className="block text-xs font-extrabold uppercase tracking-[0.14em] leading-5 text-manifest-muted">{label}</span>
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-white/10 bg-black/30">
           {tone === "danger" ? <ShieldAlert className="h-4 w-4" /> : <ClipboardCheck className="h-4 w-4" />}
         </span>
       </div>
-      <strong className="block text-4xl leading-none tracking-normal">{value}</strong>
-      <span className="mt-3 block text-xs font-bold leading-5 text-manifest-muted">{detail}</span>
-      <div className="mt-4 h-1 rounded-full bg-white/10">
+      <strong className="block text-3xl leading-none tracking-normal">{value}</strong>
+      <span className="mt-2 block text-xs font-bold leading-5 text-manifest-muted">{detail}</span>
+      <div className="mt-3 h-1 rounded-full bg-white/10">
         <div className={`h-full rounded-full ${tone === "danger" ? "bg-manifest-danger" : tone === "warn" ? "bg-manifest-amber" : tone === "good" ? "bg-manifest-green" : "bg-manifest-red"}`} />
       </div>
     </article>
@@ -918,14 +1117,16 @@ function CarrierRoster({
   carriers,
   selectedCarrierId,
   onSelectCarrier,
+  compact = false,
 }: {
   carriers: Carrier[];
   selectedCarrierId: string;
   onSelectCarrier: (carrierId: string) => void;
+  compact?: boolean;
 }) {
   return (
-    <section id="carriers" className="section-panel p-6 max-md:p-4">
-      <div className="mb-5 flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
+    <section id="carriers" className={`section-panel max-md:p-4 ${compact ? "p-4" : "p-6"}`}>
+      <div className={`${compact ? "mb-3" : "mb-5"} flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch`}>
         <div>
           <p className="eyebrow">Carrier Profiles</p>
           <h2 className="text-2xl font-extrabold tracking-normal">Carrier roster</h2>
@@ -937,12 +1138,12 @@ function CarrierRoster({
         <table className="w-full min-w-[900px] border-collapse">
           <thead>
             <tr className="bg-white/[0.025] text-left text-[11px] uppercase tracking-[0.14em] text-manifest-quiet">
-              <th className="border-b border-white/10 px-4 py-4">Company</th>
-              <th className="border-b border-white/10 px-4 py-4">MC / DOT</th>
-              <th className="border-b border-white/10 px-4 py-4">Contact</th>
-              <th className="border-b border-white/10 px-4 py-4">Status</th>
-              <th className="border-b border-white/10 px-4 py-4">Score</th>
-              <th className="border-b border-white/10 px-4 py-4">Alerts</th>
+              <th className={`border-b border-white/10 px-4 ${compact ? "py-3" : "py-4"}`}>Company</th>
+              <th className={`border-b border-white/10 px-4 ${compact ? "py-3" : "py-4"}`}>MC / DOT</th>
+              <th className={`border-b border-white/10 px-4 ${compact ? "py-3" : "py-4"}`}>Contact</th>
+              <th className={`border-b border-white/10 px-4 ${compact ? "py-3" : "py-4"}`}>Status</th>
+              <th className={`border-b border-white/10 px-4 ${compact ? "py-3" : "py-4"}`}>Score</th>
+              <th className={`border-b border-white/10 px-4 ${compact ? "py-3" : "py-4"}`}>Alerts</th>
             </tr>
           </thead>
           <tbody>
@@ -969,33 +1170,36 @@ function CarrierRoster({
   );
 }
 
-function AlertPanel({ carriers }: { carriers: Carrier[] }) {
+function AlertPanel({ carriers, compact = false }: { carriers: Carrier[]; compact?: boolean }) {
   return (
-    <section id="alerts" className="section-panel p-6 max-md:p-4">
-      <div className="mb-5">
+    <section id="alerts" className={`section-panel max-md:p-4 ${compact ? "p-4" : "p-6"}`}>
+      <div className={compact ? "mb-3 flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch" : "mb-5"}>
+        <div>
         <p className="eyebrow">Alerts</p>
         <h2 className="text-2xl font-extrabold tracking-normal">Automatic labels</h2>
+        </div>
+        {compact ? <StatusChip value="Live labels" /> : null}
       </div>
 
-      <div className="grid gap-2.5">
+      <div className={compact ? "grid grid-cols-5 gap-2.5 max-2xl:grid-cols-3 max-lg:grid-cols-2 max-md:grid-cols-1" : "grid gap-2.5"}>
         {alertLabels.map((alert) => {
           const count = carriers.filter((carrier) => getCarrierAlerts(carrier).includes(alert)).length;
 
           return (
             <div
               key={alert}
-              className="flex min-h-14 items-center justify-between rounded-md border border-white/10 bg-black/30 px-3.5"
+              className={`flex items-center justify-between rounded-md border border-white/10 bg-black/30 px-3.5 ${compact ? "min-h-12" : "min-h-14"}`}
             >
-              <span className="font-bold text-manifest-muted">{alert}</span>
-              <strong className="text-2xl text-manifest-red">{count}</strong>
+              <span className="text-sm font-bold text-manifest-muted">{alert}</span>
+              <strong className={compact ? "text-xl text-manifest-red" : "text-2xl text-manifest-red"}>{count}</strong>
             </div>
           );
         })}
       </div>
 
-      <div className="mt-5 border-t border-white/10 pt-4">
+      <div className={`${compact ? "mt-3" : "mt-5 border-t border-white/10 pt-4"}`}>
         <span className="panel-label">Risk Indicators</span>
-        <div className="grid gap-2 text-xs font-bold text-manifest-muted">
+        <div className={compact ? "mt-2 flex flex-wrap gap-2 text-xs font-bold text-manifest-muted" : "grid gap-2 text-xs font-bold text-manifest-muted"}>
           <RiskLegendItem colorClass="bg-manifest-green" label="Green" value="Audit Ready" />
           <RiskLegendItem colorClass="bg-manifest-amber" label="Yellow" value="Needs Attention" />
           <RiskLegendItem colorClass="bg-manifest-orange" label="Orange" value="Moderate Risk" />
