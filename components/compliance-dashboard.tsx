@@ -262,18 +262,8 @@ export function ComplianceDashboard({
           <PanelLeftOpen className="h-4 w-4" />
           Navigation
         </button>
-        <header className="mb-6 flex items-start justify-between gap-6 border-b border-white/10 pb-6 max-lg:flex-col">
-          <div>
-            <p className="eyebrow">{branding.name}</p>
-            <h1 className="max-w-4xl text-5xl font-extrabold leading-[0.95] tracking-normal text-white max-md:text-3xl">
-              Manifest Operations Center
-            </h1>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-manifest-muted">
-              Owner-ready visibility across loads, billing, audit readiness, carrier documents, and operational risk.
-            </p>
-          </div>
-
-          <div className="flex items-end gap-3 max-md:w-full max-md:flex-col max-md:items-stretch">
+        <header className="mb-5 border-b border-white/10 pb-5">
+          <div className="flex items-end justify-end gap-3 max-xl:flex-wrap max-md:w-full max-md:flex-col max-md:items-stretch">
             {canManageCarriers(session) ? (
               <Link
                 href="/carriers/new"
@@ -297,15 +287,6 @@ export function ComplianceDashboard({
               >
                 <Flag className="h-4 w-4" />
                 Onboarding
-              </Link>
-            ) : null}
-            {session.platformSuperAdmin ? (
-              <Link
-                href="/platform"
-                className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-4 text-sm font-extrabold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white max-md:justify-center"
-              >
-                <Building2 className="h-4 w-4" />
-                Platform
               </Link>
             ) : null}
             <form action={logoutAction}>
@@ -339,6 +320,16 @@ export function ComplianceDashboard({
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="mt-5">
+            <p className="eyebrow">{branding.name}</p>
+            <h1 className="max-w-4xl text-5xl font-extrabold leading-[0.95] tracking-normal text-white max-md:text-3xl">
+              Manifest Operations Center
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-manifest-muted">
+              Owner-ready visibility across loads, billing, audit readiness, carrier documents, and operational risk.
+            </p>
           </div>
         </header>
 
