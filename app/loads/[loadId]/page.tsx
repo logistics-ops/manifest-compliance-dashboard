@@ -108,6 +108,7 @@ export default async function LoadDetailPage({ params, searchParams }: LoadPageP
         ) : null}
 
         <section className="mb-5 grid grid-cols-2 gap-5 max-lg:grid-cols-1">
+          <div id="document-rate_confirmation" className="scroll-mt-6">
           <LoadDocumentUploader
             loadId={load.id}
             documentType="rate_confirmation"
@@ -116,6 +117,8 @@ export default async function LoadDetailPage({ params, searchParams }: LoadPageP
             canUpload={canUploadRateConfirmation}
             fileDeleted={Boolean(load.filesDeletedAt)}
           />
+          </div>
+          <div id="document-pod" className="scroll-mt-6">
           <LoadDocumentUploader
             loadId={load.id}
             documentType="pod"
@@ -124,10 +127,11 @@ export default async function LoadDetailPage({ params, searchParams }: LoadPageP
             canUpload={canUploadPod}
             fileDeleted={Boolean(load.filesDeletedAt)}
           />
+          </div>
         </section>
 
         <section className="grid grid-cols-[minmax(0,1fr)_minmax(320px,0.55fr)] gap-5 max-lg:grid-cols-1">
-          <div className="section-panel p-6">
+          <div id="pod-workflow" className="scroll-mt-6 section-panel p-6">
             <p className="eyebrow">Notes</p>
             <p className="mt-3 min-h-20 text-sm leading-6 text-manifest-muted">{load.notes || "No notes recorded for this load."}</p>
           </div>
@@ -170,7 +174,7 @@ export default async function LoadDetailPage({ params, searchParams }: LoadPageP
           </div>
         </section>
 
-        <section className="section-panel mt-5 p-6 max-md:p-4">
+        <section id="invoice-workflow" className="section-panel mt-5 scroll-mt-6 p-6 max-md:p-4">
           <div className="mb-5 flex items-start justify-between gap-4 max-md:flex-col">
             <div>
               <p className="eyebrow">Broker Billing</p>

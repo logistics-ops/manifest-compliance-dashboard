@@ -5,9 +5,11 @@ import {
   ClipboardCheck,
   ClipboardList,
   CloudSun,
+  ListChecks,
   FileCheck2,
   FileArchive,
   FileText,
+  FileWarning,
   LayoutDashboard,
   Palette,
   Plus,
@@ -95,6 +97,7 @@ const organizationNavGroups: NavGroup[] = [
     title: "Owner Systems",
     items: [
       { label: "Executive Overview", href: "#overview", icon: LayoutDashboard },
+      { label: "Action Center", href: "/actions", icon: ListChecks },
       { label: "Loads", href: "/loads", icon: Route },
       { label: "Invoices", href: "/invoices", icon: FileText },
       { label: "Archives", href: "/archives", icon: FileArchive },
@@ -109,6 +112,7 @@ const organizationNavGroups: NavGroup[] = [
       { label: "Required Documents", href: "#documents", icon: FileCheck2 },
       { label: "DQ Files", href: "/dq-files", icon: ClipboardCheck },
       { label: "Vehicles", href: "/vehicles", icon: Truck },
+      { label: "Documents To Fix", href: "/documents-to-fix", icon: FileWarning },
       { label: "Audit Readiness", href: "/audit-readiness", icon: ShieldAlert },
       { label: "Notifications", href: "#notifications", icon: Bell },
       { label: "Audit Logs", href: "#audit-logs", icon: ClipboardList },
@@ -131,9 +135,11 @@ const carrierNavGroups: NavGroup[] = [
     title: "Carrier Portal",
     items: [
       { label: "Dashboard", href: "#overview", icon: LayoutDashboard },
+      { label: "Action Center", href: "/actions", icon: ListChecks },
       { label: "Loads", href: "/loads", icon: Route },
       { label: "Weather", href: "/weather", icon: CloudSun },
       { label: "Documents", href: "#documents", icon: FileCheck2 },
+      { label: "Documents To Fix", href: "/documents-to-fix", icon: FileWarning },
       { label: "Invoices", href: "/invoices", icon: Receipt },
       { label: "Archives", href: "/archives", icon: FileArchive },
       { label: "Notifications", href: "#notifications", icon: Bell },
@@ -644,6 +650,20 @@ function ExecutiveList({ title, items, empty }: { title: string; items: string[]
       )}
     </div>
   );
+}
+
+function scoreTone(score: number): "good" | "warn" | "danger" {
+  if (score >= 80) return "good";
+  if (score >= 70) return "warn";
+  return "danger";
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 function Sidebar({

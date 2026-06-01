@@ -9,6 +9,7 @@ import {
   FileCheck2,
   FileText,
   LayoutDashboard,
+  ListChecks,
   Mail,
   Phone,
   Route,
@@ -35,6 +36,7 @@ import { canManageCarriers, canManageCompliance, canUploadCarrierDocuments } fro
 import type { AuthSession } from "@/types/carrier";
 import { CarrierDocumentUploader } from "@/components/carrier-document-uploader";
 import { CarrierAssignedLoads } from "@/components/carrier-assigned-loads";
+import { documentSlug } from "@/lib/action-center";
 
 export function CarrierProfilePage({ carrier, session, loads = [] }: { carrier: Carrier; session: AuthSession; loads?: Load[] }) {
   const documents = getCarrierDocuments(carrier);
@@ -262,7 +264,7 @@ function DocumentUploadRow({
   canEdit: boolean;
 }) {
   return (
-    <article className={`section-panel p-3.5 ${documentBorder(document.status)}`}>
+    <article id={`document-${documentSlug(document.name)}`} className={`scroll-mt-6 section-panel p-3.5 ${documentBorder(document.status)}`}>
       <div className="grid grid-cols-[minmax(260px,0.7fr)_minmax(0,1.7fr)] gap-3 max-xl:grid-cols-1">
         <div className="min-w-0 rounded-md border border-white/10 bg-black/20 p-3">
           <div className="flex items-start gap-3">
@@ -294,9 +296,11 @@ function DocumentUploadRow({
 function CarrierPortalSidebar({ carrierId }: { carrierId: string }) {
   const items = [
     { label: "Dashboard", href: `/carriers/${carrierId}`, icon: LayoutDashboard },
+    { label: "Action Center", href: "/actions", icon: ListChecks },
     { label: "Loads", href: "/loads", icon: Route },
     { label: "Weather", href: "/weather", icon: CloudSun },
     { label: "Documents", href: "#documents", icon: FileCheck2 },
+    { label: "Documents To Fix", href: "/documents-to-fix", icon: FileCheck2 },
     { label: "Invoices", href: "/invoices", icon: FileText },
     { label: "Archives", href: "/archives", icon: FileArchive },
     { label: "Notifications", href: "#notifications", icon: Bell },
