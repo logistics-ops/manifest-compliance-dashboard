@@ -9,7 +9,7 @@ import { canManageDriverDocumentRecord } from "@/lib/security/tenant-rules";
 
 type PageProps = {
   params: Promise<{ driverId: string }>;
-  searchParams?: Promise<{ document?: string }>;
+  searchParams?: Promise<{ document?: string; success?: string; error?: string }>;
 };
 
 export default async function DQFileDetailPage({ params, searchParams }: PageProps) {
@@ -48,6 +48,9 @@ export default async function DQFileDetailPage({ params, searchParams }: PagePro
           </div>
         </header>
 
+        {query?.success ? <Notice tone="success" message={query.success} /> : null}
+        {query?.error ? <Notice tone="error" message={query.error} /> : null}
+
         <section className="section-panel p-6 max-md:p-4">
           <div className="mb-5 grid grid-cols-4 gap-3 max-lg:grid-cols-2 max-md:grid-cols-1">
             <Summary label="Carrier" value={file.carrierName} />
@@ -65,6 +68,11 @@ export default async function DQFileDetailPage({ params, searchParams }: PagePro
       </div>
     </main>
   );
+}
+
+function Notice({ tone, message }: { tone: "success" | "error"; message: string }) {
+  const classes = tone === "success" ? "border-manifest-green/35 bg-manifest-green/10 text-manifest-green" : "border-manifest-danger/40 bg-manifest-danger/10 text-manifest-danger";
+  return <div className={`mb-5 rounded-md border p-3 text-sm font-bold ${classes}`}>{message}</div>;
 }
 
 function ChecklistRow({ item, highlight, canEdit }: { item: DQChecklistItem; highlight: boolean; canEdit: boolean }) {

@@ -1,12 +1,20 @@
 import Link from "next/link";
-import { ArrowLeft, ClipboardCheck, FileWarning } from "lucide-react";
+import { ArrowLeft, ClipboardCheck, FileWarning, Plus } from "lucide-react";
+import { createDriverAction } from "@/app/actions/compliance-records";
 import { StatusChip } from "@/components/status-chip";
+import { getCarriers } from "@/lib/data/carriers";
 import { getDQFiles, type DQChecklistItem, type DQReadinessBand } from "@/lib/data/dq-files";
 import { requireStaffAccess } from "@/lib/integrations/auth";
 
-export default async function DQFilesPage() {
-  await requireStaffAccess();
-  const files = await getDQFiles();
+type PageProps = {
+  searchParams?: Promise<{ success?: string; error?: string }>;
+};
+
+export default async function DQFilesPage({ searchParams }: PageProps) {
+  const session = await requireStaffAccess();
+  const params = await searchParams;
+  const [files, carriers] = await Promise.all([getDQFiles(), getCarriers()]);
+  const canCreateDrivers = session.platformSuperAdmin || session.role === "admin";
   const averageReadiness = files.length
     ? Math.round(files.reduce((total, file) => total + file.readinessPercentage, 0) / files.length)
     : 0;
@@ -25,7 +33,7 @@ export default async function DQFilesPage() {
               DQ Files
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-manifest-muted">
-              Driver qualification visibility using the existing drivers and driver document records. Phase 1 is read-only and audit-focused.
+              Driver qualification visibility using the existing drivers and driver document records. Create a driver record, then open the DQ file to upload missing or expiring documents.
             </p>
           </div>
           <div className="grid min-h-32 min-w-40 place-items-center rounded-md border border-manifest-red/45 bg-manifest-red/10 p-4 text-center">
@@ -35,12 +43,61 @@ export default async function DQFilesPage() {
           </div>
         </header>
 
+        {params?.success ? <Notice tone="success" message={params.success} /> : null}
+        {params?.error ? <Notice tone="error" message={params.error} /> : null}
+
         <section className="mb-5 grid grid-cols-4 gap-4 max-lg:grid-cols-2 max-md:grid-cols-1">
           <Metric label="Average readiness" value={`${averageReadiness}%`} />
           <Metric label="Missing DQ items" value={missing} tone="warn" />
           <Metric label="Expired DQ items" value={expired} tone="danger" />
           <Metric label="Expiring soon" value={expiring} tone="warn" />
         </section>
+
+        {canCreateDrivers ? (
+          <section className="section-panel mb-5 p-6 max-md:p-4">
+            <div className="mb-5 flex items-center justify-between gap-3 max-md:flex-col max-md:items-start">
+              <div>
+                <p className="eyebrow">Add Driver</p>
+                <h2 className="text-2xl font-extrabold tracking-normal text-white">Create DQ file starter record</h2>
+                <p className="mt-2 text-sm text-manifest-muted">This uses the existing drivers table and opens the upload workflow after creation.</p>
+              </div>
+              <Plus className="h-5 w-5 text-manifest-red" />
+            </div>
+            {carriers.length ? (
+              <form action={createDriverAction} className="grid gap-4">
+                <div className="grid grid-cols-3 gap-3 max-lg:grid-cols-2 max-md:grid-cols-1">
+                  <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                    Carrier
+                    <select name="carrierId" required className="form-control">
+                      <option value="">Select carrier</option>
+                      {carriers.map((carrier) => <option key={carrier.id} value={carrier.id}>{carrier.companyName}</option>)}
+                    </select>
+                  </label>
+                  <Field label="First Name" name="firstName" required />
+                  <Field label="Last Name" name="lastName" required />
+                  <Field label="CDL Number" name="cdlNumber" />
+                  <Field label="CDL State" name="cdlState" />
+                  <Field label="Email" name="email" type="email" />
+                  <Field label="Phone" name="phone" />
+                  <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                    Status
+                    <select name="status" defaultValue="active" className="form-control">
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </label>
+                </div>
+                <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                  Notes
+                  <textarea name="notes" className="form-control min-h-20 resize-y" />
+                </label>
+                <button className="form-button min-h-11 w-fit px-4 text-sm">Create driver</button>
+              </form>
+            ) : (
+              <div className="empty-state">Create a carrier before adding driver DQ records.</div>
+            )}
+          </section>
+        ) : null}
 
         <section className="section-panel p-6 max-md:p-4">
           <div className="mb-5 flex items-center justify-between gap-3">
@@ -84,8 +141,11 @@ export default async function DQFilesPage() {
                       <SummaryItem label="Checklist items" value={file.totalChecklistItems} />
                       <SummaryItem label="Present" value={file.presentCount} />
                       <SummaryItem label="Next expiration" value={file.nextExpiration ?? "No dated documents"} />
-                      <SummaryItem label="Read-only source" value="drivers + driver_documents" />
+                      <SummaryItem label="Source" value="drivers + driver_documents" />
                     </div>
+                    <Link href={`/dq-files/${file.id}`} className="form-button mb-3 min-h-10 w-fit px-4 text-sm">
+                      Open DQ upload file
+                    </Link>
                     <div className="overflow-x-auto">
                       <table className="w-full min-w-[860px] border-collapse">
                         <thead>
@@ -129,6 +189,20 @@ export default async function DQFilesPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+function Notice({ tone, message }: { tone: "success" | "error"; message: string }) {
+  const classes = tone === "success" ? "border-manifest-green/35 bg-manifest-green/10 text-manifest-green" : "border-manifest-danger/40 bg-manifest-danger/10 text-manifest-danger";
+  return <div className={`mb-5 rounded-md border p-3 text-sm font-bold ${classes}`}>{message}</div>;
+}
+
+function Field({ label, name, type = "text", required = false }: { label: string; name: string; type?: string; required?: boolean }) {
+  return (
+    <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+      {label}
+      <input name={name} type={type} required={required} className="form-control" />
+    </label>
   );
 }
 

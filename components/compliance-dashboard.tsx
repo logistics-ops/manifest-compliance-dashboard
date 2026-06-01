@@ -77,6 +77,11 @@ export type ExecutiveOverviewData = {
   vehiclesNeedingAttention: number;
   expiringDocuments: number;
   openComplianceAlerts: number;
+  taskSummary: {
+    open: number;
+    overdue: number;
+    dueThisWeek: number;
+  };
   loadCount: number;
   invoiceTotals: {
     count: number;
@@ -100,6 +105,7 @@ const organizationNavGroups: NavGroup[] = [
     items: [
       { label: "Executive Overview", href: "#overview", icon: LayoutDashboard },
       { label: "Action Center", href: "/actions", icon: ListChecks },
+      { label: "Compliance Tasks", href: "/compliance-tasks", icon: ClipboardList },
       { label: "Loads", href: "/loads", icon: Route },
       { label: "Invoices", href: "/invoices", icon: FileText },
       { label: "Archives", href: "/archives", icon: FileArchive },
@@ -139,6 +145,7 @@ const carrierNavGroups: NavGroup[] = [
     items: [
       { label: "Dashboard", href: "#overview", icon: LayoutDashboard },
       { label: "Action Center", href: "/actions", icon: ListChecks },
+      { label: "Compliance Tasks", href: "/compliance-tasks", icon: ClipboardList },
       { label: "Loads", href: "/loads", icon: Route },
       { label: "Weather", href: "/weather", icon: CloudSun },
       { label: "Documents", href: "#documents", icon: FileCheck2 },
@@ -369,6 +376,7 @@ export function ComplianceDashboard({
               <ExecutiveMetricCard label="Critical blockers" value={executiveOverview.totalCriticalBlockers} detail="Missing, expired, or blocking records" tone={executiveOverview.totalCriticalBlockers ? "danger" : "good"} />
               <ExecutiveMetricCard label="Expiring documents" value={executiveOverview.expiringDocuments} detail="Documents inside renewal watch" tone={executiveOverview.expiringDocuments ? "warn" : "good"} />
               <ExecutiveMetricCard label="Open compliance alerts" value={executiveOverview.openComplianceAlerts} detail="Unread/read alerts not dismissed" tone={executiveOverview.openComplianceAlerts ? "warn" : "good"} />
+              <ExecutiveMetricCard label="Open tasks" value={executiveOverview.taskSummary.open} detail={`${executiveOverview.taskSummary.overdue} overdue · ${executiveOverview.taskSummary.dueThisWeek} due this week`} tone={executiveOverview.taskSummary.overdue ? "danger" : executiveOverview.taskSummary.open ? "warn" : "good"} />
               <ExecutiveMetricCard label="Loads" value={executiveOverview.loadCount} detail="Tenant-scoped operational loads" tone="neutral" />
               <ExecutiveMetricCard label="Invoices" value={formatCurrency(executiveOverview.invoiceTotals.totalAmount)} detail={`${executiveOverview.invoiceTotals.count} invoices · ${formatCurrency(executiveOverview.invoiceTotals.outstandingAmount)} outstanding`} tone={executiveOverview.invoiceTotals.overdueCount ? "danger" : "neutral"} />
             </section>
@@ -510,12 +518,13 @@ function ActionCenterStrip({ overview }: { overview: ExecutiveOverviewData }) {
     { label: "Critical Blockers", value: overview.totalCriticalBlockers, detail: "Audit stops", href: "/compliance-alerts?filter=critical", tone: overview.totalCriticalBlockers ? "danger" : "neutral" },
     { label: "Missing Documents", value: overview.needsAttention.documents.length, detail: "Need correction", href: "/compliance-alerts?filter=all", tone: overview.needsAttention.documents.length ? "danger" : "neutral" },
     { label: "Compliance Alerts", value: overview.openComplianceAlerts, detail: "Open alerts", href: "/compliance-alerts?filter=all", tone: overview.openComplianceAlerts ? "warn" : "neutral" },
+    { label: "Compliance Tasks", value: overview.taskSummary.open, detail: `${overview.taskSummary.overdue} overdue`, href: "/compliance-tasks", tone: overview.taskSummary.overdue ? "danger" : overview.taskSummary.open ? "warn" : "neutral" },
     { label: "Expiring Records", value: overview.expiringDocuments, detail: "Renewal watch", href: "/compliance-alerts?filter=expiring-30", tone: overview.expiringDocuments ? "warn" : "neutral" },
   ];
 
   return (
     <section className="sticky top-4 z-20 rounded-md border border-manifest-red/35 bg-black/80 p-3 shadow-premium backdrop-blur-xl">
-      <div className="grid grid-cols-4 gap-3 max-xl:grid-cols-2 max-md:grid-cols-1">
+      <div className="grid grid-cols-5 gap-3 max-xl:grid-cols-2 max-md:grid-cols-1">
         {actions.map((action) => (
           <Link
             key={action.label}

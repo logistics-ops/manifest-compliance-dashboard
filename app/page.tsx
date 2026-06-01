@@ -3,6 +3,7 @@ import { getOrganizationAuditLogs } from "@/lib/audit";
 import { getCarrierDocuments, isHighRisk } from "@/lib/compliance";
 import { getAuditReadinessDashboardData } from "@/lib/data/audit-readiness";
 import { getCarriers } from "@/lib/data/carriers";
+import { getComplianceTasks } from "@/lib/data/compliance-tasks";
 import { getDQFiles } from "@/lib/data/dq-files";
 import { getInvoices } from "@/lib/data/invoices";
 import { getLoads } from "@/lib/data/loads";
@@ -14,18 +15,20 @@ import type { ComplianceNotification, Carrier } from "@/types/carrier";
 import type { Invoice } from "@/types/invoice";
 import type { Load } from "@/types/load";
 import type { AuditReadinessDashboardData } from "@/lib/data/audit-readiness";
+import type { ComplianceTask } from "@/lib/data/compliance-tasks";
 import type { DQFileRecord } from "@/lib/data/dq-files";
 import type { VehicleRecord } from "@/lib/data/vehicles";
 
 export default async function Home() {
   const session = await requireStaffAccess();
-  const [carriers, auditReadiness, dqFiles, vehicles, loads, invoices, branding, auditLogs] = await Promise.all([
+  const [carriers, auditReadiness, dqFiles, vehicles, loads, invoices, tasks, branding, auditLogs] = await Promise.all([
     getCarriers(),
     getAuditReadinessDashboardData(),
     getDQFiles(),
     getVehicles(),
     getLoads(),
     getInvoices(),
+    getComplianceTasks(),
     getCurrentOrganizationBranding(),
     getOrganizationAuditLogs(40),
   ]);
@@ -37,6 +40,7 @@ export default async function Home() {
     vehicles,
     loads,
     invoices,
+    tasks,
     notifications,
   });
 
@@ -59,6 +63,7 @@ function buildExecutiveOverview({
   vehicles,
   loads,
   invoices,
+  tasks,
   notifications,
 }: {
   carriers: Carrier[];
@@ -67,6 +72,7 @@ function buildExecutiveOverview({
   vehicles: VehicleRecord[];
   loads: Load[];
   invoices: Invoice[];
+  tasks: ComplianceTask[];
   notifications: ComplianceNotification[];
 }): ExecutiveOverviewData {
   const dqReadinessAverage = average(dqFiles.map((file) => file.readinessPercentage));
@@ -98,6 +104,11 @@ function buildExecutiveOverview({
   const totalCriticalBlockers =
     auditReadiness.totalCriticalBlockers +
     vehicles.reduce((total, vehicle) => total + vehicle.criticalBlockers.length, 0);
+  const openTasks = tasks.filter((task) => task.status !== "completed");
+  const today = new Date().toISOString().slice(0, 10);
+  const weekEnd = new Date(`${today}T12:00:00`);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  const weekEndKey = weekEnd.toISOString().slice(0, 10);
 
   return {
     organizationAuditReadinessAverage: auditReadiness.organizationScore,
@@ -108,6 +119,11 @@ function buildExecutiveOverview({
     vehiclesNeedingAttention,
     expiringDocuments,
     openComplianceAlerts,
+    taskSummary: {
+      open: openTasks.length,
+      overdue: openTasks.filter((task) => task.dueDate !== null && task.dueDate < today).length,
+      dueThisWeek: openTasks.filter((task) => task.dueDate !== null && task.dueDate >= today && task.dueDate <= weekEndKey).length,
+    },
     loadCount: loads.length,
     invoiceTotals: {
       count: invoices.length,

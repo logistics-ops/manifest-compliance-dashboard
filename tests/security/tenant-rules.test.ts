@@ -5,6 +5,7 @@ import {
   assertTenantStoragePath,
   canAccessAuditLogRecord,
   canAccessBrokerRecord,
+  canAccessComplianceTaskRecord,
   canAccessCarrierRecord,
   canAssignCarrierToUser,
   canAccessInvoiceRecord,
@@ -20,6 +21,8 @@ import {
   canCreateBrokerCheckRequest,
   canInviteOrganizationUsers,
   canManageBrokerRecord,
+  canManageDriverDocumentRecord,
+  canManageComplianceTaskRecord,
   canManageEquipmentDocumentRecord,
   canManageOrganizationUsers,
   canManageLoadDocumentRecord,
@@ -134,6 +137,21 @@ test("vehicle document permission allows admins, staff, and linked carriers only
   assert.equal(canManageEquipmentDocumentRecord(carrierUser, equipmentA, false), false);
 });
 
+test("driver document permission allows admins, staff, and linked carriers only", () => {
+  const admin = session({ role: "admin" });
+  const staff = session({ role: "staff" });
+  const carrierUser = session({ role: "carrier", carrierId: carrierA });
+  const otherCarrierUser = session({ role: "carrier", carrierId: carrierB });
+  const driverA = { organizationId: orgA, carrierId: carrierA, driverId: "driver-a" };
+
+  assert.equal(canManageDriverDocumentRecord(admin, driverA, true), true);
+  assert.equal(canManageDriverDocumentRecord(staff, driverA, true), true);
+  assert.equal(canManageDriverDocumentRecord(carrierUser, driverA, true), true);
+  assert.equal(canManageDriverDocumentRecord(otherCarrierUser, driverA, true), false);
+  assert.equal(canManageDriverDocumentRecord(admin, { organizationId: orgB, carrierId: carrierB, driverId: "driver-b" }, true), false);
+  assert.equal(canManageDriverDocumentRecord(carrierUser, driverA, false), false);
+});
+
 test("admin and staff can only access carriers in their own active organization", () => {
   const admin = session({ role: "admin" });
   const staff = session({ role: "staff" });
@@ -211,6 +229,34 @@ test("notification access is scoped by organization, assignment, and linked carr
     canAccessNotificationRecord(carrierUser, { organizationId: orgA, carrierId: carrierA, assignedTo: null }, false),
     false,
   );
+});
+
+test("compliance task access is scoped by organization, assignment, and linked carrier", () => {
+  const platform = session({ role: "admin", organizationId: null, platformSuperAdmin: true });
+  const admin = session({ role: "admin", userId: "admin-a" });
+  const staff = session({ role: "staff", userId: "staff-a" });
+  const carrierUser = session({ role: "carrier", userId: "carrier-user-a", carrierId: carrierA });
+  const otherCarrierUser = session({ role: "carrier", userId: "carrier-user-b", carrierId: carrierB });
+  const carrierTask = { organizationId: orgA, relatedCarrierId: carrierA, assignedTo: null };
+  const assignedTask = { organizationId: orgA, relatedCarrierId: null, assignedTo: "carrier-user-a" };
+  const unassignedManualTask = { organizationId: orgA, relatedCarrierId: null, assignedTo: null };
+  const otherCarrierTask = { organizationId: orgA, relatedCarrierId: carrierB, assignedTo: null };
+
+  assert.equal(canAccessComplianceTaskRecord(platform, { organizationId: orgB, relatedCarrierId: carrierB, assignedTo: null }, false), true);
+  assert.equal(canAccessComplianceTaskRecord(admin, carrierTask, true), true);
+  assert.equal(canAccessComplianceTaskRecord(staff, carrierTask, true), true);
+  assert.equal(canAccessComplianceTaskRecord(admin, { organizationId: orgB, relatedCarrierId: carrierB, assignedTo: null }, true), false);
+  assert.equal(canAccessComplianceTaskRecord(carrierUser, carrierTask, true), true);
+  assert.equal(canAccessComplianceTaskRecord(carrierUser, assignedTask, true), true);
+  assert.equal(canAccessComplianceTaskRecord(carrierUser, unassignedManualTask, true), false);
+  assert.equal(canAccessComplianceTaskRecord(carrierUser, otherCarrierTask, true), false);
+  assert.equal(canAccessComplianceTaskRecord(otherCarrierUser, carrierTask, true), false);
+  assert.equal(canAccessComplianceTaskRecord(carrierUser, carrierTask, false), false);
+  assert.equal(canManageComplianceTaskRecord(admin, orgA, true), true);
+  assert.equal(canManageComplianceTaskRecord(staff, orgA, true), true);
+  assert.equal(canManageComplianceTaskRecord(carrierUser, orgA, true), false);
+  assert.equal(canManageComplianceTaskRecord(staff, orgB, true), false);
+  assert.equal(canManageComplianceTaskRecord(platform, orgB, false), true);
 });
 
 test("load access is scoped by organization, role, and linked carrier", () => {

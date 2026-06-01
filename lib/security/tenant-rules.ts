@@ -21,6 +21,11 @@ export type NotificationAccessRecord = TenantRecord & {
   assignedTo: string | null;
 };
 
+export type ComplianceTaskAccessRecord = TenantRecord & {
+  relatedCarrierId: string | null;
+  assignedTo: string | null;
+};
+
 export type LoadAccessRecord = TenantRecord & {
   carrierId: string;
 };
@@ -50,6 +55,9 @@ export const staffAuditActions = new Set([
   "vehicle_document.uploaded",
   "vehicle_document.replaced",
   "vehicle_document.expiration_changed",
+  "compliance_task.created",
+  "compliance_task.updated",
+  "compliance_task.completed",
   "compliance_note.added",
   "notification.read",
   "notification.dismissed",
@@ -391,6 +399,31 @@ export function canAccessNotificationRecord(
   if (canRoleManageCompliance(session.role)) return true;
   if (notification.assignedTo === session.userId) return true;
   return Boolean(notification.carrierId && session.role === "carrier" && session.carrierId === notification.carrierId);
+}
+
+export function canAccessComplianceTaskRecord(
+  session: AuthSession | null,
+  task: ComplianceTaskAccessRecord,
+  organizationIsActive = true,
+) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  if (!canAccessOrganizationRecord(session, task.organizationId, organizationIsActive)) return false;
+  if (canRoleManageCompliance(session.role)) return true;
+  return Boolean(
+    session.role === "carrier" &&
+      (session.userId === task.assignedTo || (session.carrierId !== null && session.carrierId === task.relatedCarrierId)),
+  );
+}
+
+export function canManageComplianceTaskRecord(
+  session: AuthSession | null,
+  organizationId: string | null,
+  organizationIsActive = true,
+) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  return canRoleManageCompliance(session.role) && canAccessOrganizationRecord(session, organizationId, organizationIsActive);
 }
 
 export function canAccessAuditLogRecord(

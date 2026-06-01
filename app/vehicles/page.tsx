@@ -1,12 +1,20 @@
 import Link from "next/link";
-import { ArrowLeft, FileWarning, Truck } from "lucide-react";
+import { ArrowLeft, FileWarning, Plus, Truck } from "lucide-react";
+import { createVehicleAction } from "@/app/actions/compliance-records";
 import { StatusChip } from "@/components/status-chip";
+import { getCarriers } from "@/lib/data/carriers";
 import { getVehicles, type VehicleChecklistItem, type VehicleReadinessBand } from "@/lib/data/vehicles";
 import { requireStaffAccess } from "@/lib/integrations/auth";
 
-export default async function VehiclesPage() {
-  await requireStaffAccess();
-  const vehicles = await getVehicles();
+type PageProps = {
+  searchParams?: Promise<{ success?: string; error?: string }>;
+};
+
+export default async function VehiclesPage({ searchParams }: PageProps) {
+  const session = await requireStaffAccess();
+  const params = await searchParams;
+  const [vehicles, carriers] = await Promise.all([getVehicles(), getCarriers()]);
+  const canCreateVehicles = session.platformSuperAdmin || session.role === "admin";
   const averageReadiness = vehicles.length
     ? Math.round(vehicles.reduce((total, vehicle) => total + vehicle.readinessPercentage, 0) / vehicles.length)
     : 0;
@@ -36,6 +44,9 @@ export default async function VehiclesPage() {
           </div>
         </header>
 
+        {params?.success ? <Notice tone="success" message={params.success} /> : null}
+        {params?.error ? <Notice tone="error" message={params.error} /> : null}
+
         <section className="mb-5 grid grid-cols-5 gap-4 max-xl:grid-cols-3 max-md:grid-cols-1">
           <Metric label="Average readiness" value={`${averageReadiness}%`} />
           <Metric label="Active units" value={active} tone="good" />
@@ -43,6 +54,52 @@ export default async function VehiclesPage() {
           <Metric label="Expired docs" value={expired} tone="danger" />
           <Metric label="Expiring soon" value={expiring} tone="warn" />
         </section>
+
+        {canCreateVehicles ? (
+          <section className="section-panel mb-5 p-6 max-md:p-4">
+            <div className="mb-5 flex items-center justify-between gap-3 max-md:flex-col max-md:items-start">
+              <div>
+                <p className="eyebrow">Add Vehicle</p>
+                <h2 className="text-2xl font-extrabold tracking-normal text-white">Create vehicle compliance record</h2>
+                <p className="mt-2 text-sm text-manifest-muted">This uses the existing equipment table and opens the vehicle document upload workflow after creation.</p>
+              </div>
+              <Plus className="h-5 w-5 text-manifest-red" />
+            </div>
+            {carriers.length ? (
+              <form action={createVehicleAction} className="grid gap-4">
+                <div className="grid grid-cols-3 gap-3 max-lg:grid-cols-2 max-md:grid-cols-1">
+                  <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                    Carrier
+                    <select name="carrierId" required className="form-control">
+                      <option value="">Select carrier</option>
+                      {carriers.map((carrier) => <option key={carrier.id} value={carrier.id}>{carrier.companyName}</option>)}
+                    </select>
+                  </label>
+                  <Field label="Unit Number" name="unitNumber" required />
+                  <Field label="Equipment Type" name="equipmentType" required />
+                  <Field label="VIN" name="vin" />
+                  <Field label="Plate Number" name="plateNumber" />
+                  <Field label="Plate State" name="plateState" />
+                  <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                    Status
+                    <select name="status" defaultValue="active" className="form-control">
+                      <option value="active">Active</option>
+                      <option value="maintenance">Maintenance</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </label>
+                </div>
+                <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+                  Notes
+                  <textarea name="notes" className="form-control min-h-20 resize-y" />
+                </label>
+                <button className="form-button min-h-11 w-fit px-4 text-sm">Create vehicle</button>
+              </form>
+            ) : (
+              <div className="empty-state">Create a carrier before adding vehicle records.</div>
+            )}
+          </section>
+        ) : null}
 
         <section className="section-panel p-6 max-md:p-4">
           <div className="mb-5 flex items-center justify-between gap-3">
@@ -138,6 +195,20 @@ export default async function VehiclesPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+function Notice({ tone, message }: { tone: "success" | "error"; message: string }) {
+  const classes = tone === "success" ? "border-manifest-green/35 bg-manifest-green/10 text-manifest-green" : "border-manifest-danger/40 bg-manifest-danger/10 text-manifest-danger";
+  return <div className={`mb-5 rounded-md border p-3 text-sm font-bold ${classes}`}>{message}</div>;
+}
+
+function Field({ label, name, type = "text", required = false }: { label: string; name: string; type?: string; required?: boolean }) {
+  return (
+    <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+      {label}
+      <input name={name} type={type} required={required} className="form-control" />
+    </label>
   );
 }
 

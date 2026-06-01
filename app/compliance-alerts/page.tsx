@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { createComplianceTaskAction } from "@/app/actions/compliance-tasks";
 import { ArrowLeft, ExternalLink, FileWarning, ShieldAlert } from "lucide-react";
 import { documentSlug } from "@/lib/action-center";
 import { getCarrierDocuments } from "@/lib/compliance";
@@ -7,6 +8,7 @@ import { getCarriers } from "@/lib/data/carriers";
 import { getDQFiles } from "@/lib/data/dq-files";
 import { getVehicles } from "@/lib/data/vehicles";
 import { requireSession } from "@/lib/integrations/auth";
+import { canManageComplianceTaskRecord } from "@/lib/security/tenant-rules";
 import type { Carrier } from "@/types/carrier";
 
 type AlertScope = "carrier" | "driver" | "vehicle";
@@ -54,6 +56,7 @@ export default async function ComplianceAlertsPage({ searchParams }: PageProps) 
     getDQFiles(),
     getVehicles(),
   ]);
+  const canCreateTasks = canManageComplianceTaskRecord(session, session.organizationId);
   const carriers = scopeCarriers(allCarriers, session);
   const carrierIds = new Set(carriers.map((carrier) => carrier.id));
   const alerts = buildComplianceAlerts({
@@ -131,7 +134,7 @@ export default async function ComplianceAlertsPage({ searchParams }: PageProps) 
 
           {filteredAlerts.length ? (
             <div className="grid gap-3">
-              {filteredAlerts.map((alert) => <AlertRow key={alert.id} alert={alert} />)}
+              {filteredAlerts.map((alert) => <AlertRow key={alert.id} alert={alert} canCreateTasks={canCreateTasks} />)}
             </div>
           ) : (
             <div className="empty-state">No compliance alerts match this filter.</div>
@@ -284,7 +287,7 @@ function buildComplianceAlerts({
   return [...carrierDocumentAlerts, ...carrierRiskAlerts, ...driverAlerts, ...vehicleAlerts].sort(sortAlerts);
 }
 
-function AlertRow({ alert }: { alert: ComplianceAlert }) {
+function AlertRow({ alert, canCreateTasks }: { alert: ComplianceAlert; canCreateTasks: boolean }) {
   return (
     <article className="grid grid-cols-[minmax(0,1fr)_160px_auto] items-center gap-4 rounded-md border border-white/10 bg-black/25 p-4 max-xl:grid-cols-1">
       <div className="min-w-0">
@@ -309,6 +312,21 @@ function AlertRow({ alert }: { alert: ComplianceAlert }) {
         {alert.openCarrierHref ? <ActionLink href={alert.openCarrierHref} label="Open Carrier" /> : null}
         <ActionLink href={alert.openEntityHref} label={`Open ${capitalize(alert.scope)}`} />
         <ActionLink href={alert.openDocumentHref} label="Open Document" />
+        {canCreateTasks ? (
+          <form action={createComplianceTaskAction}>
+            <input type="hidden" name="title" value={alert.title} />
+            <input type="hidden" name="description" value={alert.description} />
+            <input type="hidden" name="priority" value={alert.severity.toLowerCase()} />
+            <input type="hidden" name="dueDate" value={alert.dueDate ?? ""} />
+            <input type="hidden" name="relatedEntityType" value={alert.scope} />
+            <input type="hidden" name="relatedEntityId" value={alert.entityId} />
+            <input type="hidden" name="relatedCarrierId" value={alert.carrierId ?? ""} />
+            <input type="hidden" name="sourceAlertId" value={alert.id} />
+            <button className="form-button min-h-10 justify-center px-3 text-sm" type="submit">
+              Create Task
+            </button>
+          </form>
+        ) : null}
       </div>
     </article>
   );

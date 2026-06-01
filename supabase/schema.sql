@@ -44,6 +44,8 @@ create type public.invoice_status as enum ('draft', 'sent', 'paid', 'overdue', '
 create type public.broker_approved_status as enum ('approved', 'review_required', 'blocked');
 create type public.broker_risk_level as enum ('low', 'medium', 'high');
 create type public.broker_check_request_status as enum ('open', 'reviewing', 'resolved');
+create type public.compliance_task_status as enum ('open', 'in_progress', 'waiting', 'completed');
+create type public.compliance_task_priority as enum ('critical', 'high', 'medium', 'low');
 
 create table public.organizations (
   id uuid primary key default gen_random_uuid(),
@@ -310,6 +312,24 @@ create table public.broker_check_requests (
   updated_at timestamptz not null default now()
 );
 
+create table public.compliance_tasks (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  title text not null,
+  description text,
+  priority public.compliance_task_priority not null default 'medium',
+  due_date date,
+  status public.compliance_task_status not null default 'open',
+  assigned_to uuid references public.users(id) on delete set null,
+  related_entity_type text not null default 'manual',
+  related_entity_id text,
+  related_carrier_id uuid references public.carriers(id) on delete set null,
+  source_alert_id text,
+  created_by uuid references public.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table public.loads (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
@@ -452,6 +472,12 @@ create index if not exists brokers_organization_id_idx on public.brokers(organiz
 create index if not exists brokers_mc_number_idx on public.brokers(organization_id, mc_number);
 create index if not exists broker_check_requests_organization_id_idx on public.broker_check_requests(organization_id);
 create index if not exists broker_check_requests_carrier_id_idx on public.broker_check_requests(carrier_id);
+create index if not exists compliance_tasks_organization_id_idx on public.compliance_tasks(organization_id);
+create index if not exists compliance_tasks_status_idx on public.compliance_tasks(status);
+create index if not exists compliance_tasks_priority_idx on public.compliance_tasks(priority);
+create index if not exists compliance_tasks_due_date_idx on public.compliance_tasks(due_date);
+create index if not exists compliance_tasks_assigned_to_idx on public.compliance_tasks(assigned_to);
+create index if not exists compliance_tasks_related_carrier_id_idx on public.compliance_tasks(related_carrier_id);
 create index if not exists loads_organization_id_idx on public.loads(organization_id);
 create index if not exists loads_carrier_id_idx on public.loads(carrier_id);
 create index if not exists loads_broker_id_idx on public.loads(broker_id);
@@ -722,6 +748,8 @@ create trigger set_compliance_alerts_updated_at before update on public.complian
 for each row execute function public.set_updated_at();
 create trigger set_notifications_updated_at before update on public.notifications
 for each row execute function public.set_updated_at();
+create trigger set_compliance_tasks_updated_at before update on public.compliance_tasks
+for each row execute function public.set_updated_at();
 create trigger set_loads_updated_at before update on public.loads
 for each row execute function public.set_updated_at();
 
@@ -887,6 +915,7 @@ alter table public.equipment_documents enable row level security;
 alter table public.compliance_notes enable row level security;
 alter table public.compliance_alerts enable row level security;
 alter table public.notifications enable row level security;
+alter table public.compliance_tasks enable row level security;
 alter table public.brokers enable row level security;
 alter table public.broker_check_requests enable row level security;
 alter table public.loads enable row level security;
@@ -1315,6 +1344,54 @@ to authenticated
 using (public.can_manage_compliance() and public.can_access_organization(organization_id))
 with check (public.can_manage_compliance() and public.can_access_organization(organization_id));
 
+create policy "Authorized users can read compliance tasks"
+on public.compliance_tasks for select
+to authenticated
+using (
+  public.is_platform_super_admin()
+  or (
+    public.can_manage_compliance()
+    and public.can_access_organization(organization_id)
+  )
+  or (
+    public.current_user_role() = 'carrier'::public.app_role
+    and public.can_access_organization(organization_id)
+    and (
+      assigned_to = auth.uid()
+      or related_carrier_id = public.current_user_carrier_id()
+    )
+  )
+);
+
+create policy "Staff can create compliance tasks"
+on public.compliance_tasks for insert
+to authenticated
+with check (
+  public.is_platform_super_admin()
+  or (
+    public.can_manage_compliance()
+    and public.can_access_organization(organization_id)
+  )
+);
+
+create policy "Staff can update compliance tasks"
+on public.compliance_tasks for update
+to authenticated
+using (
+  public.is_platform_super_admin()
+  or (
+    public.can_manage_compliance()
+    and public.can_access_organization(organization_id)
+  )
+)
+with check (
+  public.is_platform_super_admin()
+  or (
+    public.can_manage_compliance()
+    and public.can_access_organization(organization_id)
+  )
+);
+
 create policy "Authorized users can read notifications"
 on public.notifications for select
 to authenticated
@@ -1656,7 +1733,10 @@ using (
     'broker.blocked',
     'broker.review_required',
     'broker_check.requested',
-    'broker.selected_on_load'
+    'broker.selected_on_load',
+    'compliance_task.created',
+    'compliance_task.updated',
+    'compliance_task.completed'
   )
 );
 
