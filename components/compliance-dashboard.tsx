@@ -115,6 +115,7 @@ const organizationNavGroups: NavGroup[] = [
       { label: "DQ Files", href: "/dq-files", icon: ClipboardCheck },
       { label: "Vehicles", href: "/vehicles", icon: Truck },
       { label: "Documents To Fix", href: "/documents-to-fix", icon: FileWarning },
+      { label: "Compliance Alerts", href: "/compliance-alerts", icon: ShieldAlert },
       { label: "Audit Readiness", href: "/audit-readiness", icon: ShieldAlert },
       { label: "Notifications", href: "#notifications", icon: Bell },
       { label: "Audit Logs", href: "#audit-logs", icon: ClipboardList },
@@ -142,6 +143,7 @@ const carrierNavGroups: NavGroup[] = [
       { label: "Weather", href: "/weather", icon: CloudSun },
       { label: "Documents", href: "#documents", icon: FileCheck2 },
       { label: "Documents To Fix", href: "/documents-to-fix", icon: FileWarning },
+      { label: "Compliance Alerts", href: "/compliance-alerts", icon: ShieldAlert },
       { label: "Invoices", href: "/invoices", icon: Receipt },
       { label: "Archives", href: "/archives", icon: FileArchive },
       { label: "Notifications", href: "#notifications", icon: Bell },
@@ -334,7 +336,7 @@ export function ComplianceDashboard({
 
         {activeTab === "overview" ? (
           <div className="grid gap-5">
-            <ActionCenterStrip overview={executiveOverview} onSelect={setActiveLowerTab} />
+            <ActionCenterStrip overview={executiveOverview} />
 
             <section
               id="overview"
@@ -497,34 +499,27 @@ function DashboardTabs({
   );
 }
 
-function ActionCenterStrip({
-  overview,
-  onSelect,
-}: {
-  overview: ExecutiveOverviewData;
-  onSelect: (tab: LowerDashboardTab) => void;
-}) {
+function ActionCenterStrip({ overview }: { overview: ExecutiveOverviewData }) {
   const actions: Array<{
     label: string;
     value: number;
     detail: string;
-    tab: LowerDashboardTab;
+    href: string;
     tone: "danger" | "warn" | "neutral";
   }> = [
-    { label: "Critical Blockers", value: overview.totalCriticalBlockers, detail: "Audit stops", tab: "risk-watch", tone: overview.totalCriticalBlockers ? "danger" : "neutral" },
-    { label: "Missing Documents", value: overview.needsAttention.documents.length, detail: "Need correction", tab: "documents", tone: overview.needsAttention.documents.length ? "danger" : "neutral" },
-    { label: "Compliance Alerts", value: overview.openComplianceAlerts, detail: "Open alerts", tab: "alerts", tone: overview.openComplianceAlerts ? "warn" : "neutral" },
-    { label: "Expiring Records", value: overview.expiringDocuments, detail: "Renewal watch", tab: "documents", tone: overview.expiringDocuments ? "warn" : "neutral" },
+    { label: "Critical Blockers", value: overview.totalCriticalBlockers, detail: "Audit stops", href: "/compliance-alerts?filter=critical", tone: overview.totalCriticalBlockers ? "danger" : "neutral" },
+    { label: "Missing Documents", value: overview.needsAttention.documents.length, detail: "Need correction", href: "/compliance-alerts?filter=all", tone: overview.needsAttention.documents.length ? "danger" : "neutral" },
+    { label: "Compliance Alerts", value: overview.openComplianceAlerts, detail: "Open alerts", href: "/compliance-alerts?filter=all", tone: overview.openComplianceAlerts ? "warn" : "neutral" },
+    { label: "Expiring Records", value: overview.expiringDocuments, detail: "Renewal watch", href: "/compliance-alerts?filter=expiring-30", tone: overview.expiringDocuments ? "warn" : "neutral" },
   ];
 
   return (
     <section className="sticky top-4 z-20 rounded-md border border-manifest-red/35 bg-black/80 p-3 shadow-premium backdrop-blur-xl">
       <div className="grid grid-cols-4 gap-3 max-xl:grid-cols-2 max-md:grid-cols-1">
         {actions.map((action) => (
-          <button
+          <Link
             key={action.label}
-            type="button"
-            onClick={() => onSelect(action.tab)}
+            href={action.href}
             className={`flex min-h-16 items-center justify-between gap-3 rounded-md border bg-white/[0.035] px-4 text-left transition hover:border-manifest-red/50 hover:bg-manifest-red/10 ${
               action.tone === "danger"
                 ? "border-manifest-danger/45"
@@ -538,9 +533,9 @@ function ActionCenterStrip({
               <span className="mt-1 block text-xs font-bold text-manifest-muted">{action.detail}</span>
             </span>
             <strong className={`text-3xl leading-none ${action.tone === "danger" ? "text-manifest-danger" : action.tone === "warn" ? "text-manifest-amber" : "text-white"}`}>
-              {action.value}
-            </strong>
-          </button>
+                {action.value}
+              </strong>
+          </Link>
         ))}
       </div>
     </section>
