@@ -19,6 +19,7 @@ export type EquipmentAccessRecord = CarrierAccessRecord & {
 export type NotificationAccessRecord = TenantRecord & {
   carrierId: string | null;
   assignedTo: string | null;
+  userId?: string | null;
 };
 
 export type ComplianceTaskAccessRecord = TenantRecord & {
@@ -60,6 +61,7 @@ export const staffAuditActions = new Set([
   "compliance_task.completed",
   "compliance_note.added",
   "notification.read",
+  "notification.read_all",
   "notification.dismissed",
   "notification.assigned",
   "notification.synced",
@@ -398,6 +400,7 @@ export function canAccessNotificationRecord(
   if (!canAccessOrganizationRecord(session, notification.organizationId, organizationIsActive)) return false;
   if (canRoleManageCompliance(session.role)) return true;
   if (notification.assignedTo === session.userId) return true;
+  if (notification.userId === session.userId) return true;
   return Boolean(notification.carrierId && session.role === "carrier" && session.carrierId === notification.carrierId);
 }
 

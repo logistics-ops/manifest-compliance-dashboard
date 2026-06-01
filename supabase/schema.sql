@@ -259,13 +259,19 @@ create table public.notifications (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   carrier_id uuid references public.carriers(id) on delete cascade,
+  user_id uuid references public.users(id) on delete set null,
   document_name text,
+  type text,
   title text not null,
   message text not null,
   category public.notification_category not null,
   priority public.notification_priority not null default 'medium',
+  severity text,
   status public.notification_status not null default 'unread',
   assigned_to uuid references public.users(id) on delete set null,
+  related_entity_type text,
+  related_entity_id text,
+  related_url text,
   read_at timestamptz,
   dismissed_by uuid references public.users(id) on delete set null,
   dismissed_at timestamptz,
@@ -466,7 +472,11 @@ create index if not exists notifications_organization_id_idx on public.notificat
 create index if not exists notifications_priority_idx on public.notifications(priority);
 create index if not exists notifications_category_idx on public.notifications(category);
 create index if not exists notifications_carrier_id_idx on public.notifications(carrier_id);
+create index if not exists notifications_user_id_idx on public.notifications(user_id);
 create index if not exists notifications_assigned_to_idx on public.notifications(assigned_to);
+create index if not exists notifications_type_idx on public.notifications(type);
+create index if not exists notifications_severity_idx on public.notifications(severity);
+create index if not exists notifications_related_entity_idx on public.notifications(related_entity_type, related_entity_id);
 create index if not exists notifications_created_at_idx on public.notifications(created_at desc);
 create index if not exists brokers_organization_id_idx on public.brokers(organization_id);
 create index if not exists brokers_mc_number_idx on public.brokers(organization_id, mc_number);
@@ -616,6 +626,9 @@ foreign key (organization_id, carrier_id)
 references public.carriers(organization_id, id),
 add constraint notifications_organization_assigned_to_fkey
 foreign key (organization_id, assigned_to)
+references public.users(organization_id, id),
+add constraint notifications_organization_user_id_fkey
+foreign key (organization_id, user_id)
 references public.users(organization_id, id),
 add constraint notifications_organization_dismissed_by_fkey
 foreign key (organization_id, dismissed_by)
@@ -1396,26 +1409,37 @@ create policy "Authorized users can read notifications"
 on public.notifications for select
 to authenticated
 using (
-  (public.can_manage_compliance() and public.can_access_organization(organization_id))
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
   or (carrier_id is not null and public.can_view_carrier(carrier_id))
   or (assigned_to = auth.uid() and public.can_access_organization(organization_id))
+  or (user_id = auth.uid() and public.can_access_organization(organization_id))
 );
 
 create policy "Staff can create notifications"
 on public.notifications for insert
 to authenticated
-with check (public.can_manage_compliance() and public.can_access_organization(organization_id));
+with check (
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
+);
 
-create policy "Staff can update notifications"
+create policy "Authorized users can update visible notifications"
 on public.notifications for update
 to authenticated
 using (
-  (public.can_manage_compliance() and public.can_access_organization(organization_id))
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
+  or (carrier_id is not null and public.can_view_carrier(carrier_id))
   or (assigned_to = auth.uid() and public.can_access_organization(organization_id))
+  or (user_id = auth.uid() and public.can_access_organization(organization_id))
 )
 with check (
-  (public.can_manage_compliance() and public.can_access_organization(organization_id))
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
+  or (carrier_id is not null and public.can_view_carrier(carrier_id))
   or (assigned_to = auth.uid() and public.can_access_organization(organization_id))
+  or (user_id = auth.uid() and public.can_access_organization(organization_id))
 );
 
 create policy "Admins can delete notifications"
@@ -1705,6 +1729,7 @@ using (
     'vehicle_document.expiration_changed',
     'compliance_note.added',
     'notification.read',
+    'notification.read_all',
     'notification.dismissed',
     'notification.assigned',
     'notification.synced',

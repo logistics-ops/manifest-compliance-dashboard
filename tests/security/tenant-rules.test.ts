@@ -222,7 +222,11 @@ test("notification access is scoped by organization, assignment, and linked carr
     false,
   );
   assert.equal(
-    canAccessNotificationRecord(carrierUser, { organizationId: orgA, carrierId: null, assignedTo: "carrier-user-a" }, true),
+    canAccessNotificationRecord(carrierUser, { organizationId: orgA, carrierId: null, assignedTo: "carrier-user-a", userId: null }, true),
+    true,
+  );
+  assert.equal(
+    canAccessNotificationRecord(carrierUser, { organizationId: orgA, carrierId: null, assignedTo: null, userId: "carrier-user-a" }, true),
     true,
   );
   assert.equal(

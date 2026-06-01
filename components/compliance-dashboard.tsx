@@ -123,7 +123,7 @@ const organizationNavGroups: NavGroup[] = [
       { label: "Documents To Fix", href: "/documents-to-fix", icon: FileWarning },
       { label: "Compliance Alerts", href: "/compliance-alerts", icon: ShieldAlert },
       { label: "Audit Readiness", href: "/audit-readiness", icon: ShieldAlert },
-      { label: "Notifications", href: "#notifications", icon: Bell },
+      { label: "Notifications", href: "/notifications", icon: Bell },
       { label: "Audit Logs", href: "#audit-logs", icon: ClipboardList },
     ],
   },
@@ -153,7 +153,7 @@ const carrierNavGroups: NavGroup[] = [
       { label: "Compliance Alerts", href: "/compliance-alerts", icon: ShieldAlert },
       { label: "Invoices", href: "/invoices", icon: Receipt },
       { label: "Archives", href: "/archives", icon: FileArchive },
-      { label: "Notifications", href: "#notifications", icon: Bell },
+      { label: "Notifications", href: "/notifications", icon: Bell },
     ],
   },
 ];
@@ -185,6 +185,7 @@ export function ComplianceDashboard({
   const selectedDocuments = selectedCarrier ? getCarrierDocuments(selectedCarrier) : [];
   const timelineEvents = getComplianceTimeline(activeCarriers, 90);
   const activeNotifications = notifications.length ? notifications : [];
+  const unreadNotifications = activeNotifications.filter((notification) => notification.status === "unread").length;
 
   useEffect(() => {
     function handlePopState() {
@@ -303,6 +304,18 @@ export function ComplianceDashboard({
                 Sign out
               </button>
             </form>
+            <Link
+              href="/notifications"
+              className="relative inline-flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-4 text-sm font-extrabold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white max-md:justify-center"
+            >
+              <Bell className="h-4 w-4" />
+              Notifications
+              {unreadNotifications ? (
+                <span className="ml-1 rounded-full border border-manifest-red/50 bg-manifest-red px-2 py-0.5 text-[10px] font-extrabold text-white">
+                  {unreadNotifications}
+                </span>
+              ) : null}
+            </Link>
             <div className="relative max-md:w-full">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-manifest-quiet" />
                 <input

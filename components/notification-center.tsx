@@ -175,6 +175,10 @@ export function NotificationCenter({
                     <Link href={`/loads/${getLoadId(notification)}`} className="form-button">
                       Open load
                     </Link>
+                  ) : notification.relatedUrl ? (
+                    <Link href={notification.relatedUrl} className="form-button">
+                      Open
+                    </Link>
                   ) : null}
                   {notification.carrierId ? (
                     <Link href={`/carriers/${notification.carrierId}`} className="form-button">

@@ -11,8 +11,6 @@ import type {
   NotificationPriority,
 } from "@/types/carrier";
 
-const nowIso = new Date("2026-05-18T12:00:00").toISOString();
-
 export function generateComplianceNotifications(carriers: Carrier[]): ComplianceNotification[] {
   return carriers.flatMap((carrier) => {
     const documentAlerts = getCarrierDocuments(carrier).flatMap((document) => {
@@ -126,7 +124,7 @@ function createNotification(input: {
     priority: input.priority,
     status: "unread",
     assignedTo: null,
-    createdAt: nowIso,
+    createdAt: new Date().toISOString(),
     readAt: null,
     dismissedAt: null,
     dueDate: input.dueDate,
