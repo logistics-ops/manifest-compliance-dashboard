@@ -46,12 +46,15 @@ export function CarrierProfilePage({ carrier, session, loads = [] }: { carrier: 
   const mayManageCarriers = canManageCarriers(session);
   const mayManageCompliance = canManageCompliance(session);
   const mayUploadDocuments = canUploadCarrierDocuments(session, carrier);
+  const pageShellClass = mayManageCompliance
+    ? "min-h-screen"
+    : "grid min-h-screen grid-cols-[260px_minmax(0,1fr)] max-xl:grid-cols-1";
 
   return (
-    <div className="grid min-h-screen grid-cols-[260px_minmax(0,1fr)] max-xl:grid-cols-1">
+    <div className={pageShellClass}>
       {!mayManageCompliance ? <CarrierPortalSidebar carrierId={carrier.id} /> : null}
       <main className="min-h-screen p-8 max-md:p-4">
-      <div className="mx-auto max-w-7xl">
+      <div className="w-full">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           {mayManageCompliance ? (
             <Link
@@ -265,7 +268,7 @@ function DocumentUploadRow({
 }) {
   return (
     <article id={`document-${documentSlug(document.name)}`} className={`scroll-mt-6 section-panel p-3.5 ${documentBorder(document.status)}`}>
-      <div className="grid grid-cols-[minmax(260px,0.7fr)_minmax(0,1.7fr)] gap-3 max-xl:grid-cols-1">
+      <div className="grid grid-cols-[minmax(320px,0.7fr)_minmax(680px,1.7fr)] gap-4 max-2xl:grid-cols-[minmax(300px,0.8fr)_minmax(520px,1.5fr)] max-xl:grid-cols-1">
         <div className="min-w-0 rounded-md border border-white/10 bg-black/20 p-3">
           <div className="flex items-start gap-3">
           <span className="mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-md border border-white/10 bg-black/30">
