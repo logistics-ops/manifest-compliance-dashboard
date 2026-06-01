@@ -12,6 +12,10 @@ export type DriverAccessRecord = CarrierAccessRecord & {
   driverId: string;
 };
 
+export type EquipmentAccessRecord = CarrierAccessRecord & {
+  equipmentId: string;
+};
+
 export type NotificationAccessRecord = TenantRecord & {
   carrierId: string | null;
   assignedTo: string | null;
@@ -43,6 +47,9 @@ export const staffAuditActions = new Set([
   "driver_document.uploaded",
   "driver_document.replaced",
   "driver_document.expiration_changed",
+  "vehicle_document.uploaded",
+  "vehicle_document.replaced",
+  "vehicle_document.expiration_changed",
   "compliance_note.added",
   "notification.read",
   "notification.dismissed",
@@ -132,6 +139,18 @@ export function canManageDriverDocumentRecord(
   if (!canAccessOrganizationRecord(session, driver.organizationId, organizationIsActive)) return false;
   if (canRoleManageCompliance(session.role)) return true;
   return session.role === "carrier" && session.carrierId === driver.carrierId;
+}
+
+export function canManageEquipmentDocumentRecord(
+  session: AuthSession | null,
+  equipment: EquipmentAccessRecord,
+  organizationIsActive = true,
+) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  if (!canAccessOrganizationRecord(session, equipment.organizationId, organizationIsActive)) return false;
+  if (canRoleManageCompliance(session.role)) return true;
+  return session.role === "carrier" && session.carrierId === equipment.carrierId;
 }
 
 export function canAccessLoadRecord(
@@ -412,6 +431,20 @@ export function isDriverDocumentStoragePath(storagePath: string, organizationId:
 export function assertDriverDocumentStoragePath(storagePath: string, organizationId: string, driverId: string) {
   if (!isDriverDocumentStoragePath(storagePath, organizationId, driverId)) {
     throw new Error("Uploaded driver document path does not match the current organization and driver.");
+  }
+}
+
+export function getEquipmentDocumentStoragePrefix(organizationId: string, equipmentId: string) {
+  return `organizations/${organizationId}/equipment/${equipmentId}/`;
+}
+
+export function isEquipmentDocumentStoragePath(storagePath: string, organizationId: string, equipmentId: string) {
+  return storagePath.startsWith(getEquipmentDocumentStoragePrefix(organizationId, equipmentId));
+}
+
+export function assertEquipmentDocumentStoragePath(storagePath: string, organizationId: string, equipmentId: string) {
+  if (!isEquipmentDocumentStoragePath(storagePath, organizationId, equipmentId)) {
+    throw new Error("Uploaded vehicle document path does not match the current organization and equipment.");
   }
 }
 

@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Truck } from "lucide-react";
+import { VehicleDocumentUploader } from "@/components/vehicle-document-uploader";
 import { documentSlug } from "@/lib/action-center";
 import { getVehicles, type VehicleChecklistItem } from "@/lib/data/vehicles";
 import { requireSession } from "@/lib/integrations/auth";
+import { canManageEquipmentDocumentRecord } from "@/lib/security/tenant-rules";
 
 type PageProps = {
   params: Promise<{ vehicleId: string }>;
@@ -11,13 +13,18 @@ type PageProps = {
 };
 
 export default async function VehicleDetailPage({ params, searchParams }: PageProps) {
-  await requireSession();
+  const session = await requireSession();
   const { vehicleId } = await params;
   const query = await searchParams;
   const vehicles = await getVehicles();
   const vehicle = vehicles.find((item) => item.id === vehicleId);
 
   if (!vehicle) notFound();
+  const canEdit = canManageEquipmentDocumentRecord(session, {
+    organizationId: vehicle.organizationId,
+    carrierId: vehicle.carrierId,
+    equipmentId: vehicle.id,
+  });
 
   return (
     <main className="min-h-screen p-8 max-md:p-4">
@@ -31,7 +38,7 @@ export default async function VehicleDetailPage({ params, searchParams }: PagePr
             <p className="eyebrow">Vehicle Correction Target</p>
             <h1 className="text-5xl font-extrabold leading-[0.95] tracking-normal text-white max-md:text-3xl">Unit {vehicle.unitNumber}</h1>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-manifest-muted">
-              Read-only vehicle document checklist. Upload correction workflow is intentionally parked until Action Center is stable.
+              Upload and replace vehicle compliance documents for registration, insurance, inspection, preventive maintenance, permits, and optional records.
             </p>
           </div>
           <div className="grid min-h-32 min-w-40 place-items-center rounded-md border border-manifest-red/45 bg-manifest-red/10 p-4 text-center">
@@ -42,16 +49,17 @@ export default async function VehicleDetailPage({ params, searchParams }: PagePr
         </header>
 
         <section className="section-panel p-6 max-md:p-4">
-          <div className="mb-5 grid grid-cols-4 gap-3 max-lg:grid-cols-2 max-md:grid-cols-1">
+          <div className="mb-5 grid grid-cols-5 gap-3 max-lg:grid-cols-2 max-md:grid-cols-1">
             <Summary label="Carrier" value={vehicle.carrierName} />
             <Summary label="Type" value={vehicle.equipmentType} />
             <Summary label="Missing" value={vehicle.missingCount} />
             <Summary label="Expired" value={vehicle.expiredCount} />
+            <Summary label="Expiring Soon" value={vehicle.expiringSoonCount} />
           </div>
 
           <div className="grid gap-3">
             {vehicle.checklist.map((item) => (
-              <ChecklistRow key={item.name} item={item} highlight={query?.document === documentSlug(item.name)} />
+              <ChecklistRow key={item.name} item={item} highlight={query?.document === documentSlug(item.name)} canEdit={canEdit} />
             ))}
           </div>
         </section>
@@ -60,10 +68,12 @@ export default async function VehicleDetailPage({ params, searchParams }: PagePr
   );
 }
 
-function ChecklistRow({ item, highlight }: { item: VehicleChecklistItem; highlight: boolean }) {
+function ChecklistRow({ item, highlight, canEdit }: { item: VehicleChecklistItem; highlight: boolean; canEdit: boolean }) {
+  const canUpload = canEdit && !item.notApplicable;
+
   return (
     <article id={`document-${documentSlug(item.name)}`} className={`scroll-mt-6 rounded-md border p-4 ${highlight ? "border-manifest-red/60 bg-manifest-red/10" : "border-white/10 bg-black/25"}`}>
-      <div className="flex items-start justify-between gap-4 max-md:flex-col">
+      <div className="mb-4 flex items-start justify-between gap-4 max-md:flex-col">
         <div>
           <strong className="block text-sm text-white">{item.name}</strong>
           <p className="mt-1 text-sm text-manifest-muted">{item.documentName ?? (item.notApplicable ? "Not applicable" : "No matching document")}</p>
@@ -73,6 +83,11 @@ function ChecklistRow({ item, highlight }: { item: VehicleChecklistItem; highlig
         </span>
       </div>
       <p className="mt-3 text-xs font-bold text-manifest-muted">Expiration: {item.expirationDate ?? "No expiration date"}</p>
+      {canUpload ? (
+        <div className="mt-4">
+          <VehicleDocumentUploader item={item} canEdit={canEdit} />
+        </div>
+      ) : null}
     </article>
   );
 }

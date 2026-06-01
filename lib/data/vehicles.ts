@@ -15,12 +15,15 @@ export type VehicleChecklistStatus = {
 export type VehicleChecklistItem = VehicleChecklistStatus & {
   name: string;
   conditional: boolean;
-  status: "present" | "missing" | "expired" | "expiring_soon" | "not_applicable";
+  status: "valid" | "missing" | "expired" | "expiring_soon" | "not_applicable";
   documentId: string | null;
   documentName: string | null;
   equipmentId: string;
   carrierId: string;
   expirationDate: string | null;
+  storagePath: string | null;
+  uploadedAt: string | null;
+  notes: string | null;
 };
 
 export type VehicleRecord = {
@@ -50,9 +53,12 @@ type EquipmentDocumentRow = {
   id: string;
   equipment_id: string;
   document_name: string;
+  storage_path: string | null;
   uploaded: boolean;
   status: string;
   expiration_date: string | null;
+  uploaded_at: string | null;
+  notes: string | null;
 };
 
 type EquipmentRow = {
@@ -71,12 +77,13 @@ type EquipmentRow = {
 
 const VEHICLE_READINESS_CHECKLIST = [
   { name: "Registration", conditional: false },
-  { name: "Annual Inspection", conditional: false },
   { name: "Insurance", conditional: false },
-  { name: "IRP / IFTA Records", conditional: true },
-  { name: "Lease Agreement, if applicable", conditional: true },
-  { name: "Maintenance Records, if stored", conditional: true },
-  { name: "Trailer Records, if applicable", conditional: true },
+  { name: "Annual Inspection", conditional: false },
+  { name: "Preventive Maintenance", conditional: false },
+  { name: "IRP", conditional: true },
+  { name: "IFTA", conditional: true },
+  { name: "Permits", conditional: true },
+  { name: "Other Custom Vehicle Documents", conditional: true },
 ] as const;
 
 export async function getVehicles(): Promise<VehicleRecord[]> {
@@ -87,7 +94,7 @@ export async function getVehicles(): Promise<VehicleRecord[]> {
 
   let query = supabase
     .from("equipment")
-    .select("id, organization_id, carrier_id, unit_number, equipment_type, vin, plate_number, plate_state, status, carriers(company_name), equipment_documents(id, equipment_id, document_name, uploaded, status, expiration_date)")
+    .select("id, organization_id, carrier_id, unit_number, equipment_type, vin, plate_number, plate_state, status, carriers(company_name), equipment_documents(id, equipment_id, document_name, storage_path, uploaded, status, expiration_date, uploaded_at, notes)")
     .order("unit_number");
 
   if (session.organizationId && !session.platformSuperAdmin) {
@@ -159,9 +166,7 @@ function buildVehicleChecklist(
 
   return VEHICLE_READINESS_CHECKLIST.map((required) => {
     const document = findDocumentForChecklistItem(required.name, documentsByName);
-    const trailerItem = required.name === "Trailer Records, if applicable";
-    const trailerUnit = normalizeDocumentName(equipmentType).includes("trailer");
-    const notApplicable = required.conditional && !document && (!trailerItem || !trailerUnit);
+    const notApplicable = required.conditional && !document;
     const expired = Boolean(document && (document.status === "expired" || isExpired(document.expiration_date)));
     const expiringSoon = Boolean(document && !expired && (document.status === "expiring_soon" || isExpiringSoon(document.expiration_date)));
     const present = Boolean(document?.uploaded && !notApplicable);
@@ -177,6 +182,9 @@ function buildVehicleChecklist(
       equipmentId,
       carrierId,
       expirationDate: document?.expiration_date ?? null,
+      storagePath: document?.storage_path ?? null,
+      uploadedAt: document?.uploaded_at ?? null,
+      notes: document?.notes ?? null,
       present,
       missing,
       expired,
@@ -191,7 +199,7 @@ function getChecklistStatus(status: VehicleChecklistStatus): VehicleChecklistIte
   if (status.missing) return "missing";
   if (status.expired) return "expired";
   if (status.expiringSoon) return "expiring_soon";
-  return "present";
+  return "valid";
 }
 
 function findDocumentForChecklistItem(name: string, documentsByName: Map<string, EquipmentDocumentRow>) {
@@ -211,10 +219,11 @@ function documentAliases(name: string) {
     Registration: ["Registration", "Cab Card", "Vehicle Registration"],
     "Annual Inspection": ["Annual Inspection", "DOT Inspection", "Inspection"],
     Insurance: ["Insurance", "Certificate of Insurance", "Auto Liability"],
-    "IRP / IFTA Records": ["IRP", "IFTA", "Apportioned Registration", "Fuel Tax"],
-    "Lease Agreement, if applicable": ["Lease Agreement", "Equipment Lease", "Owner Operator Lease"],
-    "Maintenance Records, if stored": ["Maintenance Record", "Maintenance Records", "Repair Order", "Service Record"],
-    "Trailer Records, if applicable": ["Trailer Record", "Trailer Registration", "Trailer Inspection"],
+    "Preventive Maintenance": ["Preventive Maintenance", "PM", "Maintenance Record", "Maintenance Records", "Repair Order", "Service Record"],
+    IRP: ["IRP", "Apportioned Registration"],
+    IFTA: ["IFTA", "Fuel Tax"],
+    Permits: ["Permit", "Permits", "Oversize Permit", "Overweight Permit"],
+    "Other Custom Vehicle Documents": ["Other", "Custom Vehicle Document", "Vehicle Document"],
   };
 
   return aliases[name] ?? [name];

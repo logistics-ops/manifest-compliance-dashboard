@@ -20,6 +20,7 @@ import {
   canCreateBrokerCheckRequest,
   canInviteOrganizationUsers,
   canManageBrokerRecord,
+  canManageEquipmentDocumentRecord,
   canManageOrganizationUsers,
   canManageLoadDocumentRecord,
   canManageLoadRecord,
@@ -38,6 +39,8 @@ import {
   isLoadStoragePath,
   isLoadDocumentStoragePath,
   isInvoiceStoragePath,
+  isEquipmentDocumentStoragePath,
+  assertEquipmentDocumentStoragePath,
 } from "../../lib/security/tenant-rules";
 
 const orgA = "org-a";
@@ -116,6 +119,21 @@ test("linked carrier upload permission allows only own carrier document uploads"
   assert.equal(canUploadCarrierDocument(otherCarrierUser, { organizationId: orgB, carrierId: carrierB }, true), false);
 });
 
+test("vehicle document permission allows admins, staff, and linked carriers only", () => {
+  const admin = session({ role: "admin" });
+  const staff = session({ role: "staff" });
+  const carrierUser = session({ role: "carrier", carrierId: carrierA });
+  const otherCarrierUser = session({ role: "carrier", carrierId: carrierB });
+  const equipmentA = { organizationId: orgA, carrierId: carrierA, equipmentId: "equipment-a" };
+
+  assert.equal(canManageEquipmentDocumentRecord(admin, equipmentA, true), true);
+  assert.equal(canManageEquipmentDocumentRecord(staff, equipmentA, true), true);
+  assert.equal(canManageEquipmentDocumentRecord(carrierUser, equipmentA, true), true);
+  assert.equal(canManageEquipmentDocumentRecord(otherCarrierUser, equipmentA, true), false);
+  assert.equal(canManageEquipmentDocumentRecord(admin, { organizationId: orgB, carrierId: carrierB, equipmentId: "equipment-b" }, true), false);
+  assert.equal(canManageEquipmentDocumentRecord(carrierUser, equipmentA, false), false);
+});
+
 test("admin and staff can only access carriers in their own active organization", () => {
   const admin = session({ role: "admin" });
   const staff = session({ role: "staff" });
@@ -149,6 +167,19 @@ test("upload path validation accepts only the expected organization and carrier 
   assert.equal(isTenantStoragePath(legacyPath, orgA, carrierA), false);
   assert.doesNotThrow(() => assertTenantStoragePath(validPath, orgA, carrierA));
   assert.throws(() => assertTenantStoragePath(wrongOrgPath, orgA, carrierA), /current organization/);
+});
+
+test("vehicle document storage path validation accepts only expected organization and equipment prefix", () => {
+  const equipmentId = "equipment-a";
+  const validPath = `organizations/${orgA}/equipment/${equipmentId}/registration/v1/file.pdf`;
+  const wrongOrgPath = `organizations/${orgB}/equipment/${equipmentId}/registration/v1/file.pdf`;
+  const wrongEquipmentPath = `organizations/${orgA}/equipment/equipment-b/registration/v1/file.pdf`;
+
+  assert.equal(isEquipmentDocumentStoragePath(validPath, orgA, equipmentId), true);
+  assert.equal(isEquipmentDocumentStoragePath(wrongOrgPath, orgA, equipmentId), false);
+  assert.equal(isEquipmentDocumentStoragePath(wrongEquipmentPath, orgA, equipmentId), false);
+  assert.doesNotThrow(() => assertEquipmentDocumentStoragePath(validPath, orgA, equipmentId));
+  assert.throws(() => assertEquipmentDocumentStoragePath(wrongOrgPath, orgA, equipmentId), /current organization and equipment/);
 });
 
 test("notification access is scoped by organization, assignment, and linked carrier", () => {

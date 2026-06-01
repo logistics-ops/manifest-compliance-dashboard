@@ -92,6 +92,9 @@ export default async function VehiclesPage() {
                         value={vehicle.criticalBlockers.length ? vehicle.criticalBlockers.join(", ") : "None"}
                       />
                     </div>
+                    <Link href={`/vehicles/${vehicle.id}`} className="form-button mb-3 min-h-10 w-fit px-4 text-sm">
+                      Open vehicle compliance file
+                    </Link>
                     <div className="overflow-x-auto">
                       <table className="w-full min-w-[860px] border-collapse">
                         <thead>
