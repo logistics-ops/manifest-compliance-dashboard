@@ -263,7 +263,7 @@ export function ComplianceDashboard({
           Navigation
         </button>
         <header className="mb-5 border-b border-white/10 pb-5">
-          <div className="flex items-end justify-end gap-3 max-xl:flex-wrap max-md:w-full max-md:flex-col max-md:items-stretch">
+          <div className="flex items-center justify-start gap-3 max-xl:flex-wrap max-md:w-full max-md:flex-col max-md:items-stretch">
             {canManageCarriers(session) ? (
               <Link
                 href="/carriers/new"
@@ -294,9 +294,7 @@ export function ComplianceDashboard({
                 Sign out
               </button>
             </form>
-            <label className="grid gap-2 text-xs font-bold text-manifest-muted max-md:w-full">
-              Search
-              <span className="relative">
+            <div className="relative max-md:w-full">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-manifest-quiet" />
                 <input
                   value={query}
@@ -305,8 +303,7 @@ export function ComplianceDashboard({
                   placeholder="Search company, MC, DOT..."
                   type="search"
                 />
-              </span>
-            </label>
+            </div>
 
             <select
               value={statusFilter}
