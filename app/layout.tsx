@@ -6,7 +6,7 @@ import { getOrganizationBrandStyle } from "@/lib/tenancy";
 
 export const metadata: Metadata = {
   title: "Manifest Operations Center",
-  description: "Owner operations, audit readiness, carrier compliance, loads, and billing for ManifestOS.",
+  description: "Audit readiness, carrier compliance, required documents, vehicle maintenance, and compliance tasks for ManifestOS.",
 };
 
 export default async function RootLayout({

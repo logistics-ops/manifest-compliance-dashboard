@@ -4,11 +4,8 @@ import Link from "next/link";
 import {
   ClipboardCheck,
   ClipboardList,
-  CloudSun,
   ListChecks,
   FileCheck2,
-  FileArchive,
-  FileText,
   FileWarning,
   LayoutDashboard,
   Palette,
@@ -24,7 +21,6 @@ import {
   Flag,
   PanelLeftClose,
   PanelLeftOpen,
-  Receipt,
   Users,
   Wrench,
 } from "lucide-react";
@@ -60,8 +56,8 @@ const alertLabels: AlertLabel[] = [
   "Needs Review",
   "Audit Ready",
 ];
-const dashboardTabs = ["overview", "compliance", "operations", "documents", "activity"] as const;
-type DashboardTab = (typeof dashboardTabs)[number];
+const dashboardTabs = ["overview", "compliance", "documents"] as const;
+type DashboardTab = "overview" | "compliance" | "operations" | "documents" | "activity";
 const lowerDashboardTabs = ["carriers", "drivers", "documents", "alerts", "risk-watch"] as const;
 type LowerDashboardTab = (typeof lowerDashboardTabs)[number];
 
@@ -106,10 +102,7 @@ const organizationNavGroups: NavGroup[] = [
       { label: "Executive Overview", href: "#overview", icon: LayoutDashboard },
       { label: "Action Center", href: "/actions", icon: ListChecks },
       { label: "Compliance Tasks", href: "/compliance-tasks", icon: ClipboardList },
-      { label: "Loads", href: "/loads", icon: Route },
-      { label: "Invoices", href: "/invoices", icon: FileText },
-      { label: "Archives", href: "/archives", icon: FileArchive },
-      { label: "Weather Checker", href: "/weather", icon: CloudSun },
+      { label: "Loads (Coming Soon)", href: "#loads-coming-soon", icon: Route, placeholder: true },
       { label: "Users", href: "/users", icon: Users },
     ],
   },
@@ -146,13 +139,10 @@ const carrierNavGroups: NavGroup[] = [
       { label: "Dashboard", href: "#overview", icon: LayoutDashboard },
       { label: "Action Center", href: "/actions", icon: ListChecks },
       { label: "Compliance Tasks", href: "/compliance-tasks", icon: ClipboardList },
-      { label: "Loads", href: "/loads", icon: Route },
-      { label: "Weather", href: "/weather", icon: CloudSun },
+      { label: "Loads (Coming Soon)", href: "#loads-coming-soon", icon: Route, placeholder: true },
       { label: "Documents", href: "#documents", icon: FileCheck2 },
       { label: "Documents To Fix", href: "/documents-to-fix", icon: FileWarning },
       { label: "Compliance Alerts", href: "/compliance-alerts", icon: ShieldAlert },
-      { label: "Invoices", href: "/invoices", icon: Receipt },
-      { label: "Archives", href: "/archives", icon: FileArchive },
       { label: "Notifications", href: "/notifications", icon: Bell },
     ],
   },
@@ -283,13 +273,15 @@ export function ComplianceDashboard({
                 New carrier
               </Link>
             ) : null}
-            <Link
-              href="/loads"
-              className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-4 text-sm font-extrabold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white max-md:justify-center"
+            <button
+              type="button"
+              className="inline-flex min-h-11 cursor-not-allowed items-center gap-2 rounded-md border border-white/5 bg-black/20 px-4 text-sm font-extrabold text-manifest-quiet opacity-80 max-md:justify-center"
+              disabled
+              title="Loads module coming soon"
             >
               <Route className="h-4 w-4" />
-              Loads
-            </Link>
+              Loads (Coming Soon)
+            </button>
             {canManageCarriers(session) && !session.platformSuperAdmin ? (
               <Link
                 href="/onboarding"
@@ -347,7 +339,7 @@ export function ComplianceDashboard({
               Manifest Operations Center
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-manifest-muted">
-              Owner-ready visibility across loads, billing, audit readiness, carrier documents, and operational risk.
+              Compliance visibility across audit readiness, carrier documents, DQ files, vehicle maintenance, and renewal risk.
             </p>
           </div>
         </header>
@@ -366,7 +358,7 @@ export function ComplianceDashboard({
                 <div>
                   <p className="eyebrow">Executive Overview</p>
                   <h2 className="max-w-3xl text-3xl font-extrabold leading-tight tracking-normal text-white max-md:text-2xl">
-                    Owner systems, audit posture, and operating work in one command view.
+                    Audit posture, required documents, and compliance tasks in one command view.
                   </h2>
                   <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold text-manifest-muted">
                     <span className="rounded-md border border-white/10 bg-black/30 px-3 py-2">{branding.slug}</span>
@@ -375,9 +367,9 @@ export function ComplianceDashboard({
                   </div>
                 </div>
                 <div className="grid min-h-24 min-w-40 place-items-center rounded-md border border-manifest-red/55 bg-black/45 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                  <span className="text-xs font-bold uppercase tracking-[0.18em] text-manifest-muted">Critical Blockers</span>
-                  <strong className="text-4xl leading-none text-white">{executiveOverview.totalCriticalBlockers}</strong>
-                  <span className="text-xs font-bold text-manifest-red">open across audit systems</span>
+                    <span className="text-xs font-bold uppercase tracking-[0.18em] text-manifest-muted">Critical Compliance Issues</span>
+                    <strong className="text-4xl leading-none text-white">{executiveOverview.totalCriticalBlockers}</strong>
+                    <span className="text-xs font-bold text-manifest-red">open across compliance records</span>
                 </div>
               </div>
             </section>
@@ -385,13 +377,11 @@ export function ComplianceDashboard({
             <section className="grid grid-cols-4 gap-4 max-2xl:grid-cols-2 max-md:grid-cols-1" aria-label="Dashboard overview metrics">
               <ExecutiveMetricCard label="Org audit readiness" value={`${executiveOverview.organizationAuditReadinessAverage}%`} detail="Carrier, DQ, vehicle, alert posture" tone={scoreTone(executiveOverview.organizationAuditReadinessAverage)} />
               <ExecutiveMetricCard label="DQ readiness" value={`${executiveOverview.dqReadinessAverage}%`} detail={`${executiveOverview.driversNeedingAttention} drivers need attention`} tone={scoreTone(executiveOverview.dqReadinessAverage)} />
-              <ExecutiveMetricCard label="Vehicle readiness" value={`${executiveOverview.vehicleReadinessAverage}%`} detail={`${executiveOverview.vehiclesNeedingAttention} units need attention`} tone={scoreTone(executiveOverview.vehicleReadinessAverage)} />
-              <ExecutiveMetricCard label="Critical blockers" value={executiveOverview.totalCriticalBlockers} detail="Missing, expired, or blocking records" tone={executiveOverview.totalCriticalBlockers ? "danger" : "good"} />
+              <ExecutiveMetricCard label="Vehicle maintenance" value={`${executiveOverview.vehicleReadinessAverage}%`} detail={`${executiveOverview.vehiclesNeedingAttention} units need attention`} tone={scoreTone(executiveOverview.vehicleReadinessAverage)} />
+              <ExecutiveMetricCard label="Critical compliance issues" value={executiveOverview.totalCriticalBlockers} detail="Missing, expired, or blocking records" tone={executiveOverview.totalCriticalBlockers ? "danger" : "good"} />
               <ExecutiveMetricCard label="Expiring documents" value={executiveOverview.expiringDocuments} detail="Documents inside renewal watch" tone={executiveOverview.expiringDocuments ? "warn" : "good"} />
               <ExecutiveMetricCard label="Open compliance alerts" value={executiveOverview.openComplianceAlerts} detail="Unread/read alerts not dismissed" tone={executiveOverview.openComplianceAlerts ? "warn" : "good"} />
               <ExecutiveMetricCard label="Open tasks" value={executiveOverview.taskSummary.open} detail={`${executiveOverview.taskSummary.overdue} overdue · ${executiveOverview.taskSummary.dueThisWeek} due this week`} tone={executiveOverview.taskSummary.overdue ? "danger" : executiveOverview.taskSummary.open ? "warn" : "good"} />
-              <ExecutiveMetricCard label="Loads" value={executiveOverview.loadCount} detail="Tenant-scoped operational loads" tone="neutral" />
-              <ExecutiveMetricCard label="Invoices" value={formatCurrency(executiveOverview.invoiceTotals.totalAmount)} detail={`${executiveOverview.invoiceTotals.count} invoices · ${formatCurrency(executiveOverview.invoiceTotals.outstandingAmount)} outstanding`} tone={executiveOverview.invoiceTotals.overdueCount ? "danger" : "neutral"} />
             </section>
 
             <AlertPanel carriers={activeCarriers} compact />
@@ -528,7 +518,7 @@ function ActionCenterStrip({ overview }: { overview: ExecutiveOverviewData }) {
     href: string;
     tone: "danger" | "warn" | "neutral";
   }> = [
-    { label: "Critical Blockers", value: overview.totalCriticalBlockers, detail: "Audit stops", href: "/compliance-alerts?filter=critical", tone: overview.totalCriticalBlockers ? "danger" : "neutral" },
+    { label: "Critical Compliance Issues", value: overview.totalCriticalBlockers, detail: "Needs review", href: "/compliance-alerts?filter=critical", tone: overview.totalCriticalBlockers ? "danger" : "neutral" },
     { label: "Missing Documents", value: overview.needsAttention.documents.length, detail: "Need correction", href: "/compliance-alerts?filter=all", tone: overview.needsAttention.documents.length ? "danger" : "neutral" },
     { label: "Compliance Alerts", value: overview.openComplianceAlerts, detail: "Open alerts", href: "/compliance-alerts?filter=all", tone: overview.openComplianceAlerts ? "warn" : "neutral" },
     { label: "Compliance Tasks", value: overview.taskSummary.open, detail: `${overview.taskSummary.overdue} overdue`, href: "/compliance-tasks", tone: overview.taskSummary.overdue ? "danger" : overview.taskSummary.open ? "warn" : "neutral" },
@@ -619,7 +609,7 @@ function ExecutiveSummary({
       </div>
       <div className="grid grid-cols-3 gap-3 max-lg:grid-cols-1">
         <SummaryPanel title="Audit Readiness" value={`${overview.organizationAuditReadinessAverage}/100`} detail={`${carriers.filter(isAuditReady).length} audit-ready carriers`} />
-        <SummaryPanel title="Owner Work Queue" value={overview.totalCriticalBlockers + overview.openComplianceAlerts} detail="Critical blockers plus open alerts" />
+        <SummaryPanel title="Compliance Work Queue" value={overview.totalCriticalBlockers + overview.openComplianceAlerts} detail="Critical compliance issues plus open alerts" />
         <SummaryPanel title="Billing Pipeline" value={formatCurrency(overview.invoiceTotals.outstandingAmount)} detail={`${overview.invoiceTotals.overdueCount} overdue invoices`} />
       </div>
       <div className="mt-5">
@@ -656,7 +646,7 @@ function OperationalWorkspace({
     <section className="section-panel p-6 max-md:p-4">
       <div className="mb-5 flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
         <div>
-          <p className="eyebrow">Operations</p>
+          <p className="eyebrow">Compliance</p>
           <h2 className="text-2xl font-extrabold tracking-normal">Operational alert queue</h2>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -757,7 +747,7 @@ function UpcomingModules() {
         <ModulePlaceholder id="maintenance" eyebrow="Fleet / Maintenance" title="Maintenance" detail="Placeholder for maintenance events, service intervals, inspection records, and repair follow-up." />
         <ModulePlaceholder id="trip-inspections" eyebrow="Fleet / Maintenance" title="Pre-Trip / Post-Trip" detail="Placeholder for inspection submissions, defects, sign-off workflow, and fleet safety evidence." />
         <ModulePlaceholder id="growth-goals" eyebrow="Owner Systems" title="Growth Goals" detail="Placeholder for owner growth targets, milestones, and operating scorecards in a later phase." />
-        <ModulePlaceholder id="organization-settings" eyebrow="Company" title="Organization Settings" detail="Placeholder for tenant profile settings, operational defaults, billing configuration, and controls." />
+        <ModulePlaceholder id="organization-settings" eyebrow="Company" title="Organization Settings" detail="Placeholder for tenant profile settings, compliance defaults, branding, and controls." />
         <ModulePlaceholder id="branding" eyebrow="Company" title="Branding" detail="Placeholder for logo, colors, subdomain, and white-label presentation settings." />
       </div>
     </details>
@@ -995,7 +985,7 @@ function SidebarNavItem({
     <>
       <Icon className="h-4 w-4 shrink-0" />
       <span className="truncate">{item.label}</span>
-      {item.placeholder ? <span className="ml-auto text-[10px] font-extrabold uppercase tracking-[0.12em]">Soon</span> : null}
+      {item.placeholder && !item.label.toLowerCase().includes("coming soon") ? <span className="ml-auto text-[10px] font-extrabold uppercase tracking-[0.12em]">Soon</span> : null}
     </>
   );
 
@@ -1812,5 +1802,5 @@ function timelineTextColor(event: ComplianceTimelineEvent) {
 function getInitialDashboardTab(): DashboardTab {
   if (typeof window === "undefined") return "overview";
   const tab = new URLSearchParams(window.location.search).get("tab");
-  return dashboardTabs.includes(tab as DashboardTab) ? (tab as DashboardTab) : "overview";
+  return dashboardTabs.includes(tab as (typeof dashboardTabs)[number]) ? (tab as DashboardTab) : "overview";
 }

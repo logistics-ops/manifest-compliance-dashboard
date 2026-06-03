@@ -39,7 +39,7 @@ export default async function AuditReadinessPage() {
         <section className="mb-5 grid grid-cols-5 gap-4 max-xl:grid-cols-3 max-md:grid-cols-1">
           <Metric label="Audit-ready carriers" value={auditReady.length} tone="good" />
           <Metric label="High-risk carriers" value={highRisk.length} tone="danger" />
-          <Metric label="Critical blockers" value={data.totalCriticalBlockers} tone="danger" />
+          <Metric label="Critical compliance issues" value={data.totalCriticalBlockers} tone="danger" />
           <Metric label="Missing documents" value={data.missingDocuments} tone="warn" />
           <Metric label="Expiring / expired" value={data.expiringDocuments + data.expiredDocuments} tone="warn" />
         </section>
@@ -62,7 +62,7 @@ export default async function AuditReadinessPage() {
                       <th className="border-b border-white/10 px-4 py-4">Score</th>
                       <th className="border-b border-white/10 px-4 py-4">Band</th>
                       <th className="border-b border-white/10 px-4 py-4">Breakdown</th>
-                      <th className="border-b border-white/10 px-4 py-4">Critical Blockers</th>
+                      <th className="border-b border-white/10 px-4 py-4">Critical Compliance Issues</th>
                       <th className="border-b border-white/10 px-4 py-4">Next Expiration</th>
                       <th className="border-b border-white/10 px-4 py-4">Action</th>
                     </tr>

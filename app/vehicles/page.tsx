@@ -104,8 +104,8 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
         <section className="section-panel p-6 max-md:p-4">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
-              <p className="eyebrow">Vehicle Readiness</p>
-              <h2 className="text-2xl font-extrabold tracking-normal text-white">Equipment document posture</h2>
+              <p className="eyebrow">Vehicle Maintenance</p>
+              <h2 className="text-2xl font-extrabold tracking-normal text-white">Equipment compliance posture</h2>
             </div>
             <FileWarning className="h-5 w-5 text-manifest-red" />
           </div>
@@ -145,7 +145,7 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
                       <SummaryItem label="Present" value={vehicle.presentCount} />
                       <SummaryItem label="Next expiration" value={vehicle.nextExpiration ?? "No dated documents"} />
                       <SummaryItem
-                        label="Critical blockers"
+                        label="Critical compliance issues"
                         value={vehicle.criticalBlockers.length ? vehicle.criticalBlockers.join(", ") : "None"}
                       />
                     </div>

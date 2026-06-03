@@ -81,7 +81,6 @@ export default async function NotificationsPage({ searchParams }: PageProps) {
                   <option value="compliance_task">Compliance tasks</option>
                   <option value="compliance_alert">Critical alerts</option>
                   <option value="load_operation">Load operations</option>
-                  <option value="invoice_operation">Invoices</option>
                 </select>
               </label>
               <button className="form-button min-h-11 w-fit px-4 text-sm">Filter</button>

@@ -70,7 +70,7 @@ export default async function ActionCenterPage() {
         </section>
 
         <div className="grid gap-5">
-          <ActionGroup title="Critical" description="Blocked work that can stop dispatch, audits, billing, or document acceptance." items={grouped.critical} />
+          <ActionGroup title="Critical" description="Compliance work that can stop audits, document acceptance, or carrier approval." items={grouped.critical} />
           <ActionGroup title="High Priority" description="Open items that should be fixed before they become blockers." items={grouped.high} />
           <ActionGroup title="Needs Attention" description="Operational items that need review or follow-up." items={grouped.needsAttention} />
           <ActionGroup title="Upcoming" description="Renewals and lower-risk items coming due." items={grouped.upcoming} />

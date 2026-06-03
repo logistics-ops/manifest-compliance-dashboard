@@ -4,10 +4,7 @@ import {
   ArrowLeft,
   Bell,
   ClipboardCheck,
-  CloudSun,
-  FileArchive,
   FileCheck2,
-  FileText,
   LayoutDashboard,
   ListChecks,
   Mail,
@@ -70,20 +67,15 @@ export function CarrierProfilePage({ carrier, session, loads = [] }: { carrier: 
                 <Truck className="h-4 w-4" />
                 Carrier portal
               </span>
-              <Link
-                href="/loads"
-                className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-3 text-sm font-bold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white"
+              <button
+                type="button"
+                className="inline-flex min-h-10 cursor-not-allowed items-center gap-2 rounded-md border border-white/5 bg-black/20 px-3 text-sm font-bold text-manifest-quiet opacity-80"
+                disabled
+                title="Loads module coming soon"
               >
                 <Route className="h-4 w-4" />
-                Loads
-              </Link>
-              <Link
-                href="/invoices"
-                className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-3 text-sm font-bold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white"
-              >
-                <FileText className="h-4 w-4" />
-                Invoices
-              </Link>
+                Loads (Coming Soon)
+              </button>
             </div>
           )}
           <form action={logoutAction}>
@@ -300,12 +292,9 @@ function CarrierPortalSidebar({ carrierId }: { carrierId: string }) {
   const items = [
     { label: "Dashboard", href: `/carriers/${carrierId}`, icon: LayoutDashboard },
     { label: "Action Center", href: "/actions", icon: ListChecks },
-    { label: "Loads", href: "/loads", icon: Route },
-    { label: "Weather", href: "/weather", icon: CloudSun },
+    { label: "Loads (Coming Soon)", href: "#loads-coming-soon", icon: Route, disabled: true },
     { label: "Documents", href: "#documents", icon: FileCheck2 },
     { label: "Documents To Fix", href: "/documents-to-fix", icon: FileCheck2 },
-    { label: "Invoices", href: "/invoices", icon: FileText },
-    { label: "Archives", href: "/archives", icon: FileArchive },
     { label: "Notifications", href: "#notifications", icon: Bell },
   ];
 
@@ -316,15 +305,28 @@ function CarrierPortalSidebar({ carrierId }: { carrierId: string }) {
         <h2 className="text-xl font-extrabold tracking-normal text-white">ManifestOS</h2>
       </div>
       <nav className="mt-5 grid gap-2 max-xl:grid-cols-3 max-md:grid-cols-1" aria-label="Carrier portal">
-        {items.map(({ label, href, icon: Icon }) => (
-          <Link
-            key={label}
-            href={href}
-            className="flex min-h-10 items-center gap-3 rounded-md border border-transparent px-3 text-sm font-semibold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white"
-          >
-            <Icon className="h-4 w-4 shrink-0" />
-            <span className="truncate">{label}</span>
-          </Link>
+        {items.map(({ label, href, icon: Icon, disabled }) => (
+          disabled ? (
+            <button
+              key={label}
+              type="button"
+              disabled
+              className="flex min-h-10 cursor-not-allowed items-center gap-3 rounded-md border border-white/5 px-3 text-left text-sm font-semibold text-manifest-quiet opacity-80"
+              title="Coming soon"
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="truncate">{label}</span>
+            </button>
+          ) : (
+            <Link
+              key={label}
+              href={href}
+              className="flex min-h-10 items-center gap-3 rounded-md border border-transparent px-3 text-sm font-semibold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white"
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="truncate">{label}</span>
+            </Link>
+          )
         ))}
       </nav>
     </aside>
