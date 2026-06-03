@@ -662,13 +662,7 @@ references public.users(organization_id, id);
 alter table public.upload_links
 add constraint upload_links_organization_carrier_fkey
 foreign key (organization_id, carrier_id)
-references public.carriers(organization_id, id),
-add constraint upload_links_organization_driver_fkey
-foreign key (organization_id, driver_id)
-references public.drivers(organization_id, id),
-add constraint upload_links_organization_equipment_fkey
-foreign key (organization_id, equipment_id)
-references public.equipment(organization_id, id);
+references public.carriers(organization_id, id);
 
 alter table public.loads
 add constraint loads_organization_carrier_fkey

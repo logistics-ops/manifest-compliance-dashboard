@@ -35,17 +35,43 @@ on delete cascade;
 
 alter table public.upload_links
 drop constraint if exists upload_links_organization_driver_fkey,
-add constraint upload_links_organization_driver_fkey
-foreign key (organization_id, driver_id)
-references public.drivers(organization_id, id)
-on delete cascade;
+drop constraint if exists upload_links_driver_id_fkey;
 
 alter table public.upload_links
 drop constraint if exists upload_links_organization_equipment_fkey,
-add constraint upload_links_organization_equipment_fkey
-foreign key (organization_id, equipment_id)
-references public.equipment(organization_id, id)
-on delete cascade;
+drop constraint if exists upload_links_equipment_id_fkey;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'upload_links_driver_id_fkey'
+      and conrelid = 'public.upload_links'::regclass
+  ) then
+    alter table public.upload_links
+    add constraint upload_links_driver_id_fkey
+    foreign key (driver_id)
+    references public.drivers(id)
+    on delete cascade;
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'upload_links_equipment_id_fkey'
+      and conrelid = 'public.upload_links'::regclass
+  ) then
+    alter table public.upload_links
+    add constraint upload_links_equipment_id_fkey
+    foreign key (equipment_id)
+    references public.equipment(id)
+    on delete cascade;
+  end if;
+end $$;
 
 drop trigger if exists set_upload_links_updated_at on public.upload_links;
 create trigger set_upload_links_updated_at before update on public.upload_links
