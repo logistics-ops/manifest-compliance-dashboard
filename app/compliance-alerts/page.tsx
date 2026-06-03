@@ -6,6 +6,7 @@ import { getCarrierDocuments } from "@/lib/compliance";
 import { getAuditReadinessDashboardData } from "@/lib/data/audit-readiness";
 import { getCarriers } from "@/lib/data/carriers";
 import { getDQFiles } from "@/lib/data/dq-files";
+import { getInspectionReports } from "@/lib/data/inspections";
 import { getVehicles } from "@/lib/data/vehicles";
 import { requireSession } from "@/lib/integrations/auth";
 import { canManageComplianceTaskRecord } from "@/lib/security/tenant-rules";
@@ -50,11 +51,12 @@ export default async function ComplianceAlertsPage({ searchParams }: PageProps) 
   const session = await requireSession();
   const params = await searchParams;
   const activeFilter = normalizeFilter(params?.filter);
-  const [allCarriers, auditReadiness, dqFiles, vehicles] = await Promise.all([
+  const [allCarriers, auditReadiness, dqFiles, vehicles, inspections] = await Promise.all([
     getCarriers(),
     getAuditReadinessDashboardData(),
     getDQFiles(),
     getVehicles(),
+    getInspectionReports(),
   ]);
   const canCreateTasks = canManageComplianceTaskRecord(session, session.organizationId);
   const carriers = scopeCarriers(allCarriers, session);
@@ -64,6 +66,7 @@ export default async function ComplianceAlertsPage({ searchParams }: PageProps) 
     carrierReadiness: auditReadiness.results.filter((result) => carrierIds.has(result.carrierId)),
     dqFiles,
     vehicles,
+    inspections,
   });
   const filteredAlerts = filterAlerts(alerts, activeFilter);
   const summary = {
@@ -150,11 +153,13 @@ function buildComplianceAlerts({
   carrierReadiness,
   dqFiles,
   vehicles,
+  inspections,
 }: {
   carriers: Carrier[];
   carrierReadiness: Awaited<ReturnType<typeof getAuditReadinessDashboardData>>["results"];
   dqFiles: Awaited<ReturnType<typeof getDQFiles>>;
   vehicles: Awaited<ReturnType<typeof getVehicles>>;
+  inspections: Awaited<ReturnType<typeof getInspectionReports>>;
 }): ComplianceAlert[] {
   const carrierById = new Map(carriers.map((carrier) => [carrier.id, carrier]));
   const carrierDocumentAlerts = carriers.flatMap((carrier) =>
@@ -284,7 +289,28 @@ function buildComplianceAlerts({
     }] : []),
   ]);
 
-  return [...carrierDocumentAlerts, ...carrierRiskAlerts, ...driverAlerts, ...vehicleAlerts].sort(sortAlerts);
+  const inspectionAlerts = inspections
+    .filter((inspection) => inspection.outOfService || inspection.violations.trim())
+    .map((inspection) => ({
+      id: `inspection:${inspection.id}:review`,
+      scope: "carrier" as const,
+      type: "Needs Review" as const,
+      severity: inspection.outOfService ? "Critical" as const : "High" as const,
+      title: `${inspection.carrierName}: inspection finding`,
+      description: inspection.outOfService
+        ? "Out-of-service inspection requires compliance follow-up."
+        : "Inspection violations require compliance follow-up.",
+      carrierId: inspection.carrierId,
+      carrierName: inspection.carrierName,
+      entityId: inspection.id,
+      dueDate: inspection.inspectionDate,
+      daysUntilExpiration: null,
+      openCarrierHref: `/carriers/${inspection.carrierId}`,
+      openEntityHref: `/inspections/${inspection.id}`,
+      openDocumentHref: `/inspections/${inspection.id}`,
+    }));
+
+  return [...carrierDocumentAlerts, ...carrierRiskAlerts, ...driverAlerts, ...vehicleAlerts, ...inspectionAlerts].sort(sortAlerts);
 }
 
 function AlertRow({ alert, canCreateTasks }: { alert: ComplianceAlert; canCreateTasks: boolean }) {

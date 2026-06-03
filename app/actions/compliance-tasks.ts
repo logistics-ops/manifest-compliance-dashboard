@@ -61,6 +61,17 @@ export async function createComplianceTaskAction(formData: FormData) {
     metadata: { title, priority, due_date: dueDate, assigned_to: assignedTo, related_entity_type: relatedEntityType, related_entity_id: relatedEntityId, related_carrier_id: relatedCarrierId, source_alert_id: sourceAlertId },
   });
 
+  if (relatedEntityType === "inspection" && relatedEntityId) {
+    await writeAuditLog({
+      organizationId,
+      actorUserId: session.userId,
+      action: "inspection.task_linked",
+      entityType: "inspection",
+      entityId: relatedEntityId,
+      metadata: { task_id: data.id, title, priority, due_date: dueDate, related_carrier_id: relatedCarrierId },
+    });
+  }
+
   revalidateTasks();
   redirectWithTaskMessage("Compliance task created.", "success");
 }

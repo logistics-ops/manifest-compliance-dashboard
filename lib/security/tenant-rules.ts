@@ -27,6 +27,14 @@ export type ComplianceTaskAccessRecord = TenantRecord & {
   assignedTo: string | null;
 };
 
+export type UploadLinkAccessRecord = TenantRecord & {
+  carrierId: string;
+};
+
+export type InspectionAccessRecord = TenantRecord & {
+  carrierId: string;
+};
+
 export type LoadAccessRecord = TenantRecord & {
   carrierId: string;
 };
@@ -59,6 +67,15 @@ export const staffAuditActions = new Set([
   "compliance_task.created",
   "compliance_task.updated",
   "compliance_task.completed",
+  "upload_link.created",
+  "upload_link.revoked",
+  "upload_link.used",
+  "public_document.uploaded",
+  "inspection.created",
+  "inspection.updated",
+  "inspection.document_uploaded",
+  "inspection.task_linked",
+  "inspection.alert_created",
   "compliance_note.added",
   "notification.read",
   "notification.read_all",
@@ -429,6 +446,58 @@ export function canManageComplianceTaskRecord(
   return canRoleManageCompliance(session.role) && canAccessOrganizationRecord(session, organizationId, organizationIsActive);
 }
 
+export function canAccessInspectionRecord(
+  session: AuthSession | null,
+  inspection: InspectionAccessRecord,
+  organizationIsActive = true,
+) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  if (!canAccessOrganizationRecord(session, inspection.organizationId, organizationIsActive)) return false;
+  if (canRoleManageCompliance(session.role)) return true;
+  return session.role === "carrier" && session.carrierId === inspection.carrierId;
+}
+
+export function canManageInspectionRecord(
+  session: AuthSession | null,
+  inspection: InspectionAccessRecord,
+  organizationIsActive = true,
+) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  return canRoleManageCompliance(session.role) && canAccessOrganizationRecord(session, inspection.organizationId, organizationIsActive);
+}
+
+export function canUploadInspectionDocumentRecord(
+  session: AuthSession | null,
+  inspection: InspectionAccessRecord,
+  organizationIsActive = true,
+) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  if (!canAccessOrganizationRecord(session, inspection.organizationId, organizationIsActive)) return false;
+  if (canRoleManageCompliance(session.role)) return true;
+  return session.role === "carrier" && session.carrierId === inspection.carrierId;
+}
+
+export function canAccessUploadLinkRecord(
+  session: AuthSession | null,
+  uploadLink: UploadLinkAccessRecord,
+  organizationIsActive = true,
+) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  return canRoleManageCompliance(session.role) && canAccessOrganizationRecord(session, uploadLink.organizationId, organizationIsActive);
+}
+
+export function canManageUploadLinkRecord(
+  session: AuthSession | null,
+  uploadLink: UploadLinkAccessRecord,
+  organizationIsActive = true,
+) {
+  return canAccessUploadLinkRecord(session, uploadLink, organizationIsActive);
+}
+
 export function canAccessAuditLogRecord(
   session: AuthSession | null,
   auditLog: AuditLogAccessRecord,
@@ -481,6 +550,20 @@ export function isEquipmentDocumentStoragePath(storagePath: string, organization
 export function assertEquipmentDocumentStoragePath(storagePath: string, organizationId: string, equipmentId: string) {
   if (!isEquipmentDocumentStoragePath(storagePath, organizationId, equipmentId)) {
     throw new Error("Uploaded vehicle document path does not match the current organization and equipment.");
+  }
+}
+
+export function getInspectionStoragePrefix(organizationId: string, inspectionId: string) {
+  return `organizations/${organizationId}/inspections/${inspectionId}/`;
+}
+
+export function isInspectionStoragePath(storagePath: string, organizationId: string, inspectionId: string) {
+  return storagePath.startsWith(getInspectionStoragePrefix(organizationId, inspectionId));
+}
+
+export function assertInspectionStoragePath(storagePath: string, organizationId: string, inspectionId: string) {
+  if (!isInspectionStoragePath(storagePath, organizationId, inspectionId)) {
+    throw new Error("Uploaded inspection document path does not match the current organization and inspection.");
   }
 }
 

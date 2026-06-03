@@ -4,7 +4,9 @@ import {
   ArrowLeft,
   Bell,
   ClipboardCheck,
+  Copy,
   FileCheck2,
+  Link2,
   LayoutDashboard,
   ListChecks,
   Mail,
@@ -18,6 +20,7 @@ import {
   updateCarrierAction,
   updateCarrierStatusAction,
 } from "@/app/actions/carriers";
+import { createUploadLinkAction, revokeUploadLinkAction } from "@/app/actions/upload-links";
 import {
   getActionItems,
   getCarrierAlerts,
@@ -27,6 +30,9 @@ import {
 } from "@/lib/compliance";
 import type { Carrier, EnrichedDocument } from "@/types/carrier";
 import type { Load } from "@/types/load";
+import type { DQFileRecord } from "@/lib/data/dq-files";
+import type { UploadLinkRecord } from "@/lib/data/upload-links";
+import type { VehicleRecord } from "@/lib/data/vehicles";
 import { StatusChip } from "@/components/status-chip";
 import { logoutAction } from "@/app/login/actions";
 import { canManageCarriers, canManageCompliance, canUploadCarrierDocuments } from "@/lib/auth/permissions";
@@ -35,7 +41,25 @@ import { CarrierDocumentUploader } from "@/components/carrier-document-uploader"
 import { CarrierAssignedLoads } from "@/components/carrier-assigned-loads";
 import { documentSlug } from "@/lib/action-center";
 
-export function CarrierProfilePage({ carrier, session, loads = [] }: { carrier: Carrier; session: AuthSession; loads?: Load[] }) {
+export function CarrierProfilePage({
+  carrier,
+  session,
+  loads = [],
+  drivers = [],
+  vehicles = [],
+  uploadLinks = [],
+  generatedUploadLink = null,
+  message = null,
+}: {
+  carrier: Carrier;
+  session: AuthSession;
+  loads?: Load[];
+  drivers?: DQFileRecord[];
+  vehicles?: VehicleRecord[];
+  uploadLinks?: UploadLinkRecord[];
+  generatedUploadLink?: string | null;
+  message?: { type: "success" | "error"; text: string } | null;
+}) {
   const documents = getCarrierDocuments(carrier);
   const actions = getActionItems(carrier);
   const alerts = getCarrierAlerts(carrier);
@@ -84,6 +108,8 @@ export function CarrierProfilePage({ carrier, session, loads = [] }: { carrier: 
             </button>
           </form>
         </div>
+
+        {message ? <Notice tone={message.type} message={message.text} /> : null}
 
         <section className="section-panel mb-5 overflow-hidden border-manifest-red/30 bg-[linear-gradient(110deg,rgba(227,25,55,0.24),rgba(17,17,20,0.88)_42%,rgba(255,255,255,0.045)),repeating-linear-gradient(135deg,rgba(255,255,255,0.06)_0_1px,transparent_1px_18px)] p-7 max-md:p-5">
           <div className="flex items-start justify-between gap-8 max-lg:flex-col">
@@ -223,6 +249,16 @@ export function CarrierProfilePage({ carrier, session, loads = [] }: { carrier: 
           </div>
         </section>
 
+        {mayManageCompliance ? (
+          <UploadLinkPanel
+            carrierId={carrier.id}
+            drivers={drivers}
+            vehicles={vehicles}
+            uploadLinks={uploadLinks}
+            generatedUploadLink={generatedUploadLink}
+          />
+        ) : null}
+
         <section id="documents" className="section-panel p-6 max-md:p-4">
           <div className="mb-5 flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
             <div>
@@ -246,6 +282,131 @@ export function CarrierProfilePage({ carrier, session, loads = [] }: { carrier: 
       </div>
       </main>
     </div>
+  );
+}
+
+function UploadLinkPanel({
+  carrierId,
+  drivers,
+  vehicles,
+  uploadLinks,
+  generatedUploadLink,
+}: {
+  carrierId: string;
+  drivers: DQFileRecord[];
+  vehicles: VehicleRecord[];
+  uploadLinks: UploadLinkRecord[];
+  generatedUploadLink: string | null;
+}) {
+  return (
+    <section className="section-panel mb-5 p-6 max-md:p-4">
+      <div className="mb-5 flex items-start justify-between gap-3 max-md:flex-col">
+        <div>
+          <p className="eyebrow">Secure Intake Link</p>
+          <h2 className="text-2xl font-extrabold tracking-normal text-white">No-login document upload</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-manifest-muted">
+            Create an expiring public upload link for this carrier. The link can only upload the selected document categories.
+          </p>
+        </div>
+        <Link2 className="h-5 w-5 text-manifest-red" />
+      </div>
+
+      {generatedUploadLink ? (
+        <div className="mb-5 rounded-md border border-manifest-green/35 bg-manifest-green/10 p-4">
+          <div className="mb-2 flex items-center gap-2 text-sm font-extrabold text-manifest-green">
+            <Copy className="h-4 w-4" />
+            Copy this upload link now
+          </div>
+          <input readOnly value={generatedUploadLink} className="form-control w-full font-mono text-xs" />
+          <p className="mt-2 text-xs font-bold text-manifest-muted">For security, the raw token is shown only after creation.</p>
+        </div>
+      ) : null}
+
+      <form action={createUploadLinkAction} className="mb-5 grid gap-4 rounded-md border border-white/10 bg-black/25 p-4">
+        <input type="hidden" name="carrierId" value={carrierId} />
+        <div className="grid grid-cols-3 gap-3 max-lg:grid-cols-1">
+          <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+            Expires In
+            <select name="expiresInDays" defaultValue="14" className="form-control">
+              <option value="3">3 days</option>
+              <option value="7">7 days</option>
+              <option value="14">14 days</option>
+              <option value="30">30 days</option>
+              <option value="60">60 days</option>
+            </select>
+          </label>
+          <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+            DQ Driver
+            <select name="driverId" className="form-control">
+              <option value="">No DQ scope</option>
+              {drivers.map((driver) => (
+                <option key={driver.id} value={driver.id}>{driver.driverName || "Unnamed driver"}</option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+            Vehicle
+            <select name="equipmentId" className="form-control">
+              <option value="">No vehicle scope</option>
+              {vehicles.map((vehicle) => (
+                <option key={vehicle.id} value={vehicle.id}>Unit {vehicle.unitNumber}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <fieldset className="grid gap-2">
+          <legend className="text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">Allowed Categories</legend>
+          <div className="flex flex-wrap gap-3 text-sm font-bold text-manifest-muted">
+            <label className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-black/25 px-3 py-2">
+              <input type="checkbox" name="allowedCategories" value="carrier" defaultChecked />
+              Company/carrier documents
+            </label>
+            <label className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-black/25 px-3 py-2">
+              <input type="checkbox" name="allowedCategories" value="driver" />
+              Driver/DQ documents
+            </label>
+            <label className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-black/25 px-3 py-2">
+              <input type="checkbox" name="allowedCategories" value="vehicle" />
+              Vehicle/maintenance documents
+            </label>
+          </div>
+        </fieldset>
+
+        <button className="form-button min-h-11 w-fit px-4 text-sm">Create upload link</button>
+      </form>
+
+      <div>
+        <p className="panel-label mb-3">Recent links</p>
+        {uploadLinks.length ? (
+          <div className="grid gap-2">
+            {uploadLinks.map((link) => (
+              <div key={link.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-white/10 bg-black/25 p-3 max-md:grid-cols-1">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap gap-2">
+                    <StatusChip value={uploadLinkStatus(link)} />
+                    <StatusChip value={link.allowedDocumentCategories.join(", ")} />
+                  </div>
+                  <p className="mt-2 text-xs font-bold text-manifest-muted">
+                    Expires {formatDateTime(link.expiresAt)} · Used {link.useCount} time{link.useCount === 1 ? "" : "s"}
+                    {link.lastUsedAt ? ` · Last used ${formatDateTime(link.lastUsedAt)}` : ""}
+                  </p>
+                </div>
+                {!link.revokedAt ? (
+                  <form action={revokeUploadLinkAction}>
+                    <input type="hidden" name="carrierId" value={carrierId} />
+                    <input type="hidden" name="uploadLinkId" value={link.id} />
+                    <button className="form-button min-h-10 px-3 text-sm">Revoke</button>
+                  </form>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state">No public upload links have been created for this carrier.</div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -383,6 +544,21 @@ function ChecklistTerm({ label, value }: { label: string; value: string | number
       </dd>
     </div>
   );
+}
+
+function Notice({ tone, message }: { tone: "success" | "error"; message: string }) {
+  const classes = tone === "success" ? "border-manifest-green/35 bg-manifest-green/10 text-manifest-green" : "border-manifest-danger/40 bg-manifest-danger/10 text-manifest-danger";
+  return <div className={`mb-5 rounded-md border p-3 text-sm font-bold ${classes}`}>{message}</div>;
+}
+
+function uploadLinkStatus(link: UploadLinkRecord) {
+  if (link.revokedAt) return "Revoked";
+  if (new Date(link.expiresAt).getTime() <= Date.now()) return "Expired";
+  return "Active";
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
 }
 
 function documentBorder(status: string) {

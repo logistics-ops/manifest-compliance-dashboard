@@ -78,6 +78,13 @@ export type ExecutiveOverviewData = {
     overdue: number;
     dueThisWeek: number;
   };
+  inspectionSummary: {
+    total: number;
+    open: number;
+    withViolations: number;
+    outOfService: number;
+    documentCount: number;
+  };
   loadCount: number;
   invoiceTotals: {
     count: number;
@@ -116,6 +123,7 @@ const organizationNavGroups: NavGroup[] = [
       { label: "Documents To Fix", href: "/documents-to-fix", icon: FileWarning },
       { label: "Compliance Alerts", href: "/compliance-alerts", icon: ShieldAlert },
       { label: "Audit Readiness", href: "/audit-readiness", icon: ShieldAlert },
+      { label: "Inspection Reports", href: "/inspections", icon: ClipboardCheck },
       { label: "Notifications", href: "/notifications", icon: Bell },
       { label: "Audit Logs", href: "#audit-logs", icon: ClipboardList },
     ],
@@ -143,6 +151,7 @@ const carrierNavGroups: NavGroup[] = [
       { label: "Documents", href: "#documents", icon: FileCheck2 },
       { label: "Documents To Fix", href: "/documents-to-fix", icon: FileWarning },
       { label: "Compliance Alerts", href: "/compliance-alerts", icon: ShieldAlert },
+      { label: "Inspection Reports", href: "/inspections", icon: ClipboardCheck },
       { label: "Notifications", href: "/notifications", icon: Bell },
     ],
   },
@@ -382,6 +391,7 @@ export function ComplianceDashboard({
               <ExecutiveMetricCard label="Expiring documents" value={executiveOverview.expiringDocuments} detail="Documents inside renewal watch" tone={executiveOverview.expiringDocuments ? "warn" : "good"} />
               <ExecutiveMetricCard label="Open compliance alerts" value={executiveOverview.openComplianceAlerts} detail="Unread/read alerts not dismissed" tone={executiveOverview.openComplianceAlerts ? "warn" : "good"} />
               <ExecutiveMetricCard label="Open tasks" value={executiveOverview.taskSummary.open} detail={`${executiveOverview.taskSummary.overdue} overdue · ${executiveOverview.taskSummary.dueThisWeek} due this week`} tone={executiveOverview.taskSummary.overdue ? "danger" : executiveOverview.taskSummary.open ? "warn" : "good"} />
+              <ExecutiveMetricCard label="Inspection reports" value={executiveOverview.inspectionSummary.total} detail={`${executiveOverview.inspectionSummary.outOfService} out of service · ${executiveOverview.inspectionSummary.withViolations} with findings`} tone={executiveOverview.inspectionSummary.outOfService ? "danger" : executiveOverview.inspectionSummary.withViolations ? "warn" : "good"} />
             </section>
 
             <AlertPanel carriers={activeCarriers} compact />

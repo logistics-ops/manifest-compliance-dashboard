@@ -6,6 +6,7 @@ import { getCarriers } from "@/lib/data/carriers";
 import { getComplianceTasks } from "@/lib/data/compliance-tasks";
 import { getDQFiles } from "@/lib/data/dq-files";
 import { getInvoices } from "@/lib/data/invoices";
+import { getInspectionReports, getInspectionSummary } from "@/lib/data/inspections";
 import { getLoads } from "@/lib/data/loads";
 import { getNotifications } from "@/lib/data/notifications";
 import { getCurrentOrganizationBranding } from "@/lib/data/organizations";
@@ -21,13 +22,14 @@ import type { VehicleRecord } from "@/lib/data/vehicles";
 
 export default async function Home() {
   const session = await requireStaffAccess();
-  const [carriers, auditReadiness, dqFiles, vehicles, loads, invoices, tasks, branding, auditLogs] = await Promise.all([
+  const [carriers, auditReadiness, dqFiles, vehicles, loads, invoices, inspections, tasks, branding, auditLogs] = await Promise.all([
     getCarriers(),
     getAuditReadinessDashboardData(),
     getDQFiles(),
     getVehicles(),
     getLoads(),
     getInvoices(),
+    getInspectionReports(),
     getComplianceTasks(),
     getCurrentOrganizationBranding(),
     getOrganizationAuditLogs(40),
@@ -40,6 +42,7 @@ export default async function Home() {
     vehicles,
     loads,
     invoices,
+    inspections,
     tasks,
     notifications,
   });
@@ -63,6 +66,7 @@ function buildExecutiveOverview({
   vehicles,
   loads,
   invoices,
+  inspections,
   tasks,
   notifications,
 }: {
@@ -72,6 +76,7 @@ function buildExecutiveOverview({
   vehicles: VehicleRecord[];
   loads: Load[];
   invoices: Invoice[];
+  inspections: Awaited<ReturnType<typeof getInspectionReports>>;
   tasks: ComplianceTask[];
   notifications: ComplianceNotification[];
 }): ExecutiveOverviewData {
@@ -105,6 +110,7 @@ function buildExecutiveOverview({
     auditReadiness.totalCriticalBlockers +
     vehicles.reduce((total, vehicle) => total + vehicle.criticalBlockers.length, 0);
   const openTasks = tasks.filter((task) => task.status !== "completed");
+  const inspectionSummary = getInspectionSummary(inspections);
   const today = new Date().toISOString().slice(0, 10);
   const weekEnd = new Date(`${today}T12:00:00`);
   weekEnd.setDate(weekEnd.getDate() + 7);
@@ -124,6 +130,7 @@ function buildExecutiveOverview({
       overdue: openTasks.filter((task) => task.dueDate !== null && task.dueDate < today).length,
       dueThisWeek: openTasks.filter((task) => task.dueDate !== null && task.dueDate >= today && task.dueDate <= weekEndKey).length,
     },
+    inspectionSummary,
     loadCount: loads.length,
     invoiceTotals: {
       count: invoices.length,

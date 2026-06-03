@@ -9,6 +9,7 @@ import {
   canAccessCarrierRecord,
   canAssignCarrierToUser,
   canAccessInvoiceRecord,
+  canAccessInspectionRecord,
   canAccessLoadRecord,
   canAccessLoadTimeline,
   canDeleteArchivedLoadFiles,
@@ -17,6 +18,7 @@ import {
   canGenerateInvoiceRecord,
   canAccessNotificationRecord,
   canAccessOrganizationRecord,
+  canAccessUploadLinkRecord,
   canCreateLoadRecord,
   canCreateBrokerCheckRequest,
   canInviteOrganizationUsers,
@@ -24,9 +26,12 @@ import {
   canManageDriverDocumentRecord,
   canManageComplianceTaskRecord,
   canManageEquipmentDocumentRecord,
+  canManageInspectionRecord,
   canManageOrganizationUsers,
   canManageLoadDocumentRecord,
   canManageLoadRecord,
+  canManageUploadLinkRecord,
+  canUploadInspectionDocumentRecord,
   canUploadCarrierDocument,
   canUploadLoadDocument,
   canUploadLoadDocumentType,
@@ -42,6 +47,8 @@ import {
   isLoadStoragePath,
   isLoadDocumentStoragePath,
   isInvoiceStoragePath,
+  isInspectionStoragePath,
+  assertInspectionStoragePath,
   isEquipmentDocumentStoragePath,
   assertEquipmentDocumentStoragePath,
 } from "../../lib/security/tenant-rules";
@@ -137,6 +144,40 @@ test("vehicle document permission allows admins, staff, and linked carriers only
   assert.equal(canManageEquipmentDocumentRecord(carrierUser, equipmentA, false), false);
 });
 
+test("inspection reports are visible to org staff and linked carriers only", () => {
+  const platform = session({ role: "admin", organizationId: null, platformSuperAdmin: true });
+  const admin = session({ role: "admin" });
+  const staff = session({ role: "staff" });
+  const carrierUser = session({ role: "carrier", carrierId: carrierA });
+  const otherCarrierUser = session({ role: "carrier", carrierId: carrierB });
+  const inspectionA = { organizationId: orgA, carrierId: carrierA };
+
+  assert.equal(canAccessInspectionRecord(platform, { organizationId: orgB, carrierId: carrierB }, false), true);
+  assert.equal(canAccessInspectionRecord(admin, inspectionA, true), true);
+  assert.equal(canAccessInspectionRecord(staff, inspectionA, true), true);
+  assert.equal(canAccessInspectionRecord(carrierUser, inspectionA, true), true);
+  assert.equal(canAccessInspectionRecord(otherCarrierUser, inspectionA, true), false);
+  assert.equal(canAccessInspectionRecord(admin, { organizationId: orgB, carrierId: carrierB }, true), false);
+  assert.equal(canAccessInspectionRecord(carrierUser, inspectionA, false), false);
+});
+
+test("inspection management is staff scoped while document upload allows linked carriers", () => {
+  const admin = session({ role: "admin" });
+  const staff = session({ role: "staff" });
+  const carrierUser = session({ role: "carrier", carrierId: carrierA });
+  const otherCarrierUser = session({ role: "carrier", carrierId: carrierB });
+  const inspectionA = { organizationId: orgA, carrierId: carrierA };
+
+  assert.equal(canManageInspectionRecord(admin, inspectionA, true), true);
+  assert.equal(canManageInspectionRecord(staff, inspectionA, true), true);
+  assert.equal(canManageInspectionRecord(carrierUser, inspectionA, true), false);
+  assert.equal(canUploadInspectionDocumentRecord(admin, inspectionA, true), true);
+  assert.equal(canUploadInspectionDocumentRecord(staff, inspectionA, true), true);
+  assert.equal(canUploadInspectionDocumentRecord(carrierUser, inspectionA, true), true);
+  assert.equal(canUploadInspectionDocumentRecord(otherCarrierUser, inspectionA, true), false);
+  assert.equal(canUploadInspectionDocumentRecord(carrierUser, { organizationId: orgB, carrierId: carrierA }, true), false);
+});
+
 test("driver document permission allows admins, staff, and linked carriers only", () => {
   const admin = session({ role: "admin" });
   const staff = session({ role: "staff" });
@@ -200,6 +241,19 @@ test("vehicle document storage path validation accepts only expected organizatio
   assert.throws(() => assertEquipmentDocumentStoragePath(wrongOrgPath, orgA, equipmentId), /current organization and equipment/);
 });
 
+test("inspection storage path validation accepts only expected organization and inspection prefix", () => {
+  const inspectionId = "inspection-a";
+  const validPath = `organizations/${orgA}/inspections/${inspectionId}/roadside/v1/file.pdf`;
+  const wrongOrgPath = `organizations/${orgB}/inspections/${inspectionId}/roadside/v1/file.pdf`;
+  const wrongInspectionPath = `organizations/${orgA}/inspections/inspection-b/roadside/v1/file.pdf`;
+
+  assert.equal(isInspectionStoragePath(validPath, orgA, inspectionId), true);
+  assert.equal(isInspectionStoragePath(wrongOrgPath, orgA, inspectionId), false);
+  assert.equal(isInspectionStoragePath(wrongInspectionPath, orgA, inspectionId), false);
+  assert.doesNotThrow(() => assertInspectionStoragePath(validPath, orgA, inspectionId));
+  assert.throws(() => assertInspectionStoragePath(wrongOrgPath, orgA, inspectionId), /current organization and inspection/);
+});
+
 test("notification access is scoped by organization, assignment, and linked carrier", () => {
   const staff = session({ role: "staff", userId: "staff-a" });
   const carrierUser = session({ role: "carrier", userId: "carrier-user-a", carrierId: carrierA });
@@ -261,6 +315,23 @@ test("compliance task access is scoped by organization, assignment, and linked c
   assert.equal(canManageComplianceTaskRecord(carrierUser, orgA, true), false);
   assert.equal(canManageComplianceTaskRecord(staff, orgB, true), false);
   assert.equal(canManageComplianceTaskRecord(platform, orgB, false), true);
+});
+
+test("secure upload links are manageable only by platform, admin, and staff in the organization", () => {
+  const platform = session({ role: "admin", organizationId: null, platformSuperAdmin: true });
+  const admin = session({ role: "admin" });
+  const staff = session({ role: "staff" });
+  const carrierUser = session({ role: "carrier", carrierId: carrierA });
+  const uploadLink = { organizationId: orgA, carrierId: carrierA };
+
+  assert.equal(canAccessUploadLinkRecord(platform, { organizationId: orgB, carrierId: carrierB }, false), true);
+  assert.equal(canAccessUploadLinkRecord(admin, uploadLink, true), true);
+  assert.equal(canAccessUploadLinkRecord(staff, uploadLink, true), true);
+  assert.equal(canAccessUploadLinkRecord(admin, { organizationId: orgB, carrierId: carrierB }, true), false);
+  assert.equal(canAccessUploadLinkRecord(carrierUser, uploadLink, true), false);
+  assert.equal(canManageUploadLinkRecord(staff, uploadLink, true), true);
+  assert.equal(canManageUploadLinkRecord(carrierUser, uploadLink, true), false);
+  assert.equal(canManageUploadLinkRecord(staff, uploadLink, false), false);
 });
 
 test("load access is scoped by organization, role, and linked carrier", () => {
