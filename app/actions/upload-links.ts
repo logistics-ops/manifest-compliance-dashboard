@@ -121,6 +121,7 @@ export async function publicUploadDocumentAction(formData: FormData) {
   const file = formData.get("file");
   const link = await getPublicUploadLink(token);
   const adminSupabase = createAdminClient();
+  const safeTokenHashPrefix = token ? hashUploadToken(token).slice(0, 12) : null;
 
   if (!link?.isUsable) redirectToUpload(token, "This upload link is expired, revoked, or invalid.", "error");
   if (!adminSupabase) redirectToUpload(token, "Uploads are temporarily unavailable.", "error");
@@ -140,54 +141,72 @@ export async function publicUploadDocumentAction(formData: FormData) {
   const ownerId = getOwnerIdForCategory(link, category);
   if (!ownerId) redirectToUpload(token, "This upload link is missing the required owner record for that category.", "error");
 
-  const versionNumber = await nextVersionNumber(category, link, documentName);
-  const fileName = sanitizeFileName(file.name);
-  const storagePath = buildStoragePath(category, link.organizationId, ownerId, documentName, versionNumber, fileName);
-  const uploadData = Buffer.from(await file.arrayBuffer());
-  const { error: uploadError } = await adminSupabase.storage.from(STORAGE_BUCKET).upload(storagePath, uploadData, {
-    contentType: getDocumentMimeType(file),
-    upsert: false,
-  });
+  let storagePath: string | null = null;
 
-  if (uploadError) redirectToUpload(token, uploadError.message, "error");
+  try {
+    const versionNumber = await nextVersionNumber(category, link, documentName);
+    const fileName = sanitizeFileName(file.name);
+    storagePath = buildStoragePath(category, link.organizationId, ownerId, documentName, versionNumber, fileName);
+    const uploadData = Buffer.from(await file.arrayBuffer());
+    const { error: uploadError } = await adminSupabase.storage.from(STORAGE_BUCKET).upload(storagePath, uploadData, {
+      contentType: getDocumentMimeType(file),
+      upsert: false,
+    });
 
-  const documentId = await finalizePublicDocument({
-    category,
-    organizationId: link.organizationId,
-    carrierId: link.carrierId,
-    ownerId,
-    documentName,
-    storagePath,
-    fileName,
-    fileSize: file.size,
-    mimeType: getDocumentMimeType(file),
-    expirationDate,
-    notes,
-    versionNumber,
-  });
+    if (uploadError) throw new PublicUploadError(uploadError.message, "storage_upload");
 
-  await adminSupabase
-    .from("upload_links")
-    .update({ last_used_at: new Date().toISOString(), use_count: link.useCount + 1 })
-    .eq("id", link.id);
+    const documentId = await finalizePublicDocument({
+      category,
+      organizationId: link.organizationId,
+      carrierId: link.carrierId,
+      ownerId,
+      documentName,
+      storagePath,
+      fileName,
+      fileSize: file.size,
+      mimeType: getDocumentMimeType(file),
+      expirationDate,
+      notes,
+      versionNumber,
+    });
 
-  await appendAuditLog({
-    organizationId: link.organizationId,
-    actorUserId: null,
-    action: "upload_link.used",
-    entityType: "upload_link",
-    entityId: link.id,
-    metadata: { carrier_id: link.carrierId, category, document_name: documentName },
-  });
+    const { error: usageError } = await adminSupabase
+      .from("upload_links")
+      .update({ last_used_at: new Date().toISOString(), use_count: link.useCount + 1 })
+      .eq("id", link.id);
+    if (usageError) throw new PublicUploadError(usageError.message, "usage_update");
 
-  await appendAuditLog({
-    organizationId: link.organizationId,
-    actorUserId: null,
-    action: "public_document.uploaded",
-    entityType: `${category}_document`,
-    entityId: documentId,
-    metadata: { upload_link_id: link.id, carrier_id: link.carrierId, owner_id: ownerId, category, document_name: documentName, storage_path: storagePath, file_name: fileName },
-  });
+    await appendAuditLog({
+      organizationId: link.organizationId,
+      actorUserId: null,
+      action: "upload_link.used",
+      entityType: "upload_link",
+      entityId: link.id,
+      metadata: { carrier_id: link.carrierId, category, document_name: documentName },
+    });
+
+    await appendAuditLog({
+      organizationId: link.organizationId,
+      actorUserId: null,
+      action: "public_document.uploaded",
+      entityType: `${category}_document`,
+      entityId: documentId,
+      metadata: { upload_link_id: link.id, carrier_id: link.carrierId, owner_id: ownerId, category, document_name: documentName, storage_path: storagePath, file_name: fileName },
+    });
+  } catch (error) {
+    const failure = normalizePublicUploadError(error);
+    console.warn("[upload-link] public upload failed", {
+      safeTokenHashPrefix,
+      stage: failure.stage,
+      category,
+      linkId: link.id,
+      carrierId: link.carrierId,
+      ownerId,
+      storagePath,
+      message: failure.logMessage,
+    });
+    redirectToUpload(token, failure.userMessage, "error");
+  }
 
   revalidatePath(`/carriers/${link.carrierId}`);
   revalidatePath("/audit-readiness");
@@ -375,6 +394,33 @@ function redirectToCarrier(carrierId: string, message: string, type: "success" |
 
 function redirectToUpload(token: string, message: string, type: "success" | "error"): never {
   redirect(`/upload/${token}?${type}=${encodeURIComponent(message)}`);
+}
+
+class PublicUploadError extends Error {
+  constructor(message: string, public stage: string) {
+    super(message);
+    this.name = "PublicUploadError";
+  }
+}
+
+function normalizePublicUploadError(error: unknown) {
+  const stage = error instanceof PublicUploadError ? error.stage : "finalization";
+  const logMessage = error instanceof Error ? error.message : "Unknown public upload error.";
+  const userMessage = publicUploadUserMessage(stage);
+
+  return { stage, logMessage, userMessage };
+}
+
+function publicUploadUserMessage(stage: string) {
+  if (stage === "storage_upload") {
+    return "We could not store this file. Check the file type and size, then try again.";
+  }
+
+  if (stage === "usage_update") {
+    return "The document was saved, but the upload link could not be marked used. Ask Manifest to review this upload.";
+  }
+
+  return "We could not finish saving this document. Ask Manifest to review the upload link and try again.";
 }
 
 function requireOrganizationId(session: AuthSession) {
