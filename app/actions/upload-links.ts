@@ -125,6 +125,16 @@ export async function publicUploadDocumentAction(formData: FormData) {
 
   if (!link?.isUsable) redirectToUpload(token, "This upload link is expired, revoked, or invalid.", "error");
   if (!adminSupabase) redirectToUpload(token, "Uploads are temporarily unavailable.", "error");
+  if (STORAGE_BUCKET !== "carrier-documents") {
+    console.warn("[upload-link] public upload misconfigured storage bucket", {
+      safeTokenHashPrefix,
+      expectedBucket: "carrier-documents",
+      configuredBucket: STORAGE_BUCKET,
+      linkId: link.id,
+      category,
+    });
+    redirectToUpload(token, "Uploads are temporarily unavailable. Ask Manifest to verify storage settings.", "error");
+  }
   if (!uploadCategories.has(category) || !link.allowedDocumentCategories.includes(category)) {
     redirectToUpload(token, "This upload link does not allow that document category.", "error");
   }
@@ -142,6 +152,8 @@ export async function publicUploadDocumentAction(formData: FormData) {
   if (!ownerId) redirectToUpload(token, "This upload link is missing the required owner record for that category.", "error");
 
   let storagePath: string | null = null;
+  const documentSlug = slugify(documentName);
+  const targetTable = documentTableForCategory(category);
 
   try {
     const versionNumber = await nextVersionNumber(category, link, documentName);
@@ -153,7 +165,13 @@ export async function publicUploadDocumentAction(formData: FormData) {
       upsert: false,
     });
 
-    if (uploadError) throw new PublicUploadError(uploadError.message, "storage_upload");
+    if (uploadError) {
+      throw new PublicUploadError(uploadError.message, "storage_upload", {
+        supabaseErrorCode: getSupabaseErrorCode(uploadError),
+        supabaseErrorMessage: uploadError.message,
+        table: "storage.objects",
+      });
+    }
 
     const documentId = await finalizePublicDocument({
       category,
@@ -174,7 +192,13 @@ export async function publicUploadDocumentAction(formData: FormData) {
       .from("upload_links")
       .update({ last_used_at: new Date().toISOString(), use_count: link.useCount + 1 })
       .eq("id", link.id);
-    if (usageError) throw new PublicUploadError(usageError.message, "usage_update");
+    if (usageError) {
+      throw new PublicUploadError(usageError.message, "usage_update", {
+        supabaseErrorCode: usageError.code,
+        supabaseErrorMessage: usageError.message,
+        table: "upload_links",
+      });
+    }
 
     await appendAuditLog({
       organizationId: link.organizationId,
@@ -202,7 +226,14 @@ export async function publicUploadDocumentAction(formData: FormData) {
       linkId: link.id,
       carrierId: link.carrierId,
       ownerId,
-      storagePath,
+      documentName,
+      documentSlug,
+      targetTable,
+      failedTable: failure.table ?? targetTable,
+      storageBucket: STORAGE_BUCKET,
+      storagePathPrefix: storagePath ? storagePathPrefix(storagePath) : null,
+      supabaseErrorCode: failure.supabaseErrorCode,
+      supabaseErrorMessage: failure.supabaseErrorMessage,
       message: failure.logMessage,
     });
     redirectToUpload(token, failure.userMessage, "error");
@@ -229,7 +260,11 @@ async function finalizePublicDocument(input: {
   versionNumber: number;
 }) {
   const adminSupabase = createAdminClient();
-  if (!adminSupabase) throw new Error("Supabase service role is required.");
+  if (!adminSupabase) {
+    throw new PublicUploadError("Supabase service role is required.", "configuration", {
+      table: documentTableForCategory(input.category),
+    });
+  }
   const uploadedAt = new Date().toISOString();
   const status = getDocumentDatabaseStatus(true, input.expirationDate);
 
@@ -255,9 +290,15 @@ async function finalizePublicDocument(input: {
       .select("id")
       .single();
 
-    if (error || !data) throw new Error(error?.message || "Unable to save carrier document.");
+    if (error || !data) {
+      throw new PublicUploadError(error?.message || "Unable to save carrier document.", "document_upsert", {
+        supabaseErrorCode: error?.code,
+        supabaseErrorMessage: error?.message,
+        table: "carrier_documents",
+      });
+    }
 
-    await adminSupabase.from("carrier_document_versions").insert({
+    const { error: versionError } = await adminSupabase.from("carrier_document_versions").insert({
       organization_id: input.organizationId,
       carrier_document_id: data.id,
       carrier_id: input.carrierId,
@@ -270,6 +311,14 @@ async function finalizePublicDocument(input: {
       uploaded_by: null,
       uploaded_at: uploadedAt,
     });
+
+    if (versionError) {
+      throw new PublicUploadError(versionError.message, "document_version_insert", {
+        supabaseErrorCode: versionError.code,
+        supabaseErrorMessage: versionError.message,
+        table: "carrier_document_versions",
+      });
+    }
 
     return data.id;
   }
@@ -293,7 +342,13 @@ async function finalizePublicDocument(input: {
     .select("id")
     .single();
 
-  if (error || !data) throw new Error(error?.message || "Unable to save document.");
+  if (error || !data) {
+    throw new PublicUploadError(error?.message || "Unable to save document.", "document_upsert", {
+      supabaseErrorCode: error?.code,
+      supabaseErrorMessage: error?.message,
+      table,
+    });
+  }
   return data.id;
 }
 
@@ -335,7 +390,7 @@ async function appendAuditLog(input: {
 }) {
   const adminSupabase = createAdminClient();
   if (!adminSupabase) return;
-  await adminSupabase.from("audit_logs").insert({
+  const { error } = await adminSupabase.from("audit_logs").insert({
     organization_id: input.organizationId,
     actor_user_id: input.actorUserId,
     action: input.action,
@@ -343,6 +398,18 @@ async function appendAuditLog(input: {
     entity_id: input.entityId,
     metadata: input.metadata,
   });
+
+  if (error) {
+    console.warn("[upload-link] audit log insert failed", {
+      stage: "audit_log_insert",
+      table: "audit_logs",
+      action: input.action,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      supabaseErrorCode: error.code,
+      supabaseErrorMessage: error.message,
+    });
+  }
 }
 
 function getCategories(formData: FormData): UploadDocumentCategory[] {
@@ -359,6 +426,30 @@ function getOwnerIdForCategory(link: NonNullable<Awaited<ReturnType<typeof getPu
 function buildStoragePath(category: UploadDocumentCategory, organizationId: string, ownerId: string, documentName: string, versionNumber: number, fileName: string) {
   const folder = category === "carrier" ? "carriers" : category === "driver" ? "drivers" : "equipment";
   return `organizations/${organizationId}/${folder}/${ownerId}/${slugify(documentName)}/v${versionNumber}/${Date.now()}-${fileName}`;
+}
+
+function documentTableForCategory(category: UploadDocumentCategory) {
+  if (category === "carrier") return "carrier_documents";
+  if (category === "driver") return "driver_documents";
+  return "equipment_documents";
+}
+
+function storagePathPrefix(storagePath: string) {
+  return storagePath.split("/").slice(0, -1).join("/");
+}
+
+function getSupabaseErrorCode(error: unknown) {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const code = (error as { code?: unknown }).code;
+    return typeof code === "string" ? code : null;
+  }
+
+  if (typeof error === "object" && error !== null && "statusCode" in error) {
+    const statusCode = (error as { statusCode?: unknown }).statusCode;
+    return typeof statusCode === "string" || typeof statusCode === "number" ? String(statusCode) : null;
+  }
+
+  return null;
 }
 
 async function buildUploadUrl(token: string) {
@@ -397,7 +488,15 @@ function redirectToUpload(token: string, message: string, type: "success" | "err
 }
 
 class PublicUploadError extends Error {
-  constructor(message: string, public stage: string) {
+  constructor(
+    message: string,
+    public stage: string,
+    public details: {
+      table?: string;
+      supabaseErrorCode?: string | null;
+      supabaseErrorMessage?: string | null;
+    } = {},
+  ) {
     super(message);
     this.name = "PublicUploadError";
   }
@@ -407,8 +506,16 @@ function normalizePublicUploadError(error: unknown) {
   const stage = error instanceof PublicUploadError ? error.stage : "finalization";
   const logMessage = error instanceof Error ? error.message : "Unknown public upload error.";
   const userMessage = publicUploadUserMessage(stage);
+  const details = error instanceof PublicUploadError ? error.details : {};
 
-  return { stage, logMessage, userMessage };
+  return {
+    stage,
+    logMessage,
+    userMessage,
+    table: details.table,
+    supabaseErrorCode: details.supabaseErrorCode,
+    supabaseErrorMessage: details.supabaseErrorMessage,
+  };
 }
 
 function publicUploadUserMessage(stage: string) {
