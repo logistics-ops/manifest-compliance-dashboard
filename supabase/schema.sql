@@ -2370,6 +2370,26 @@ create table if not exists public.inspection_documents (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.safety_scores (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  carrier_id uuid not null references public.carriers(id) on delete cascade,
+  dot_number text,
+  mc_number text,
+  score_label text not null,
+  safety_status text not null default 'missing_data' check (safety_status in ('good', 'needs_review', 'high_risk', 'missing_data')),
+  inspection_count integer not null default 0 check (inspection_count >= 0),
+  violation_count integer not null default 0 check (violation_count >= 0),
+  out_of_service_count integer not null default 0 check (out_of_service_count >= 0),
+  notes text,
+  recorded_at timestamptz not null default now(),
+  created_by uuid references public.users(id) on delete set null,
+  updated_by uuid references public.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (organization_id, id)
+);
+
 alter table public.inspection_reports drop constraint if exists inspection_reports_organization_carrier_fkey;
 alter table public.inspection_reports add constraint inspection_reports_organization_carrier_fkey foreign key (organization_id, carrier_id) references public.carriers(organization_id, id) on delete cascade;
 alter table public.inspection_reports drop constraint if exists inspection_reports_organization_driver_fkey;
@@ -2378,6 +2398,9 @@ alter table public.inspection_reports drop constraint if exists inspection_repor
 alter table public.inspection_reports add constraint inspection_reports_organization_equipment_fkey foreign key (organization_id, equipment_id) references public.equipment(organization_id, id) on delete set null;
 alter table public.inspection_documents drop constraint if exists inspection_documents_organization_inspection_fkey;
 alter table public.inspection_documents add constraint inspection_documents_organization_inspection_fkey foreign key (organization_id, inspection_id) references public.inspection_reports(organization_id, id) on delete cascade;
+
+alter table public.safety_scores drop constraint if exists safety_scores_organization_carrier_fkey;
+alter table public.safety_scores add constraint safety_scores_organization_carrier_fkey foreign key (organization_id, carrier_id) references public.carriers(organization_id, id) on delete cascade;
 alter table public.inspection_documents drop constraint if exists inspection_documents_organization_carrier_fkey;
 alter table public.inspection_documents add constraint inspection_documents_organization_carrier_fkey foreign key (organization_id, carrier_id) references public.carriers(organization_id, id) on delete cascade;
 
@@ -2389,13 +2412,22 @@ create index if not exists inspection_reports_status_idx on public.inspection_re
 create index if not exists inspection_documents_organization_id_idx on public.inspection_documents(organization_id);
 create index if not exists inspection_documents_inspection_id_idx on public.inspection_documents(inspection_id);
 create index if not exists inspection_documents_carrier_id_idx on public.inspection_documents(carrier_id);
+create index if not exists safety_scores_organization_id_idx on public.safety_scores(organization_id);
+create index if not exists safety_scores_carrier_id_idx on public.safety_scores(carrier_id);
+create index if not exists safety_scores_recorded_at_idx on public.safety_scores(recorded_at desc);
+create index if not exists safety_scores_safety_status_idx on public.safety_scores(safety_status);
 
 drop trigger if exists set_inspection_reports_updated_at on public.inspection_reports;
 create trigger set_inspection_reports_updated_at before update on public.inspection_reports
 for each row execute function public.set_updated_at();
 
+drop trigger if exists set_safety_scores_updated_at on public.safety_scores;
+create trigger set_safety_scores_updated_at before update on public.safety_scores
+for each row execute function public.set_updated_at();
+
 alter table public.inspection_reports enable row level security;
 alter table public.inspection_documents enable row level security;
+alter table public.safety_scores enable row level security;
 
 drop policy if exists "Staff can read inspection audit logs" on public.audit_logs;
 create policy "Staff can read inspection audit logs"
@@ -2414,6 +2446,17 @@ using (
   )
 );
 
+drop policy if exists "Staff can read safety score audit logs" on public.audit_logs;
+create policy "Staff can read safety score audit logs"
+on public.audit_logs for select
+to authenticated
+using (
+  public.current_user_role() = 'staff'::public.app_role
+  and organization_id is not null
+  and public.can_access_organization(organization_id)
+  and action in ('safety_score.created', 'safety_score.updated')
+);
+
 drop policy if exists "Authorized users can read inspection reports" on public.inspection_reports;
 create policy "Authorized users can read inspection reports"
 on public.inspection_reports for select
@@ -2422,6 +2465,206 @@ using (
   public.is_platform_super_admin()
   or (public.can_manage_compliance() and public.can_access_organization(organization_id))
   or (public.current_user_role() = 'carrier'::public.app_role and public.current_user_carrier_id() = carrier_id and public.can_access_organization(organization_id))
+);
+
+drop policy if exists "Authorized users can read safety scores" on public.safety_scores;
+create policy "Authorized users can read safety scores"
+on public.safety_scores for select
+to authenticated
+using (
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
+  or (public.current_user_role() = 'carrier'::public.app_role and public.current_user_carrier_id() = carrier_id and public.can_access_organization(organization_id))
+);
+
+drop policy if exists "Staff can create safety scores" on public.safety_scores;
+create policy "Staff can create safety scores"
+on public.safety_scores for insert
+to authenticated
+with check (
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
+);
+
+drop policy if exists "Staff can update safety scores" on public.safety_scores;
+create policy "Staff can update safety scores"
+on public.safety_scores for update
+to authenticated
+using (
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
+)
+with check (
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
+);
+
+create table if not exists public.safety_coaching (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  carrier_id uuid not null references public.carriers(id) on delete cascade,
+  safety_score_id uuid references public.safety_scores(id) on delete set null,
+  inspection_report_id uuid references public.inspection_reports(id) on delete set null,
+  compliance_task_id uuid references public.compliance_tasks(id) on delete set null,
+  issue text not null,
+  recommendation text not null,
+  priority public.compliance_task_priority not null default 'medium',
+  target_completion_date date,
+  status public.compliance_task_status not null default 'open',
+  notes text,
+  created_by uuid references public.users(id) on delete set null,
+  updated_by uuid references public.users(id) on delete set null,
+  completed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (organization_id, id)
+);
+
+alter table public.safety_coaching drop constraint if exists safety_coaching_organization_carrier_fkey;
+alter table public.safety_coaching add constraint safety_coaching_organization_carrier_fkey foreign key (organization_id, carrier_id) references public.carriers(organization_id, id) on delete cascade;
+alter table public.safety_coaching drop constraint if exists safety_coaching_organization_safety_score_fkey;
+alter table public.safety_coaching add constraint safety_coaching_organization_safety_score_fkey foreign key (organization_id, safety_score_id) references public.safety_scores(organization_id, id) on delete set null;
+alter table public.safety_coaching drop constraint if exists safety_coaching_organization_inspection_fkey;
+alter table public.safety_coaching add constraint safety_coaching_organization_inspection_fkey foreign key (organization_id, inspection_report_id) references public.inspection_reports(organization_id, id) on delete set null;
+
+create index if not exists safety_coaching_organization_id_idx on public.safety_coaching(organization_id);
+create index if not exists safety_coaching_carrier_id_idx on public.safety_coaching(carrier_id);
+create index if not exists safety_coaching_status_idx on public.safety_coaching(status);
+create index if not exists safety_coaching_priority_idx on public.safety_coaching(priority);
+create index if not exists safety_coaching_target_completion_date_idx on public.safety_coaching(target_completion_date);
+create index if not exists safety_coaching_safety_score_id_idx on public.safety_coaching(safety_score_id);
+create index if not exists safety_coaching_inspection_report_id_idx on public.safety_coaching(inspection_report_id);
+create index if not exists safety_coaching_compliance_task_id_idx on public.safety_coaching(compliance_task_id);
+
+drop trigger if exists set_safety_coaching_updated_at on public.safety_coaching;
+create trigger set_safety_coaching_updated_at before update on public.safety_coaching
+for each row execute function public.set_updated_at();
+
+alter table public.safety_coaching enable row level security;
+
+drop policy if exists "Authorized users can read safety coaching" on public.safety_coaching;
+create policy "Authorized users can read safety coaching"
+on public.safety_coaching for select
+to authenticated
+using (
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
+  or (public.current_user_role() = 'carrier'::public.app_role and public.current_user_carrier_id() = carrier_id and public.can_access_organization(organization_id))
+);
+
+drop policy if exists "Staff can create safety coaching" on public.safety_coaching;
+create policy "Staff can create safety coaching"
+on public.safety_coaching for insert
+to authenticated
+with check (
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
+);
+
+drop policy if exists "Staff can update safety coaching" on public.safety_coaching;
+create policy "Staff can update safety coaching"
+on public.safety_coaching for update
+to authenticated
+using (
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
+)
+with check (
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
+);
+
+drop policy if exists "Staff can read safety coaching audit logs" on public.audit_logs;
+create policy "Staff can read safety coaching audit logs"
+on public.audit_logs for select
+to authenticated
+using (
+  public.current_user_role() = 'staff'::public.app_role
+  and organization_id is not null
+  and public.can_access_organization(organization_id)
+  and action in ('safety_coaching.created', 'safety_coaching.updated', 'safety_coaching.completed')
+);
+
+create table if not exists public.safer_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  carrier_id uuid references public.carriers(id) on delete set null,
+  legal_name text,
+  dba_name text,
+  dot_number text not null,
+  mc_number text,
+  operating_status text,
+  power_units integer check (power_units is null or power_units >= 0),
+  drivers integer check (drivers is null or drivers >= 0),
+  safety_rating text,
+  inspection_summary text,
+  out_of_service_summary text,
+  crash_summary text,
+  snapshot_date timestamptz not null default now(),
+  source_label text not null default 'Manual SAFER review',
+  notes text,
+  created_by uuid references public.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (organization_id, id)
+);
+
+alter table public.safer_snapshots drop constraint if exists safer_snapshots_organization_carrier_fkey;
+alter table public.safer_snapshots add constraint safer_snapshots_organization_carrier_fkey foreign key (organization_id, carrier_id) references public.carriers(organization_id, id) on delete set null;
+
+create index if not exists safer_snapshots_organization_id_idx on public.safer_snapshots(organization_id);
+create index if not exists safer_snapshots_carrier_id_idx on public.safer_snapshots(carrier_id);
+create index if not exists safer_snapshots_dot_number_idx on public.safer_snapshots(dot_number);
+create index if not exists safer_snapshots_mc_number_idx on public.safer_snapshots(mc_number);
+create index if not exists safer_snapshots_snapshot_date_idx on public.safer_snapshots(snapshot_date desc);
+
+drop trigger if exists set_safer_snapshots_updated_at on public.safer_snapshots;
+create trigger set_safer_snapshots_updated_at before update on public.safer_snapshots
+for each row execute function public.set_updated_at();
+
+alter table public.safer_snapshots enable row level security;
+
+drop policy if exists "Authorized users can read SAFER snapshots" on public.safer_snapshots;
+create policy "Authorized users can read SAFER snapshots"
+on public.safer_snapshots for select
+to authenticated
+using (
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
+  or (public.current_user_role() = 'carrier'::public.app_role and carrier_id is not null and public.current_user_carrier_id() = carrier_id and public.can_access_organization(organization_id))
+);
+
+drop policy if exists "Staff can create SAFER snapshots" on public.safer_snapshots;
+create policy "Staff can create SAFER snapshots"
+on public.safer_snapshots for insert
+to authenticated
+with check (
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
+);
+
+drop policy if exists "Staff can update SAFER snapshots" on public.safer_snapshots;
+create policy "Staff can update SAFER snapshots"
+on public.safer_snapshots for update
+to authenticated
+using (
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
+)
+with check (
+  public.is_platform_super_admin()
+  or (public.can_manage_compliance() and public.can_access_organization(organization_id))
+);
+
+drop policy if exists "Staff can read SAFER audit logs" on public.audit_logs;
+create policy "Staff can read SAFER audit logs"
+on public.audit_logs for select
+to authenticated
+using (
+  public.current_user_role() = 'staff'::public.app_role
+  and organization_id is not null
+  and public.can_access_organization(organization_id)
+  and action in ('safer_lookup.performed', 'safer_snapshot.saved')
 );
 
 drop policy if exists "Staff can create inspection reports" on public.inspection_reports;

@@ -10,6 +10,9 @@ import { getInspectionReports, getInspectionSummary } from "@/lib/data/inspectio
 import { getLoads } from "@/lib/data/loads";
 import { getNotifications } from "@/lib/data/notifications";
 import { getCurrentOrganizationBranding } from "@/lib/data/organizations";
+import { getSaferSnapshots, summarizeSaferSnapshots, type SaferSnapshotRecord } from "@/lib/data/safer-snapshots";
+import { getSafetyCoachingRecords, summarizeSafetyCoaching, type SafetyCoachingRecord } from "@/lib/data/safety-coaching";
+import { buildSafetyTrendRecords, getSafetyScores, summarizeSafetyScores, summarizeSafetyTrends, type SafetyScoreRecord } from "@/lib/data/safety-scores";
 import { getVehicles } from "@/lib/data/vehicles";
 import { requireStaffAccess } from "@/lib/integrations/auth";
 import { buildOnboardingProgressByCarrier, summarizeOnboardingProgress } from "@/lib/onboarding-progress";
@@ -23,7 +26,7 @@ import type { VehicleRecord } from "@/lib/data/vehicles";
 
 export default async function Home() {
   const session = await requireStaffAccess();
-  const [carriers, auditReadiness, dqFiles, vehicles, loads, invoices, inspections, tasks, branding, auditLogs] = await Promise.all([
+  const [carriers, auditReadiness, dqFiles, vehicles, loads, invoices, inspections, tasks, safetyScores, safetyCoaching, saferSnapshots, branding, auditLogs] = await Promise.all([
     getCarriers(),
     getAuditReadinessDashboardData(),
     getDQFiles(),
@@ -32,6 +35,9 @@ export default async function Home() {
     getInvoices(),
     getInspectionReports(),
     getComplianceTasks(),
+    getSafetyScores(),
+    getSafetyCoachingRecords(),
+    getSaferSnapshots(),
     getCurrentOrganizationBranding(),
     getOrganizationAuditLogs(40),
   ]);
@@ -45,6 +51,9 @@ export default async function Home() {
     invoices,
     inspections,
     tasks,
+    safetyScores,
+    safetyCoaching,
+    saferSnapshots,
     notifications,
   });
   const onboardingProgressByCarrier = buildOnboardingProgressByCarrier({ carriers, drivers: dqFiles, vehicles });
@@ -74,6 +83,9 @@ function buildExecutiveOverview({
   invoices,
   inspections,
   tasks,
+  safetyScores,
+  safetyCoaching,
+  saferSnapshots,
   notifications,
 }: {
   carriers: Carrier[];
@@ -84,6 +96,9 @@ function buildExecutiveOverview({
   invoices: Invoice[];
   inspections: Awaited<ReturnType<typeof getInspectionReports>>;
   tasks: ComplianceTask[];
+  safetyScores: SafetyScoreRecord[];
+  safetyCoaching: SafetyCoachingRecord[];
+  saferSnapshots: SaferSnapshotRecord[];
   notifications: ComplianceNotification[];
 }): ExecutiveOverviewData {
   const dqReadinessAverage = average(dqFiles.map((file) => file.readinessPercentage));
@@ -137,6 +152,10 @@ function buildExecutiveOverview({
       dueThisWeek: openTasks.filter((task) => task.dueDate !== null && task.dueDate >= today && task.dueDate <= weekEndKey).length,
     },
     inspectionSummary,
+    safetyScoreSummary: summarizeSafetyScores(carriers.map((carrier) => carrier.id), safetyScores),
+    safetyTrendSummary: summarizeSafetyTrends(buildSafetyTrendRecords(carriers.map((carrier) => carrier.id), safetyScores)),
+    safetyCoachingSummary: summarizeSafetyCoaching(safetyCoaching),
+    saferSnapshotSummary: summarizeSaferSnapshots(carriers.map((carrier) => carrier.id), saferSnapshots),
     loadCount: loads.length,
     invoiceTotals: {
       count: invoices.length,

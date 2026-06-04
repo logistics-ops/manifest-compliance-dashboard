@@ -85,14 +85,17 @@ export default async function PublicUploadPage({ params, searchParams }: PagePro
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-md border border-manifest-red/45 bg-manifest-red/10 text-manifest-red">
               <ShieldCheck className="h-6 w-6" />
             </span>
-            <div>
-              <p className="eyebrow">{link.organizationName}</p>
-              <h1 className="text-4xl font-extrabold leading-tight tracking-normal text-white max-md:text-3xl">Secure document upload</h1>
+              <div>
+                <p className="eyebrow">{link.organizationName}</p>
+                <h1 className="text-4xl font-extrabold leading-tight tracking-normal text-white max-md:text-3xl">Secure document upload</h1>
               <p className="mt-3 text-sm leading-6 text-manifest-muted">
                 Submit compliance documents for {link.carrierName}. This link expires {formatDateTime(link.expiresAt)}.
               </p>
               <div className="mt-4 inline-flex rounded-md border border-white/10 bg-black/25 px-3 py-2 text-xs font-extrabold uppercase tracking-[0.14em] text-manifest-muted">
                 {completedCount} of {requestedCount} requested documents uploaded
+              </div>
+              <div className="mt-3 h-2 max-w-md overflow-hidden rounded-full bg-white/10">
+                <div className="h-full rounded-full bg-manifest-red" style={{ width: `${requestedCount ? Math.round((completedCount / requestedCount) * 100) : 0}%` }} />
               </div>
             </div>
           </div>
@@ -117,7 +120,7 @@ export default async function PublicUploadPage({ params, searchParams }: PagePro
                       <h3 className="text-xl font-extrabold tracking-normal text-white">{section.title}</h3>
                       <p className="mt-1 text-sm text-manifest-muted">{section.description}</p>
                     </div>
-                    <span className="rounded-full border border-white/10 bg-white/[0.035] px-3 py-1 text-[11px] font-extrabold uppercase text-manifest-muted">
+                    <span className="rounded-full border border-white/10 bg-white/[0.035] px-3 py-1 text-[11px] font-extrabold uppercase text-manifest-muted max-md:w-full max-md:text-center">
                       {section.documents.filter((documentName) => statusByKey.get(statusKey(section.category, documentName))?.uploaded).length}/{section.documents.length} uploaded
                     </span>
                   </div>
@@ -220,7 +223,7 @@ function DocumentUploadRow({
 }) {
   const uploaded = Boolean(status?.uploaded);
   return (
-    <article id={`document-${documentSlug(documentName)}`} className="grid grid-cols-[minmax(220px,0.9fr)_minmax(260px,1fr)] gap-4 rounded-md border border-white/10 bg-black/25 p-4 max-lg:grid-cols-1">
+    <article id={`document-${documentSlug(documentName)}`} className={`grid grid-cols-[minmax(220px,0.9fr)_minmax(260px,1fr)] gap-4 rounded-md border p-4 max-lg:grid-cols-1 ${uploaded ? "border-manifest-green/30 bg-manifest-green/5" : "border-white/10 bg-black/25"}`}>
       <div className="min-w-0">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <strong className="text-sm text-white">{documentName}</strong>
@@ -241,23 +244,25 @@ function DocumentUploadRow({
         {errorMessage ? <Notice tone="error" message={errorMessage} /> : null}
       </div>
 
-      <form action={publicUploadDocumentAction} className="grid gap-3">
+      <form action={publicUploadDocumentAction} className="grid gap-3 rounded-md border border-white/10 bg-black/20 p-3">
         <input type="hidden" name="token" value={token} />
         <input type="hidden" name="category" value={category} />
         <input type="hidden" name="documentName" value={documentName} />
-        <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
-          Expiration date
-          <input name="expirationDate" type="date" defaultValue={status?.expirationDate ?? ""} className="form-control" />
-        </label>
-        <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
-          File
-          <input name="file" type="file" className="form-control" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required />
-        </label>
+        <div className="grid grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)] gap-3 max-md:grid-cols-1">
+          <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+            Expiration date
+            <input name="expirationDate" type="date" defaultValue={status?.expirationDate ?? ""} className="form-control min-h-12" />
+          </label>
+          <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
+            File
+            <input name="file" type="file" className="form-control min-h-12" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required />
+          </label>
+        </div>
         <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
           Notes
           <textarea name="notes" className="form-control min-h-16 resize-y" placeholder="Optional note" />
         </label>
-        <button className="form-button min-h-11 w-fit px-4 text-sm max-sm:w-full">
+        <button className="form-button min-h-12 w-fit px-4 text-sm max-sm:w-full">
           <UploadCloud className="h-4 w-4" />
           {uploaded ? "Replace document" : "Upload document"}
         </button>

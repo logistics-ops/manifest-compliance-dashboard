@@ -35,6 +35,18 @@ export type InspectionAccessRecord = TenantRecord & {
   carrierId: string;
 };
 
+export type SafetyScoreAccessRecord = TenantRecord & {
+  carrierId: string;
+};
+
+export type SafetyCoachingAccessRecord = TenantRecord & {
+  carrierId: string;
+};
+
+export type SaferSnapshotAccessRecord = TenantRecord & {
+  carrierId: string | null;
+};
+
 export type LoadAccessRecord = TenantRecord & {
   carrierId: string;
 };
@@ -76,6 +88,13 @@ export const staffAuditActions = new Set([
   "inspection.document_uploaded",
   "inspection.task_linked",
   "inspection.alert_created",
+  "safety_score.created",
+  "safety_score.updated",
+  "safety_coaching.created",
+  "safety_coaching.updated",
+  "safety_coaching.completed",
+  "safer_lookup.performed",
+  "safer_snapshot.saved",
   "compliance_note.added",
   "notification.read",
   "notification.read_all",
@@ -466,6 +485,72 @@ export function canManageInspectionRecord(
   if (!session) return false;
   if (session.platformSuperAdmin) return true;
   return canRoleManageCompliance(session.role) && canAccessOrganizationRecord(session, inspection.organizationId, organizationIsActive);
+}
+
+export function canAccessSafetyScoreRecord(
+  session: AuthSession | null,
+  safetyScore: SafetyScoreAccessRecord,
+  organizationIsActive = true,
+) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  if (!canAccessOrganizationRecord(session, safetyScore.organizationId, organizationIsActive)) return false;
+  if (canRoleManageCompliance(session.role)) return true;
+  return session.role === "carrier" && session.carrierId === safetyScore.carrierId;
+}
+
+export function canManageSafetyScoreRecord(
+  session: AuthSession | null,
+  safetyScore: SafetyScoreAccessRecord,
+  organizationIsActive = true,
+) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  return canRoleManageCompliance(session.role) && canAccessOrganizationRecord(session, safetyScore.organizationId, organizationIsActive);
+}
+
+export function canAccessSafetyCoachingRecord(
+  session: AuthSession | null,
+  coaching: SafetyCoachingAccessRecord,
+  organizationIsActive = true,
+) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  if (!canAccessOrganizationRecord(session, coaching.organizationId, organizationIsActive)) return false;
+  if (canRoleManageCompliance(session.role)) return true;
+  return session.role === "carrier" && session.carrierId === coaching.carrierId;
+}
+
+export function canManageSafetyCoachingRecord(
+  session: AuthSession | null,
+  coaching: SafetyCoachingAccessRecord,
+  organizationIsActive = true,
+) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  return canRoleManageCompliance(session.role) && canAccessOrganizationRecord(session, coaching.organizationId, organizationIsActive);
+}
+
+export function canAccessSaferSnapshotRecord(
+  session: AuthSession | null,
+  snapshot: SaferSnapshotAccessRecord,
+  organizationIsActive = true,
+) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  if (!canAccessOrganizationRecord(session, snapshot.organizationId, organizationIsActive)) return false;
+  if (canRoleManageCompliance(session.role)) return true;
+  return session.role === "carrier" && snapshot.carrierId !== null && session.carrierId === snapshot.carrierId;
+}
+
+export function canManageSaferSnapshotRecord(
+  session: AuthSession | null,
+  organizationId: string | null,
+  organizationIsActive = true,
+) {
+  if (!session) return false;
+  if (session.platformSuperAdmin) return true;
+  return canRoleManageCompliance(session.role) && canAccessOrganizationRecord(session, organizationId, organizationIsActive);
 }
 
 export function canUploadInspectionDocumentRecord(

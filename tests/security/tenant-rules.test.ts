@@ -10,6 +10,9 @@ import {
   canAssignCarrierToUser,
   canAccessInvoiceRecord,
   canAccessInspectionRecord,
+  canAccessSafetyScoreRecord,
+  canAccessSafetyCoachingRecord,
+  canAccessSaferSnapshotRecord,
   canAccessLoadRecord,
   canAccessLoadTimeline,
   canDeleteArchivedLoadFiles,
@@ -27,6 +30,9 @@ import {
   canManageComplianceTaskRecord,
   canManageEquipmentDocumentRecord,
   canManageInspectionRecord,
+  canManageSafetyScoreRecord,
+  canManageSafetyCoachingRecord,
+  canManageSaferSnapshotRecord,
   canManageOrganizationUsers,
   canManageLoadDocumentRecord,
   canManageLoadRecord,
@@ -176,6 +182,63 @@ test("inspection management is staff scoped while document upload allows linked 
   assert.equal(canUploadInspectionDocumentRecord(carrierUser, inspectionA, true), true);
   assert.equal(canUploadInspectionDocumentRecord(otherCarrierUser, inspectionA, true), false);
   assert.equal(canUploadInspectionDocumentRecord(carrierUser, { organizationId: orgB, carrierId: carrierA }, true), false);
+});
+
+test("manual safety score access is scoped by organization and linked carrier", () => {
+  const platform = session({ role: "admin", organizationId: null, platformSuperAdmin: true });
+  const admin = session({ role: "admin" });
+  const staff = session({ role: "staff" });
+  const carrierUser = session({ role: "carrier", carrierId: carrierA });
+  const otherCarrierUser = session({ role: "carrier", carrierId: carrierB });
+  const safetyScoreA = { organizationId: orgA, carrierId: carrierA };
+
+  assert.equal(canAccessSafetyScoreRecord(platform, { organizationId: orgB, carrierId: carrierB }, false), true);
+  assert.equal(canAccessSafetyScoreRecord(admin, safetyScoreA, true), true);
+  assert.equal(canAccessSafetyScoreRecord(staff, safetyScoreA, true), true);
+  assert.equal(canAccessSafetyScoreRecord(carrierUser, safetyScoreA, true), true);
+  assert.equal(canAccessSafetyScoreRecord(otherCarrierUser, safetyScoreA, true), false);
+  assert.equal(canAccessSafetyScoreRecord(admin, { organizationId: orgB, carrierId: carrierB }, true), false);
+  assert.equal(canManageSafetyScoreRecord(admin, safetyScoreA, true), true);
+  assert.equal(canManageSafetyScoreRecord(staff, safetyScoreA, true), true);
+  assert.equal(canManageSafetyScoreRecord(carrierUser, safetyScoreA, true), false);
+});
+
+test("safety coaching access is scoped by organization and linked carrier", () => {
+  const platform = session({ role: "admin", organizationId: null, platformSuperAdmin: true });
+  const admin = session({ role: "admin" });
+  const staff = session({ role: "staff" });
+  const carrierUser = session({ role: "carrier", carrierId: carrierA });
+  const otherCarrierUser = session({ role: "carrier", carrierId: carrierB });
+  const coachingA = { organizationId: orgA, carrierId: carrierA };
+
+  assert.equal(canAccessSafetyCoachingRecord(platform, { organizationId: orgB, carrierId: carrierB }, false), true);
+  assert.equal(canAccessSafetyCoachingRecord(admin, coachingA, true), true);
+  assert.equal(canAccessSafetyCoachingRecord(staff, coachingA, true), true);
+  assert.equal(canAccessSafetyCoachingRecord(carrierUser, coachingA, true), true);
+  assert.equal(canAccessSafetyCoachingRecord(otherCarrierUser, coachingA, true), false);
+  assert.equal(canAccessSafetyCoachingRecord(admin, { organizationId: orgB, carrierId: carrierB }, true), false);
+  assert.equal(canManageSafetyCoachingRecord(admin, coachingA, true), true);
+  assert.equal(canManageSafetyCoachingRecord(staff, coachingA, true), true);
+  assert.equal(canManageSafetyCoachingRecord(carrierUser, coachingA, true), false);
+});
+
+test("SAFER snapshot access is scoped by organization and linked carrier", () => {
+  const platform = session({ role: "admin", organizationId: null, platformSuperAdmin: true });
+  const admin = session({ role: "admin" });
+  const staff = session({ role: "staff" });
+  const carrierUser = session({ role: "carrier", carrierId: carrierA });
+  const otherCarrierUser = session({ role: "carrier", carrierId: carrierB });
+  const snapshotA = { organizationId: orgA, carrierId: carrierA };
+
+  assert.equal(canAccessSaferSnapshotRecord(platform, { organizationId: orgB, carrierId: null }, false), true);
+  assert.equal(canAccessSaferSnapshotRecord(admin, snapshotA, true), true);
+  assert.equal(canAccessSaferSnapshotRecord(staff, snapshotA, true), true);
+  assert.equal(canAccessSaferSnapshotRecord(carrierUser, snapshotA, true), true);
+  assert.equal(canAccessSaferSnapshotRecord(otherCarrierUser, snapshotA, true), false);
+  assert.equal(canAccessSaferSnapshotRecord(carrierUser, { organizationId: orgA, carrierId: null }, true), false);
+  assert.equal(canManageSaferSnapshotRecord(admin, orgA, true), true);
+  assert.equal(canManageSaferSnapshotRecord(staff, orgA, true), true);
+  assert.equal(canManageSaferSnapshotRecord(carrierUser, orgA, true), false);
 });
 
 test("driver document permission allows admins, staff, and linked carriers only", () => {

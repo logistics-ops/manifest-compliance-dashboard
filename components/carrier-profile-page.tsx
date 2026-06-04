@@ -31,6 +31,9 @@ import {
 import type { Carrier, EnrichedDocument } from "@/types/carrier";
 import type { Load } from "@/types/load";
 import type { DQFileRecord } from "@/lib/data/dq-files";
+import type { ComplianceTaskPriority } from "@/lib/data/compliance-tasks";
+import type { SafetyCoachingRecord, SafetyCoachingStatus } from "@/lib/data/safety-coaching";
+import { statusLabel, type SafetyScoreRecord, type SafetyStatus, type SafetyTrend, type SafetyTrendRecord } from "@/lib/data/safety-scores";
 import type { UploadLinkRecord } from "@/lib/data/upload-links";
 import type { VehicleRecord } from "@/lib/data/vehicles";
 import type { CarrierOnboardingProgress } from "@/lib/onboarding-progress";
@@ -41,6 +44,7 @@ import type { AuthSession } from "@/types/carrier";
 import { CarrierDocumentUploader } from "@/components/carrier-document-uploader";
 import { CarrierAssignedLoads } from "@/components/carrier-assigned-loads";
 import { documentSlug } from "@/lib/action-center";
+import type { SaferSnapshotRecord } from "@/lib/data/safer-snapshots";
 
 export function CarrierProfilePage({
   carrier,
@@ -48,6 +52,11 @@ export function CarrierProfilePage({
   loads = [],
   drivers = [],
   vehicles = [],
+  safetyScore = null,
+  safetyScoreHistory = [],
+  safetyTrend,
+  safetyCoaching = [],
+  saferSnapshot = null,
   uploadLinks = [],
   onboardingProgress,
   generatedUploadLink = null,
@@ -58,6 +67,11 @@ export function CarrierProfilePage({
   loads?: Load[];
   drivers?: DQFileRecord[];
   vehicles?: VehicleRecord[];
+  safetyScore?: SafetyScoreRecord | null;
+  safetyScoreHistory?: SafetyScoreRecord[];
+  safetyTrend?: SafetyTrendRecord;
+  safetyCoaching?: SafetyCoachingRecord[];
+  saferSnapshot?: SaferSnapshotRecord | null;
   uploadLinks?: UploadLinkRecord[];
   onboardingProgress: CarrierOnboardingProgress;
   generatedUploadLink?: string | null;
@@ -252,6 +266,12 @@ export function CarrierProfilePage({
           </div>
         </section>
 
+        <CarrierSafetyScoreCard carrier={carrier} safetyScore={safetyScore} safetyScoreHistory={safetyScoreHistory} safetyTrend={safetyTrend} />
+
+        <CarrierSafetyCoachingCard coaching={safetyCoaching} />
+
+        <CarrierSaferSnapshotCard snapshot={saferSnapshot} />
+
         <OnboardingProgressCard progress={onboardingProgress} />
 
         {mayManageCompliance ? (
@@ -323,19 +343,24 @@ function OnboardingProgressCard({ progress }: { progress: CarrierOnboardingProgr
         {progress.categories.map((category) => {
           const issueItems = [...category.expiredItems, ...category.missingItems, ...category.expiringItems].slice(0, 4);
           return (
-            <article key={category.name} className="rounded-md border border-white/10 bg-black/25 p-4">
-              <div className="mb-3 flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
+            <details key={category.name} className="rounded-md border border-white/10 bg-black/25 p-4">
+              <summary className="cursor-pointer list-none">
+              <div className="flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
                 <div>
                   <h3 className="text-base font-extrabold text-white">{category.name}</h3>
                   <p className="mt-1 text-xs font-bold text-manifest-muted">
                     {category.completedItems.length}/{category.totalItems} complete · {category.missingItems.length} missing · {category.expiringItems.length} expiring
                   </p>
                 </div>
-                <strong className="text-lg text-white">{category.percentage}%</strong>
+                <div className="grid min-w-32 gap-2">
+                  <strong className="text-lg text-white">{category.percentage}%</strong>
+                  <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-manifest-quiet">View items</span>
+                </div>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-white/10">
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
                 <div className="h-full rounded-full bg-manifest-red" style={{ width: `${category.percentage}%` }} />
               </div>
+              </summary>
               {issueItems.length ? (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {issueItems.map((item) => (
@@ -351,11 +376,229 @@ function OnboardingProgressCard({ progress }: { progress: CarrierOnboardingProgr
               ) : (
                 <p className="mt-3 text-xs font-bold text-manifest-green">No missing or expiring items in this category.</p>
               )}
-            </article>
+            </details>
           );
         })}
       </div>
     </section>
+  );
+}
+
+function CarrierSafetyScoreCard({
+  carrier,
+  safetyScore,
+  safetyScoreHistory,
+  safetyTrend,
+}: {
+  carrier: Carrier;
+  safetyScore: SafetyScoreRecord | null;
+  safetyScoreHistory: SafetyScoreRecord[];
+  safetyTrend?: SafetyTrendRecord;
+}) {
+  return (
+    <section className="section-panel mb-5 p-6 max-md:p-4">
+      <div className="mb-5 flex items-start justify-between gap-4 max-lg:flex-col">
+        <div>
+          <p className="eyebrow">Safety Scores</p>
+          <h2 className="text-2xl font-extrabold tracking-normal text-white">Manual safety posture</h2>
+          <p className="mt-2 text-sm leading-6 text-manifest-muted">
+            Manually entered safety score tracking. FMCSA/SAFER automation is not enabled yet.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <SafetyBadge status={safetyScore?.safetyStatus ?? "missing_data"} />
+          <SafetyTrendBadge trend={safetyTrend?.trend ?? "Missing history"} />
+        </div>
+      </div>
+
+      {safetyScore ? (
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)] gap-4 max-lg:grid-cols-1">
+          <div className="rounded-md border border-white/10 bg-black/25 p-4">
+            <span className="panel-label">Source / Score Label</span>
+            <strong className="mt-2 block text-xl text-white">{safetyScore.scoreLabel}</strong>
+            <p className="mt-2 text-sm leading-6 text-manifest-muted">{safetyScore.notes || "No safety notes recorded."}</p>
+            <Link href="/safety-scores" className="mt-4 inline-flex min-h-10 items-center rounded-md border border-manifest-red/50 bg-manifest-red/10 px-3 text-sm font-extrabold text-white transition hover:bg-manifest-red/20">
+              Open Safety Scores
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
+            <InfoTile label="DOT Number" value={safetyScore.dotNumber || carrier.dotNumber} />
+            <InfoTile label="MC Number" value={safetyScore.mcNumber || carrier.mcNumber} />
+            <InfoTile label="Inspections" value={String(safetyScore.inspectionCount)} />
+            <InfoTile label="Violations" value={String(safetyScore.violationCount)} />
+            <InfoTile label="Out of Service" value={String(safetyScore.outOfServiceCount)} />
+            <InfoTile label="Recorded" value={formatDateTime(safetyScore.recordedAt)} />
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-md border border-white/10 bg-black/25 p-4">
+          <p className="text-sm leading-6 text-manifest-muted">
+            No manual safety score has been recorded for this carrier yet. Add one from the Safety Scores page.
+          </p>
+          <Link href="/safety-scores" className="mt-4 inline-flex min-h-10 items-center rounded-md border border-manifest-red/50 bg-manifest-red/10 px-3 text-sm font-extrabold text-white transition hover:bg-manifest-red/20">
+            Open Safety Scores
+          </Link>
+        </div>
+      )}
+
+      <div className="mt-5 grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-4 max-lg:grid-cols-1">
+        <div className="rounded-md border border-white/10 bg-black/25 p-4">
+          <span className="panel-label">Trend</span>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <SafetyTrendBadge trend={safetyTrend?.trend ?? "Missing history"} />
+          </div>
+          <div className="mt-4 grid gap-3">
+            <SafetySnapshot label="Latest" score={safetyTrend?.latest ?? null} />
+            <SafetySnapshot label="Previous" score={safetyTrend?.previous ?? null} />
+          </div>
+        </div>
+        <div className="rounded-md border border-white/10 bg-black/25 p-4">
+          <span className="panel-label">History</span>
+          {safetyScoreHistory.length ? (
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full min-w-[640px] border-collapse">
+                <thead>
+                  <tr className="bg-white/[0.025] text-left text-[11px] uppercase tracking-[0.14em] text-manifest-quiet">
+                    <th className="border-b border-white/10 px-3 py-3">Recorded</th>
+                    <th className="border-b border-white/10 px-3 py-3">Status</th>
+                    <th className="border-b border-white/10 px-3 py-3">Inspections</th>
+                    <th className="border-b border-white/10 px-3 py-3">Violations</th>
+                    <th className="border-b border-white/10 px-3 py-3">OOS</th>
+                    <th className="border-b border-white/10 px-3 py-3">Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {safetyScoreHistory.map((score) => (
+                    <tr key={score.id}>
+                      <td className="border-b border-white/10 px-3 py-3 text-sm text-manifest-muted">{formatDateTime(score.recordedAt)}</td>
+                      <td className="border-b border-white/10 px-3 py-3"><SafetyBadge status={score.safetyStatus} /></td>
+                      <td className="border-b border-white/10 px-3 py-3 text-sm text-white">{score.inspectionCount}</td>
+                      <td className="border-b border-white/10 px-3 py-3 text-sm text-white">{score.violationCount}</td>
+                      <td className="border-b border-white/10 px-3 py-3 text-sm text-white">{score.outOfServiceCount}</td>
+                      <td className="border-b border-white/10 px-3 py-3 text-sm text-manifest-muted">{score.notes || "None"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="mt-3 text-sm leading-6 text-manifest-muted">No safety score history recorded yet.</p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CarrierSafetyCoachingCard({ coaching }: { coaching: SafetyCoachingRecord[] }) {
+  const open = coaching.filter((item) => item.status !== "completed").length;
+  const overdue = coaching.filter((item) => item.status !== "completed" && item.targetCompletionDate && item.targetCompletionDate < new Date().toISOString().slice(0, 10)).length;
+  const completed = coaching.filter((item) => item.status === "completed").length;
+
+  return (
+    <section className="section-panel mb-5 p-6 max-md:p-4">
+      <div className="mb-5 flex items-start justify-between gap-4 max-lg:flex-col">
+        <div>
+          <p className="eyebrow">Safety Coaching</p>
+          <h2 className="text-2xl font-extrabold tracking-normal text-white">Corrective action plan</h2>
+          <p className="mt-2 text-sm leading-6 text-manifest-muted">
+            Coaching items linked to safety scores, inspection findings, and Compliance Tasks.
+          </p>
+        </div>
+        <Link href="/safety-coaching" className="inline-flex min-h-10 items-center rounded-md border border-manifest-red/50 bg-manifest-red/10 px-3 text-sm font-extrabold text-white transition hover:bg-manifest-red/20">
+          Open Safety Coaching
+        </Link>
+      </div>
+
+      <div className="mb-4 grid grid-cols-3 gap-3 max-md:grid-cols-1">
+        <ProgressMetric label="Open" value={open} tone={open ? "warn" : "good"} />
+        <ProgressMetric label="Overdue" value={overdue} tone={overdue ? "danger" : "good"} />
+        <ProgressMetric label="Completed" value={completed} tone="good" />
+      </div>
+
+      {coaching.length ? (
+        <div className="grid gap-3">
+          {coaching.slice(0, 6).map((item) => (
+            <article key={item.id} className="rounded-md border border-white/10 bg-black/25 p-4">
+              <div className="mb-2 flex flex-wrap gap-2">
+                <CoachingPriorityBadge priority={item.priority} />
+                <CoachingStatusBadge status={item.status} />
+                {item.complianceTaskId ? <span className="rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 text-[11px] font-extrabold uppercase text-manifest-muted">Task Linked</span> : null}
+              </div>
+              <strong className="text-sm text-white">{item.issue}</strong>
+              <p className="mt-2 text-sm leading-6 text-manifest-muted">{item.recommendation}</p>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-manifest-muted">
+                <span>Target: {item.targetCompletionDate ?? "None"}</span>
+                {item.safetyScoreLabel ? <span>Safety score: {item.safetyScoreLabel}</span> : null}
+                {item.inspectionLabel ? <span>Inspection: {item.inspectionLabel}</span> : null}
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="empty-state">No safety coaching items for this carrier yet.</div>
+      )}
+    </section>
+  );
+}
+
+function CarrierSaferSnapshotCard({ snapshot }: { snapshot: SaferSnapshotRecord | null }) {
+  return (
+    <section className="section-panel mb-5 p-6 max-md:p-4">
+      <div className="mb-5 flex items-start justify-between gap-4 max-lg:flex-col">
+        <div>
+          <p className="eyebrow">SAFER Snapshot</p>
+          <h2 className="text-2xl font-extrabold tracking-normal text-white">Latest manual SAFER review</h2>
+          <p className="mt-2 text-sm leading-6 text-manifest-muted">
+            Manually saved public SAFER snapshot. No automatic scraping or background lookup is enabled.
+          </p>
+        </div>
+        <Link href="/safer-lookup" className="inline-flex min-h-10 items-center rounded-md border border-manifest-red/50 bg-manifest-red/10 px-3 text-sm font-extrabold text-white transition hover:bg-manifest-red/20">
+          Open SAFER Lookup
+        </Link>
+      </div>
+
+      {snapshot ? (
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(280px,0.85fr)] gap-4 max-lg:grid-cols-1">
+          <div className="rounded-md border border-white/10 bg-black/25 p-4">
+            <span className="panel-label">Legal Name</span>
+            <strong className="mt-2 block text-xl text-white">{snapshot.legalName || "Not recorded"}</strong>
+            <p className="mt-2 text-sm leading-6 text-manifest-muted">
+              {snapshot.dbaName ? `DBA ${snapshot.dbaName}. ` : ""}
+              Snapshot saved {formatDateTime(snapshot.snapshotDate)}.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
+            <InfoTile label="DOT Number" value={snapshot.dotNumber} />
+            <InfoTile label="MC Number" value={snapshot.mcNumber || "Missing"} />
+            <InfoTile label="Operating Status" value={snapshot.operatingStatus || "Missing"} />
+            <InfoTile label="Safety Rating" value={snapshot.safetyRating || "Missing"} />
+            <InfoTile label="Power Units" value={String(snapshot.powerUnits ?? "Missing")} />
+            <InfoTile label="Drivers" value={String(snapshot.drivers ?? "Missing")} />
+          </div>
+        </div>
+      ) : (
+        <div className="empty-state">No SAFER snapshot has been attached to this carrier yet.</div>
+      )}
+    </section>
+  );
+}
+
+function SafetySnapshot({ label, score }: { label: string; score: SafetyScoreRecord | null }) {
+  return (
+    <div className="rounded-md border border-white/10 bg-black/30 p-3">
+      <span className="panel-label">{label}</span>
+      {score ? (
+        <>
+          <strong className="mt-2 block text-sm text-white">{statusLabel(score.safetyStatus)}</strong>
+          <span className="mt-1 block text-xs text-manifest-muted">
+            {score.violationCount} violations · {score.outOfServiceCount} OOS · {formatDateTime(score.recordedAt)}
+          </span>
+        </>
+      ) : (
+        <span className="mt-2 block text-sm text-manifest-muted">No record</span>
+      )}
+    </div>
   );
 }
 
@@ -367,6 +610,38 @@ function ProgressMetric({ label, value, tone }: { label: string; value: number; 
       <strong className={`mt-1 block text-2xl ${toneClass}`}>{value}</strong>
     </div>
   );
+}
+
+function SafetyBadge({ status }: { status: SafetyStatus }) {
+  const classes = {
+    good: "border-manifest-green/35 bg-manifest-green/10 text-manifest-green",
+    needs_review: "border-manifest-amber/45 bg-manifest-amber/10 text-manifest-amber",
+    high_risk: "border-manifest-danger/45 bg-manifest-danger/10 text-manifest-danger",
+    missing_data: "border-white/10 bg-white/[0.035] text-manifest-muted",
+  }[status];
+
+  return <span className={`w-fit rounded-full border px-2.5 py-1 text-[11px] font-extrabold uppercase ${classes}`}>{statusLabel(status)}</span>;
+}
+
+function SafetyTrendBadge({ trend }: { trend: SafetyTrend }) {
+  const classes = {
+    Improving: "border-manifest-green/35 bg-manifest-green/10 text-manifest-green",
+    Declining: "border-manifest-danger/45 bg-manifest-danger/10 text-manifest-danger",
+    Stable: "border-white/10 bg-white/[0.035] text-white",
+    "Missing history": "border-manifest-amber/45 bg-manifest-amber/10 text-manifest-amber",
+  }[trend];
+
+  return <span className={`w-fit rounded-full border px-2.5 py-1 text-[11px] font-extrabold uppercase ${classes}`}>{trend}</span>;
+}
+
+function CoachingPriorityBadge({ priority }: { priority: ComplianceTaskPriority }) {
+  const classes = priority === "critical" ? "border-manifest-danger/45 bg-manifest-danger/10 text-manifest-danger" : priority === "high" ? "border-manifest-amber/45 bg-manifest-amber/10 text-manifest-amber" : "border-white/10 bg-white/[0.035] text-manifest-muted";
+  return <span className={`rounded-full border px-2.5 py-1 text-[11px] font-extrabold uppercase ${classes}`}>{priority}</span>;
+}
+
+function CoachingStatusBadge({ status }: { status: SafetyCoachingStatus }) {
+  const classes = status === "completed" ? "border-manifest-green/35 bg-manifest-green/10 text-manifest-green" : status === "in_progress" ? "border-manifest-amber/45 bg-manifest-amber/10 text-manifest-amber" : "border-manifest-red/45 bg-manifest-red/10 text-white";
+  return <span className={`rounded-full border px-2.5 py-1 text-[11px] font-extrabold uppercase ${classes}`}>{status.replace(/_/g, " ")}</span>;
 }
 
 function onboardingBadgeClass(status: CarrierOnboardingProgress["status"]) {

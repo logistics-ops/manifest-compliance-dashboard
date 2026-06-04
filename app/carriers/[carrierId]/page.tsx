@@ -4,6 +4,9 @@ import { CarrierProfilePage } from "@/components/carrier-profile-page";
 import { getCarriers } from "@/lib/data/carriers";
 import { getDQFiles } from "@/lib/data/dq-files";
 import { getLoads } from "@/lib/data/loads";
+import { getSaferSnapshots, latestSaferSnapshotsByCarrier } from "@/lib/data/safer-snapshots";
+import { getSafetyCoachingRecords } from "@/lib/data/safety-coaching";
+import { buildSafetyTrendRecords, getSafetyScores, latestSafetyScoresByCarrier } from "@/lib/data/safety-scores";
 import { getUploadLinksForCarrier } from "@/lib/data/upload-links";
 import { getVehicles } from "@/lib/data/vehicles";
 import { canViewCarrier, requireSession } from "@/lib/integrations/auth";
@@ -44,10 +47,13 @@ export default async function CarrierPage({ params, searchParams }: CarrierPageP
   const query = await searchParams;
   const session = await requireSession();
   const carriers = await getCarriers();
-  const [loads, dqFiles, vehicles, uploadLinks] = await Promise.all([
+  const [loads, dqFiles, vehicles, safetyScores, safetyCoaching, saferSnapshots, uploadLinks] = await Promise.all([
     getLoads(),
     getDQFiles(),
     getVehicles(),
+    getSafetyScores(),
+    getSafetyCoachingRecords(),
+    getSaferSnapshots(),
     getUploadLinksForCarrier(carrierId),
   ]);
   const carrier = carriers.find((item) => item.id === carrierId);
@@ -60,6 +66,8 @@ export default async function CarrierPage({ params, searchParams }: CarrierPageP
     redirect(session.carrierId ? `/carriers/${session.carrierId}` : "/unauthorized");
   }
 
+  const carrierSafetyScores = safetyScores.filter((score) => score.carrierId === carrier.id);
+
   return (
     <CarrierProfilePage
       carrier={carrier}
@@ -67,6 +75,11 @@ export default async function CarrierPage({ params, searchParams }: CarrierPageP
       loads={loads.filter((load) => load.carrierId === carrier.id)}
       drivers={dqFiles.filter((file) => file.carrierId === carrier.id)}
       vehicles={vehicles.filter((vehicle) => vehicle.carrierId === carrier.id)}
+      safetyScore={latestSafetyScoresByCarrier(carrierSafetyScores).get(carrier.id) ?? null}
+      safetyScoreHistory={carrierSafetyScores}
+      safetyTrend={buildSafetyTrendRecords([carrier.id], carrierSafetyScores)[0]}
+      safetyCoaching={safetyCoaching.filter((item) => item.carrierId === carrier.id)}
+      saferSnapshot={latestSaferSnapshotsByCarrier(saferSnapshots).get(carrier.id) ?? null}
       onboardingProgress={buildCarrierOnboardingProgress({
         carrier,
         drivers: dqFiles.filter((file) => file.carrierId === carrier.id),

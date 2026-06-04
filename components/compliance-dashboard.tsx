@@ -4,8 +4,10 @@ import Link from "next/link";
 import {
   ClipboardCheck,
   ClipboardList,
+  Gauge,
   ListChecks,
   FileCheck2,
+  FileUp,
   FileWarning,
   LayoutDashboard,
   Palette,
@@ -48,6 +50,9 @@ import { NotificationCenter } from "@/components/notification-center";
 import { AuditLogViewer } from "@/components/audit-log-viewer";
 import type { AuditLog } from "@/lib/audit";
 import type { CarrierOnboardingProgress, OnboardingProgressDashboardSummary } from "@/lib/onboarding-progress";
+import type { SaferSnapshotSummary } from "@/lib/data/safer-snapshots";
+import type { SafetyCoachingSummary } from "@/lib/data/safety-coaching";
+import type { SafetyScoreSummary, SafetyTrendSummary } from "@/lib/data/safety-scores";
 
 const statusOptions: Array<CarrierStatus | "All"> = ["All", "Active", "Pending", "Suspended", "Inactive"];
 const alertLabels: AlertLabel[] = [
@@ -86,6 +91,10 @@ export type ExecutiveOverviewData = {
     outOfService: number;
     documentCount: number;
   };
+  safetyScoreSummary: SafetyScoreSummary;
+  safetyTrendSummary: SafetyTrendSummary;
+  safetyCoachingSummary: SafetyCoachingSummary;
+  saferSnapshotSummary: SaferSnapshotSummary;
   loadCount: number;
   invoiceTotals: {
     count: number;
@@ -131,6 +140,9 @@ const organizationNavGroups: NavGroup[] = [
       { label: "Compliance Alerts", href: "/compliance-alerts", icon: ShieldAlert },
       { label: "Audit Readiness", href: "/audit-readiness", icon: ShieldAlert },
       { label: "Inspection Reports", href: "/inspections", icon: ClipboardCheck },
+      { label: "Safety Scores", href: "/safety-scores", icon: Gauge },
+      { label: "Safety Coaching", href: "/safety-coaching", icon: ClipboardList },
+      { label: "SAFER Lookup", href: "/safer-lookup", icon: Search },
       { label: "Notifications", href: "/notifications", icon: Bell },
       { label: "Audit Logs", href: "#audit-logs", icon: ClipboardList },
     ],
@@ -152,13 +164,10 @@ const carrierNavGroups: NavGroup[] = [
     title: "Carrier Portal",
     items: [
       { label: "Dashboard", href: "#overview", icon: LayoutDashboard },
-      { label: "Action Center", href: "/actions", icon: ListChecks },
-      { label: "Compliance Tasks", href: "/compliance-tasks", icon: ClipboardList },
-      { label: "Loads (Coming Soon)", href: "#loads-coming-soon", icon: Route, placeholder: true },
-      { label: "Documents", href: "#documents", icon: FileCheck2 },
-      { label: "Documents To Fix", href: "/documents-to-fix", icon: FileWarning },
+      { label: "Upload Documents", href: "#documents", icon: FileUp },
+      { label: "My Compliance", href: "#overview", icon: ShieldAlert },
       { label: "Compliance Alerts", href: "/compliance-alerts", icon: ShieldAlert },
-      { label: "Inspection Reports", href: "/inspections", icon: ClipboardCheck },
+      { label: "Compliance Tasks", href: "/compliance-tasks", icon: ClipboardList },
       { label: "Notifications", href: "/notifications", icon: Bell },
     ],
   },
@@ -190,6 +199,7 @@ export function ComplianceDashboard({
   const [selectedCarrierId, setSelectedCarrierId] = useState(activeCarriers[0]?.id ?? "");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<CarrierStatus | "All">("All");
+  const isCarrierPortal = session.role === "carrier" && !session.platformSuperAdmin;
 
   const selectedCarrier = activeCarriers.find((carrier) => carrier.id === selectedCarrierId) ?? activeCarriers[0] ?? null;
   const selectedDocuments = selectedCarrier ? getCarrierDocuments(selectedCarrier) : [];
@@ -197,6 +207,7 @@ export function ComplianceDashboard({
   const activeNotifications = notifications.length ? notifications : [];
   const unreadNotifications = activeNotifications.filter((notification) => notification.status === "unread").length;
   const onboardingProgressByCarrier = useMemo(() => new Map(onboardingProgress.map((item) => [item.carrierId, item])), [onboardingProgress]);
+  const selectedOnboardingProgress = selectedCarrier ? onboardingProgressByCarrier.get(selectedCarrier.id) ?? null : null;
 
   useEffect(() => {
     function handlePopState() {
@@ -273,7 +284,7 @@ export function ComplianceDashboard({
         onNavigate={handleSidebarNavigate}
       />
 
-      <main className="p-8 max-md:p-4">
+      <main className="p-6 max-md:p-4">
         <button
           type="button"
           onClick={() => setIsSidebarOpen(true)}
@@ -284,7 +295,7 @@ export function ComplianceDashboard({
           Navigation
         </button>
         <header className="mb-5 border-b border-white/10 pb-5">
-          <div className="flex items-center justify-start gap-3 max-xl:flex-wrap max-md:w-full max-md:flex-col max-md:items-stretch">
+          <div className="flex items-center justify-start gap-2.5 max-xl:flex-wrap max-md:w-full max-md:flex-col max-md:items-stretch">
             {canManageCarriers(session) ? (
               <Link
                 href="/carriers/new"
@@ -293,6 +304,38 @@ export function ComplianceDashboard({
                 <Plus className="h-4 w-4" />
                 New carrier
               </Link>
+            ) : null}
+            {canManageCarriers(session) && !session.platformSuperAdmin ? (
+              <>
+                <Link href={selectedCarrier ? `/carriers/${selectedCarrier.id}?panel=upload-link` : "/carriers/new"} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-4 text-sm font-extrabold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white max-md:justify-center">
+                  <FileUp className="h-4 w-4" />
+                  Create upload link
+                </Link>
+                <Link href="/dq-files" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-4 text-sm font-extrabold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white max-md:justify-center">
+                  <ClipboardCheck className="h-4 w-4" />
+                  Add driver
+                </Link>
+                <Link href="/vehicles" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-4 text-sm font-extrabold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white max-md:justify-center">
+                  <Truck className="h-4 w-4" />
+                  Add vehicle
+                </Link>
+                <Link href="/compliance-tasks" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-4 text-sm font-extrabold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white max-md:justify-center">
+                  <ClipboardList className="h-4 w-4" />
+                  Create task
+                </Link>
+                <Link href="/inspections" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-4 text-sm font-extrabold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white max-md:justify-center">
+                  <ClipboardCheck className="h-4 w-4" />
+                  Add inspection
+                </Link>
+                <Link href="/safety-scores" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-4 text-sm font-extrabold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white max-md:justify-center">
+                  <Gauge className="h-4 w-4" />
+                  Add safety score
+                </Link>
+                <Link href="/safety-coaching" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-4 text-sm font-extrabold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white max-md:justify-center">
+                  <ListChecks className="h-4 w-4" />
+                  Add coaching record
+                </Link>
+              </>
             ) : null}
             <button
               type="button"
@@ -370,6 +413,15 @@ export function ComplianceDashboard({
         {activeTab === "overview" ? (
           <div className="grid gap-5">
             <ActionCenterStrip overview={executiveOverview} />
+            {isCarrierPortal && selectedCarrier ? (
+              <CarrierPortalPriorityPanel
+                carrier={selectedCarrier}
+                documents={selectedDocuments}
+                onboardingProgress={selectedOnboardingProgress}
+                notifications={activeNotifications}
+                overview={executiveOverview}
+              />
+            ) : null}
 
             <section
               id="overview"
@@ -395,7 +447,7 @@ export function ComplianceDashboard({
               </div>
             </section>
 
-            <section className="grid grid-cols-4 gap-4 max-2xl:grid-cols-2 max-md:grid-cols-1" aria-label="Dashboard overview metrics">
+            <section className="grid grid-cols-4 gap-3 max-2xl:grid-cols-2 max-md:grid-cols-1" aria-label="Dashboard overview metrics">
               <ExecutiveMetricCard label="Org audit readiness" value={`${executiveOverview.organizationAuditReadinessAverage}%`} detail="Carrier, DQ, vehicle, alert posture" tone={scoreTone(executiveOverview.organizationAuditReadinessAverage)} />
               <ExecutiveMetricCard label="DQ readiness" value={`${executiveOverview.dqReadinessAverage}%`} detail={`${executiveOverview.driversNeedingAttention} drivers need attention`} tone={scoreTone(executiveOverview.dqReadinessAverage)} />
               <ExecutiveMetricCard label="Vehicle maintenance" value={`${executiveOverview.vehicleReadinessAverage}%`} detail={`${executiveOverview.vehiclesNeedingAttention} units need attention`} tone={scoreTone(executiveOverview.vehicleReadinessAverage)} />
@@ -404,10 +456,29 @@ export function ComplianceDashboard({
               <ExecutiveMetricCard label="Open compliance alerts" value={executiveOverview.openComplianceAlerts} detail="Unread/read alerts not dismissed" tone={executiveOverview.openComplianceAlerts ? "warn" : "good"} />
               <ExecutiveMetricCard label="Open tasks" value={executiveOverview.taskSummary.open} detail={`${executiveOverview.taskSummary.overdue} overdue · ${executiveOverview.taskSummary.dueThisWeek} due this week`} tone={executiveOverview.taskSummary.overdue ? "danger" : executiveOverview.taskSummary.open ? "warn" : "good"} />
               <ExecutiveMetricCard label="Inspection reports" value={executiveOverview.inspectionSummary.total} detail={`${executiveOverview.inspectionSummary.outOfService} out of service · ${executiveOverview.inspectionSummary.withViolations} with findings`} tone={executiveOverview.inspectionSummary.outOfService ? "danger" : executiveOverview.inspectionSummary.withViolations ? "warn" : "good"} />
+            </section>
+
+            <details className="section-panel p-4">
+              <summary className="cursor-pointer text-sm font-extrabold uppercase tracking-[0.18em] text-manifest-muted">
+                More compliance metrics
+              </summary>
+              <section className="mt-4 grid grid-cols-4 gap-3 max-2xl:grid-cols-2 max-md:grid-cols-1" aria-label="Secondary dashboard metrics">
+              <ExecutiveMetricCard label="Good safety posture" value={executiveOverview.safetyScoreSummary.good} detail="Manual safety score records" tone={executiveOverview.safetyScoreSummary.good ? "good" : "neutral"} />
+              <ExecutiveMetricCard label="Safety needs review" value={executiveOverview.safetyScoreSummary.needsReview} detail="Manual safety score records" tone={executiveOverview.safetyScoreSummary.needsReview ? "warn" : "good"} />
+              <ExecutiveMetricCard label="Missing safety data" value={executiveOverview.safetyScoreSummary.missingData} detail="No manual safety record" tone={executiveOverview.safetyScoreSummary.missingData ? "danger" : "good"} />
+              <ExecutiveMetricCard label="Improving safety" value={executiveOverview.safetyTrendSummary.improving} detail="Latest vs previous safety record" tone={executiveOverview.safetyTrendSummary.improving ? "good" : "neutral"} />
+              <ExecutiveMetricCard label="Declining safety" value={executiveOverview.safetyTrendSummary.declining} detail="Latest vs previous safety record" tone={executiveOverview.safetyTrendSummary.declining ? "danger" : "good"} />
+              <ExecutiveMetricCard label="Stable safety" value={executiveOverview.safetyTrendSummary.stable} detail="Latest vs previous safety record" tone="neutral" />
+              <ExecutiveMetricCard label="Missing safety history" value={executiveOverview.safetyTrendSummary.missingHistory} detail="Needs at least two records" tone={executiveOverview.safetyTrendSummary.missingHistory ? "warn" : "good"} />
+              <ExecutiveMetricCard label="Open coaching items" value={executiveOverview.safetyCoachingSummary.open} detail={`${executiveOverview.safetyCoachingSummary.overdue} overdue`} tone={executiveOverview.safetyCoachingSummary.overdue ? "danger" : executiveOverview.safetyCoachingSummary.open ? "warn" : "good"} />
+              <ExecutiveMetricCard label="Completed coaching" value={executiveOverview.safetyCoachingSummary.completed} detail="Safety corrective actions" tone="good" />
+              <ExecutiveMetricCard label="Missing SAFER snapshots" value={executiveOverview.saferSnapshotSummary.missing} detail="Manual SAFER reviews needed" tone={executiveOverview.saferSnapshotSummary.missing ? "danger" : "good"} />
+              <ExecutiveMetricCard label="Outdated SAFER snapshots" value={executiveOverview.saferSnapshotSummary.outdated} detail="Older than 90 days" tone={executiveOverview.saferSnapshotSummary.outdated ? "warn" : "good"} />
               <ExecutiveMetricCard label="Carriers complete" value={onboardingSummary.complete} detail="Onboarding packets complete" tone={onboardingSummary.complete ? "good" : "neutral"} />
               <ExecutiveMetricCard label="Carriers in progress" value={onboardingSummary.inProgress} detail="Active onboarding work" tone={onboardingSummary.inProgress ? "warn" : "good"} />
               <ExecutiveMetricCard label="Missing critical docs" value={onboardingSummary.missingCriticalDocuments} detail="Carrier onboarding blockers" tone={onboardingSummary.missingCriticalDocuments ? "danger" : "good"} />
-            </section>
+              </section>
+            </details>
 
             <AlertPanel carriers={activeCarriers} compact />
 
@@ -535,6 +606,83 @@ function DashboardTabs({
   );
 }
 
+function CarrierPortalPriorityPanel({
+  carrier,
+  documents,
+  onboardingProgress,
+  notifications,
+  overview,
+}: {
+  carrier: Carrier;
+  documents: ReturnType<typeof getCarrierDocuments>;
+  onboardingProgress: CarrierOnboardingProgress | null;
+  notifications: ComplianceNotification[];
+  overview: ExecutiveOverviewData;
+}) {
+  const missingDocuments = documents.filter((document) => document.status === "Missing").length;
+  const expiringDocuments = documents.filter((document) => document.status === "Expiring Soon" || document.status === "Expired").length;
+  const onboardingPercent = onboardingProgress?.percentage ?? 0;
+  const carrierNotifications = notifications.slice(0, 3);
+
+  return (
+    <section className="section-panel border-manifest-red/30 p-4">
+      <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(260px,0.9fr)] gap-4 max-lg:grid-cols-1">
+        <div>
+          <p className="eyebrow">Carrier Dashboard</p>
+          <h2 className="text-2xl font-extrabold tracking-normal text-white max-md:text-xl">Your compliance packet</h2>
+          <p className="mt-2 text-sm leading-6 text-manifest-muted">
+            Upload missing records, review alerts, and keep {carrier.companyName} ready for Manifest review.
+          </p>
+          <Link href="#documents" className="form-button mt-4 min-h-12 w-fit px-5 text-sm max-sm:w-full">
+            <FileUp className="h-4 w-4" />
+            Upload documents
+          </Link>
+        </div>
+        <div className="rounded-md border border-white/10 bg-black/30 p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <span className={`rounded-full border px-3 py-1 text-[11px] font-extrabold uppercase ${onboardingBadgeClass(onboardingProgress?.status ?? "Not Started")}`}>
+              {onboardingProgress?.status ?? "Not Started"}
+            </span>
+            <strong className="text-3xl leading-none text-white">{onboardingPercent}%</strong>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-white/10">
+            <div className="h-full rounded-full bg-manifest-red" style={{ width: `${onboardingPercent}%` }} />
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-2 text-center max-sm:grid-cols-1">
+            <MiniCount label="Missing" value={onboardingProgress?.missingCount ?? missingDocuments} tone="danger" />
+            <MiniCount label="Expiring" value={onboardingProgress?.expiringCount ?? expiringDocuments} tone="warn" />
+            <MiniCount label="Alerts" value={overview.openComplianceAlerts} tone={overview.openComplianceAlerts ? "warn" : "neutral"} />
+          </div>
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-3 max-lg:grid-cols-1">
+        <CarrierQuickLink href="/compliance-alerts" title="Compliance alerts" detail="Review missing, expired, and expiring records." />
+        <CarrierQuickLink href="/compliance-tasks" title="Compliance tasks" detail="See assigned follow-up work." />
+        <CarrierQuickLink href="/notifications" title="Notifications" detail={carrierNotifications[0]?.message ?? "No urgent notifications right now."} />
+      </div>
+    </section>
+  );
+}
+
+function CarrierQuickLink({ href, title, detail }: { href: string; title: string; detail: string }) {
+  return (
+    <Link href={href} className="rounded-md border border-white/10 bg-black/25 p-3 transition hover:border-manifest-red/45 hover:bg-manifest-red/10">
+      <strong className="block text-sm text-white">{title}</strong>
+      <span className="mt-1 block text-xs leading-5 text-manifest-muted">{detail}</span>
+    </Link>
+  );
+}
+
+function MiniCount({ label, value, tone }: { label: string; value: number; tone: "danger" | "warn" | "neutral" }) {
+  const toneClass = tone === "danger" ? "text-manifest-danger" : tone === "warn" ? "text-manifest-amber" : "text-white";
+  return (
+    <div className="rounded-md border border-white/10 bg-black/30 p-2">
+      <strong className={`block text-xl leading-none ${toneClass}`}>{value}</strong>
+      <span className="mt-1 block text-[10px] font-extrabold uppercase tracking-[0.12em] text-manifest-quiet">{label}</span>
+    </div>
+  );
+}
+
 function ActionCenterStrip({ overview }: { overview: ExecutiveOverviewData }) {
   const actions: Array<{
     label: string;
@@ -551,13 +699,13 @@ function ActionCenterStrip({ overview }: { overview: ExecutiveOverviewData }) {
   ];
 
   return (
-    <section className="sticky top-4 z-20 rounded-md border border-manifest-red/35 bg-black/80 p-3 shadow-premium backdrop-blur-xl">
-      <div className="grid grid-cols-5 gap-3 max-xl:grid-cols-2 max-md:grid-cols-1">
+    <section className="sticky top-3 z-20 rounded-md border border-manifest-red/35 bg-black/85 p-2.5 shadow-premium backdrop-blur-xl">
+      <div className="grid grid-cols-5 gap-2.5 max-xl:grid-cols-2 max-md:grid-cols-1">
         {actions.map((action) => (
           <Link
             key={action.label}
             href={action.href}
-            className={`flex min-h-16 items-center justify-between gap-3 rounded-md border bg-white/[0.035] px-4 text-left transition hover:border-manifest-red/50 hover:bg-manifest-red/10 ${
+            className={`flex min-h-14 items-center justify-between gap-3 rounded-md border bg-white/[0.035] px-3 text-left transition hover:border-manifest-red/50 hover:bg-manifest-red/10 ${
               action.tone === "danger"
                 ? "border-manifest-danger/45"
                 : action.tone === "warn"
@@ -569,7 +717,7 @@ function ActionCenterStrip({ overview }: { overview: ExecutiveOverviewData }) {
               <span className="block text-xs font-extrabold uppercase tracking-[0.14em] text-manifest-quiet">{action.label}</span>
               <span className="mt-1 block text-xs font-bold text-manifest-muted">{action.detail}</span>
             </span>
-            <strong className={`text-3xl leading-none ${action.tone === "danger" ? "text-manifest-danger" : action.tone === "warn" ? "text-manifest-amber" : "text-white"}`}>
+            <strong className={`text-2xl leading-none ${action.tone === "danger" ? "text-manifest-danger" : action.tone === "warn" ? "text-manifest-amber" : "text-white"}`}>
                 {action.value}
               </strong>
           </Link>
@@ -1117,16 +1265,16 @@ function ExecutiveMetricCard({
   }[tone];
 
   return (
-    <article className={`section-panel min-h-24 overflow-hidden p-3 ${toneClass}`}>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <span className="block text-xs font-extrabold uppercase tracking-[0.14em] leading-5 text-manifest-muted">{label}</span>
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-white/10 bg-black/30">
+    <article className={`section-panel min-h-20 overflow-hidden p-3 ${toneClass}`}>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <span className="block text-[11px] font-extrabold uppercase leading-5 tracking-[0.12em] text-manifest-muted">{label}</span>
+        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-white/10 bg-black/30">
           {tone === "danger" ? <ShieldAlert className="h-4 w-4" /> : <ClipboardCheck className="h-4 w-4" />}
         </span>
       </div>
-      <strong className="block text-3xl leading-none tracking-normal">{value}</strong>
-      <span className="mt-2 block text-xs font-bold leading-5 text-manifest-muted">{detail}</span>
-      <div className="mt-3 h-1 rounded-full bg-white/10">
+      <strong className="block text-2xl leading-none tracking-normal">{value}</strong>
+      <span className="mt-1.5 block text-xs font-bold leading-5 text-manifest-muted">{detail}</span>
+      <div className="mt-2 h-1 rounded-full bg-white/10">
         <div className={`h-full rounded-full ${tone === "danger" ? "bg-manifest-danger" : tone === "warn" ? "bg-manifest-amber" : tone === "good" ? "bg-manifest-green" : "bg-manifest-red"}`} />
       </div>
     </article>
@@ -1156,7 +1304,19 @@ function CarrierRoster({
         <StatusChip value={`${carriers.length} carrier${carriers.length === 1 ? "" : "s"}`} />
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="hidden gap-3 max-md:grid">
+        {carriers.length ? carriers.map((carrier) => (
+          <CarrierMobileCard
+            key={carrier.id}
+            carrier={carrier}
+            onboardingProgress={onboardingProgressByCarrier.get(carrier.id) ?? null}
+          />
+        )) : (
+          <div className="empty-state">No carriers match the current search and status filters.</div>
+        )}
+      </div>
+
+      <div className="overflow-x-auto max-md:hidden">
         <table className="w-full min-w-[900px] border-collapse">
           <thead>
             <tr className="bg-white/[0.025] text-left text-[11px] uppercase tracking-[0.14em] text-manifest-quiet">
@@ -1800,6 +1960,60 @@ function CarrierRow({
         </div>
       </td>
     </tr>
+  );
+}
+
+function CarrierMobileCard({
+  carrier,
+  onboardingProgress,
+}: {
+  carrier: Carrier;
+  onboardingProgress: CarrierOnboardingProgress | null;
+}) {
+  const score = getComplianceScore(carrier);
+  const tier = getComplianceTier(carrier);
+  const onboardingPercent = onboardingProgress?.percentage ?? 0;
+  const alerts = getCarrierAlerts(carrier);
+
+  return (
+    <article className="rounded-md border border-white/10 bg-black/25 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <strong className="block truncate text-base text-white">{carrier.companyName}</strong>
+          <span className="mt-1 block text-xs text-manifest-muted">{carrier.email}</span>
+        </div>
+        <StatusChip value={carrier.status} type="carrier" />
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-3 text-xs max-[430px]:grid-cols-1">
+        <DocumentTerm label="MC" value={carrier.mcNumber} />
+        <DocumentTerm label="DOT" value={carrier.dotNumber} />
+        <DocumentTerm label="Contact" value={carrier.contactName} />
+        <DocumentTerm label="Phone" value={carrier.phone} />
+      </div>
+      <div className="mt-4 grid gap-2">
+        <div className="flex items-center justify-between gap-3">
+          <span className={`rounded-full border px-2.5 py-1 text-[11px] font-extrabold uppercase ${onboardingBadgeClass(onboardingProgress?.status ?? "Not Started")}`}>
+            {onboardingProgress?.status ?? "Not Started"}
+          </span>
+          <span className="text-xs font-bold text-manifest-muted">{onboardingPercent}% complete</span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-[#2a2a30]">
+          <div className="h-full rounded-full bg-manifest-red" style={{ width: `${onboardingPercent}%` }} />
+        </div>
+        <span className="text-xs font-bold text-manifest-muted">
+          {onboardingProgress?.missingCount ?? 0} missing · {onboardingProgress?.expiringCount ?? 0} expiring
+        </span>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <span className={`text-xs font-bold ${riskTextColor(tier)}`}>{score} - {tier}</span>
+        {alerts.slice(0, 3).map((alert) => (
+          <StatusChip key={alert} value={alert} />
+        ))}
+      </div>
+      <Link href={`/carriers/${carrier.id}`} className="form-button mt-4 min-h-11 w-full justify-center text-sm">
+        View profile
+      </Link>
+    </article>
   );
 }
 
