@@ -236,13 +236,13 @@ export async function publicUploadDocumentAction(formData: FormData) {
       supabaseErrorMessage: failure.supabaseErrorMessage,
       message: failure.logMessage,
     });
-    redirectToUpload(token, failure.userMessage, "error");
+    redirectToUpload(token, failure.userMessage, "error", documentName);
   }
 
   revalidatePath(`/carriers/${link.carrierId}`);
   revalidatePath("/audit-readiness");
   revalidatePath("/documents-to-fix");
-  redirectToUpload(token, "Document uploaded. Thank you.", "success");
+  redirectToUpload(token, "Document uploaded. You can continue uploading the remaining requested documents.", "success", documentName);
 }
 
 async function finalizePublicDocument(input: {
@@ -269,24 +269,49 @@ async function finalizePublicDocument(input: {
   const status = getDocumentDatabaseStatus(true, input.expirationDate);
 
   if (input.category === "carrier") {
-    const { data, error } = await adminSupabase
+    const { data: existing, error: existingError } = await adminSupabase
       .from("carrier_documents")
-      .upsert({
-        organization_id: input.organizationId,
-        carrier_id: input.carrierId,
-        document_name: input.documentName,
-        storage_path: input.storagePath,
-        file_name: input.fileName,
-        file_size: input.fileSize,
-        mime_type: input.mimeType,
-        uploaded: true,
-        expiration_date: input.expirationDate,
-        notes: input.notes,
-        uploaded_by: null,
-        uploaded_at: uploadedAt,
-        version_number: input.versionNumber,
-        status,
-      }, { onConflict: "organization_id,carrier_id,document_name" })
+      .select("id")
+      .eq("organization_id", input.organizationId)
+      .eq("carrier_id", input.carrierId)
+      .eq("document_name", input.documentName)
+      .maybeSingle();
+
+    if (existingError) {
+      throw new PublicUploadError(existingError.message, "document_lookup", {
+        supabaseErrorCode: existingError.code,
+        supabaseErrorMessage: existingError.message,
+        table: "carrier_documents",
+      });
+    }
+
+    const payload = {
+      organization_id: input.organizationId,
+      carrier_id: input.carrierId,
+      document_name: input.documentName,
+      storage_path: input.storagePath,
+      file_name: input.fileName,
+      file_size: input.fileSize,
+      mime_type: input.mimeType,
+      uploaded: true,
+      expiration_date: input.expirationDate,
+      notes: input.notes,
+      uploaded_by: null,
+      uploaded_at: uploadedAt,
+      version_number: input.versionNumber,
+      status,
+    };
+
+    const { data, error } = existing
+      ? await adminSupabase
+        .from("carrier_documents")
+        .update(payload)
+        .eq("id", existing.id)
+        .select("id")
+        .single()
+      : await adminSupabase
+      .from("carrier_documents")
+      .insert(payload)
       .select("id")
       .single();
 
@@ -325,20 +350,45 @@ async function finalizePublicDocument(input: {
 
   const table = input.category === "driver" ? "driver_documents" : "equipment_documents";
   const idColumn = input.category === "driver" ? "driver_id" : "equipment_id";
-  const { data, error } = await adminSupabase
+  const { data: existing, error: existingError } = await adminSupabase
     .from(table)
-    .upsert({
-      organization_id: input.organizationId,
-      [idColumn]: input.ownerId,
-      document_name: input.documentName,
-      storage_path: input.storagePath,
-      uploaded: true,
-      expiration_date: input.expirationDate,
-      notes: input.notes,
-      uploaded_by: null,
-      uploaded_at: uploadedAt,
-      status,
-    }, { onConflict: `${idColumn},document_name` })
+    .select("id")
+    .eq("organization_id", input.organizationId)
+    .eq(idColumn, input.ownerId)
+    .eq("document_name", input.documentName)
+    .maybeSingle();
+
+  if (existingError) {
+    throw new PublicUploadError(existingError.message, "document_lookup", {
+      supabaseErrorCode: existingError.code,
+      supabaseErrorMessage: existingError.message,
+      table,
+    });
+  }
+
+  const payload = {
+    organization_id: input.organizationId,
+    [idColumn]: input.ownerId,
+    document_name: input.documentName,
+    storage_path: input.storagePath,
+    uploaded: true,
+    expiration_date: input.expirationDate,
+    notes: input.notes,
+    uploaded_by: null,
+    uploaded_at: uploadedAt,
+    status,
+  };
+
+  const { data, error } = existing
+    ? await adminSupabase
+      .from(table)
+      .update(payload)
+      .eq("id", existing.id)
+      .select("id")
+      .single()
+    : await adminSupabase
+    .from(table)
+    .insert(payload)
     .select("id")
     .single();
 
@@ -483,8 +533,10 @@ function redirectToCarrier(carrierId: string, message: string, type: "success" |
   redirect(`/carriers/${carrierId || ""}?${type}=${encodeURIComponent(message)}`);
 }
 
-function redirectToUpload(token: string, message: string, type: "success" | "error"): never {
-  redirect(`/upload/${token}?${type}=${encodeURIComponent(message)}`);
+function redirectToUpload(token: string, message: string, type: "success" | "error", documentName?: string | null): never {
+  const params = new URLSearchParams({ [type]: message });
+  if (documentName) params.set("document", slugify(documentName));
+  redirect(`/upload/${token}?${params.toString()}`);
 }
 
 class PublicUploadError extends Error {

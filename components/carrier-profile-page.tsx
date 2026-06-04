@@ -302,10 +302,10 @@ function UploadLinkPanel({
     <section className="section-panel mb-5 p-6 max-md:p-4">
       <div className="mb-5 flex items-start justify-between gap-3 max-md:flex-col">
         <div>
-          <p className="eyebrow">Secure Intake Link</p>
-          <h2 className="text-2xl font-extrabold tracking-normal text-white">No-login document upload</h2>
+          <p className="eyebrow">Carrier Intake Upload Link</p>
+          <h2 className="text-2xl font-extrabold tracking-normal text-white">Secure carrier document packet</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-manifest-muted">
-            Create an expiring public upload link for this carrier. The link can only upload the selected document categories.
+            Allows the carrier to upload multiple requested documents until the link expires or is revoked.
           </p>
         </div>
         <Link2 className="h-5 w-5 text-manifest-red" />

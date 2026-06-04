@@ -37,6 +37,17 @@ export type PublicUploadLinkLookup = {
   errorMessage?: string;
 };
 
+export type PublicUploadDocumentStatus = {
+  category: UploadDocumentCategory;
+  documentName: string;
+  uploaded: boolean;
+  status: string | null;
+  expirationDate: string | null;
+  storagePath: string | null;
+  fileName: string | null;
+  uploadedAt: string | null;
+};
+
 type UploadLinkRow = {
   id: string;
   organization_id: string;
@@ -59,6 +70,23 @@ type OrganizationRow = { id: string; name: string | null };
 type CarrierRow = { id: string; company_name: string | null };
 type DriverRow = { id: string; first_name: string | null; last_name: string | null };
 type EquipmentRow = { id: string; unit_number: string | null; equipment_type: string | null };
+type CarrierDocumentRow = {
+  document_name: string;
+  uploaded: boolean;
+  status: string | null;
+  expiration_date: string | null;
+  storage_path: string | null;
+  file_name: string | null;
+  uploaded_at: string | null;
+};
+type ScopedDocumentRow = {
+  document_name: string;
+  uploaded: boolean;
+  status: string | null;
+  expiration_date: string | null;
+  storage_path: string | null;
+  uploaded_at: string | null;
+};
 
 export async function getUploadLinksForCarrier(carrierId: string): Promise<UploadLinkRecord[]> {
   noStore();
@@ -159,6 +187,85 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
   };
 }
 
+export async function getPublicUploadDocumentStatuses(link: PublicUploadLink): Promise<PublicUploadDocumentStatus[]> {
+  noStore();
+  const adminSupabase = createAdminClient();
+  if (!adminSupabase) return [];
+
+  const results: PublicUploadDocumentStatus[] = [];
+
+  if (link.allowedDocumentCategories.includes("carrier")) {
+    const { data, error } = await adminSupabase
+      .from("carrier_documents")
+      .select("document_name, uploaded, status, expiration_date, storage_path, file_name, uploaded_at")
+      .eq("organization_id", link.organizationId)
+      .eq("carrier_id", link.carrierId);
+
+    if (error) {
+      console.warn("[upload-link] unable to load carrier intake statuses", { linkId: link.id, code: error.code, message: error.message });
+    } else {
+      results.push(...((data ?? []) as CarrierDocumentRow[]).map((row) => ({
+        category: "carrier" as const,
+        documentName: row.document_name,
+        uploaded: row.uploaded,
+        status: row.status,
+        expirationDate: row.expiration_date,
+        storagePath: row.storage_path,
+        fileName: row.file_name ?? fileNameFromPath(row.storage_path),
+        uploadedAt: row.uploaded_at,
+      })));
+    }
+  }
+
+  if (link.allowedDocumentCategories.includes("driver") && link.driverId) {
+    const { data, error } = await adminSupabase
+      .from("driver_documents")
+      .select("document_name, uploaded, status, expiration_date, storage_path, uploaded_at")
+      .eq("organization_id", link.organizationId)
+      .eq("driver_id", link.driverId);
+
+    if (error) {
+      console.warn("[upload-link] unable to load driver intake statuses", { linkId: link.id, code: error.code, message: error.message });
+    } else {
+      results.push(...((data ?? []) as ScopedDocumentRow[]).map((row) => ({
+        category: "driver" as const,
+        documentName: row.document_name,
+        uploaded: row.uploaded,
+        status: row.status,
+        expirationDate: row.expiration_date,
+        storagePath: row.storage_path,
+        fileName: fileNameFromPath(row.storage_path),
+        uploadedAt: row.uploaded_at,
+      })));
+    }
+  }
+
+  if (link.allowedDocumentCategories.includes("vehicle") && link.equipmentId) {
+    const { data, error } = await adminSupabase
+      .from("equipment_documents")
+      .select("document_name, uploaded, status, expiration_date, storage_path, uploaded_at")
+      .eq("organization_id", link.organizationId)
+      .eq("equipment_id", link.equipmentId);
+
+    if (error) {
+      console.warn("[upload-link] unable to load vehicle intake statuses", { linkId: link.id, code: error.code, message: error.message });
+    } else {
+      results.push(...((data ?? []) as ScopedDocumentRow[]).map((row) => ({
+        category: "vehicle" as const,
+        documentName: row.document_name,
+        uploaded: row.uploaded,
+        status: row.status,
+        expirationDate: row.expiration_date,
+        storagePath: row.storage_path,
+        fileName: fileNameFromPath(row.storage_path),
+        uploadedAt: row.uploaded_at,
+      })));
+    }
+  }
+
+  return results;
+}
+
 function mapUploadLinkRow(row: UploadLinkRow): UploadLinkRecord {
   return {
     id: row.id,
@@ -201,4 +308,9 @@ async function getEquipmentById(id: string) {
   if (!adminSupabase) return null;
   const { data } = await adminSupabase.from("equipment").select("id, unit_number, equipment_type").eq("id", id).maybeSingle();
   return data as EquipmentRow | null;
+}
+
+function fileNameFromPath(storagePath: string | null) {
+  if (!storagePath) return null;
+  return storagePath.split("/").pop() ?? null;
 }
