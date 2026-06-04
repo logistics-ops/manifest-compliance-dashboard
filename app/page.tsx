@@ -12,6 +12,7 @@ import { getNotifications } from "@/lib/data/notifications";
 import { getCurrentOrganizationBranding } from "@/lib/data/organizations";
 import { getVehicles } from "@/lib/data/vehicles";
 import { requireStaffAccess } from "@/lib/integrations/auth";
+import { buildOnboardingProgressByCarrier, summarizeOnboardingProgress } from "@/lib/onboarding-progress";
 import type { ComplianceNotification, Carrier } from "@/types/carrier";
 import type { Invoice } from "@/types/invoice";
 import type { Load } from "@/types/load";
@@ -46,6 +47,9 @@ export default async function Home() {
     tasks,
     notifications,
   });
+  const onboardingProgressByCarrier = buildOnboardingProgressByCarrier({ carriers, drivers: dqFiles, vehicles });
+  const onboardingProgress = Array.from(onboardingProgressByCarrier.values());
+  const onboardingSummary = summarizeOnboardingProgress(onboardingProgress);
 
   return (
     <ComplianceDashboard
@@ -55,6 +59,8 @@ export default async function Home() {
       session={session}
       branding={branding}
       executiveOverview={executiveOverview}
+      onboardingProgress={onboardingProgress}
+      onboardingSummary={onboardingSummary}
     />
   );
 }

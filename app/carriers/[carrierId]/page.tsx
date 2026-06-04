@@ -8,6 +8,7 @@ import { getUploadLinksForCarrier } from "@/lib/data/upload-links";
 import { getVehicles } from "@/lib/data/vehicles";
 import { canViewCarrier, requireSession } from "@/lib/integrations/auth";
 import { mockCarriers } from "@/lib/mock-data";
+import { buildCarrierOnboardingProgress } from "@/lib/onboarding-progress";
 
 type CarrierPageProps = {
   params: Promise<{
@@ -66,6 +67,11 @@ export default async function CarrierPage({ params, searchParams }: CarrierPageP
       loads={loads.filter((load) => load.carrierId === carrier.id)}
       drivers={dqFiles.filter((file) => file.carrierId === carrier.id)}
       vehicles={vehicles.filter((vehicle) => vehicle.carrierId === carrier.id)}
+      onboardingProgress={buildCarrierOnboardingProgress({
+        carrier,
+        drivers: dqFiles.filter((file) => file.carrierId === carrier.id),
+        vehicles: vehicles.filter((vehicle) => vehicle.carrierId === carrier.id),
+      })}
       uploadLinks={uploadLinks}
       generatedUploadLink={query?.uploadLink ? decodeURIComponent(query.uploadLink) : null}
       message={query?.success ? { type: "success", text: decodeURIComponent(query.success) } : query?.error ? { type: "error", text: decodeURIComponent(query.error) } : null}

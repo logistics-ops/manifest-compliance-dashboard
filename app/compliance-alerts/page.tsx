@@ -9,6 +9,7 @@ import { getDQFiles } from "@/lib/data/dq-files";
 import { getInspectionReports } from "@/lib/data/inspections";
 import { getVehicles } from "@/lib/data/vehicles";
 import { requireSession } from "@/lib/integrations/auth";
+import { buildOnboardingProgressByCarrier, type CarrierOnboardingProgress } from "@/lib/onboarding-progress";
 import { canManageComplianceTaskRecord } from "@/lib/security/tenant-rules";
 import type { Carrier } from "@/types/carrier";
 
@@ -61,12 +62,14 @@ export default async function ComplianceAlertsPage({ searchParams }: PageProps) 
   const canCreateTasks = canManageComplianceTaskRecord(session, session.organizationId);
   const carriers = scopeCarriers(allCarriers, session);
   const carrierIds = new Set(carriers.map((carrier) => carrier.id));
+  const onboardingProgress = Array.from(buildOnboardingProgressByCarrier({ carriers, drivers: dqFiles, vehicles }).values());
   const alerts = buildComplianceAlerts({
     carriers,
     carrierReadiness: auditReadiness.results.filter((result) => carrierIds.has(result.carrierId)),
     dqFiles,
     vehicles,
     inspections,
+    onboardingProgress,
   });
   const filteredAlerts = filterAlerts(alerts, activeFilter);
   const summary = {
@@ -154,12 +157,14 @@ function buildComplianceAlerts({
   dqFiles,
   vehicles,
   inspections,
+  onboardingProgress,
 }: {
   carriers: Carrier[];
   carrierReadiness: Awaited<ReturnType<typeof getAuditReadinessDashboardData>>["results"];
   dqFiles: Awaited<ReturnType<typeof getDQFiles>>;
   vehicles: Awaited<ReturnType<typeof getVehicles>>;
   inspections: Awaited<ReturnType<typeof getInspectionReports>>;
+  onboardingProgress: CarrierOnboardingProgress[];
 }): ComplianceAlert[] {
   const carrierById = new Map(carriers.map((carrier) => [carrier.id, carrier]));
   const carrierDocumentAlerts = carriers.flatMap((carrier) =>
@@ -310,7 +315,28 @@ function buildComplianceAlerts({
       openDocumentHref: `/inspections/${inspection.id}`,
     }));
 
-  return [...carrierDocumentAlerts, ...carrierRiskAlerts, ...driverAlerts, ...vehicleAlerts, ...inspectionAlerts].sort(sortAlerts);
+  const onboardingAlerts = onboardingProgress.flatMap((progress) =>
+    progress.categories.flatMap((category) =>
+      [...category.expiredItems, ...category.missingItems, ...category.expiringItems].map((item) => ({
+        id: `onboarding:${progress.carrierId}:${category.name}:${item.id}`,
+        scope: "carrier" as const,
+        type: item.status === "expired" ? "Expired" as const : item.status === "missing" ? "Missing" as const : "Expiring Soon" as const,
+        severity: item.status === "expired" ? "Critical" as const : item.status === "missing" ? "High" as const : "Low" as const,
+        title: `${progress.carrierName}: ${item.label}`,
+        description: `${category.name} onboarding item is ${item.status}.`,
+        carrierId: progress.carrierId,
+        carrierName: progress.carrierName,
+        entityId: progress.carrierId,
+        dueDate: null,
+        daysUntilExpiration: null,
+        openCarrierHref: `/carriers/${progress.carrierId}`,
+        openEntityHref: `/carriers/${progress.carrierId}`,
+        openDocumentHref: item.correctionHref,
+      })),
+    ),
+  );
+
+  return [...carrierDocumentAlerts, ...carrierRiskAlerts, ...driverAlerts, ...vehicleAlerts, ...inspectionAlerts, ...onboardingAlerts].sort(sortAlerts);
 }
 
 function AlertRow({ alert, canCreateTasks }: { alert: ComplianceAlert; canCreateTasks: boolean }) {

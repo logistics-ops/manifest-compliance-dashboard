@@ -47,6 +47,7 @@ import { canManageCarriers } from "@/lib/auth/permissions";
 import { NotificationCenter } from "@/components/notification-center";
 import { AuditLogViewer } from "@/components/audit-log-viewer";
 import type { AuditLog } from "@/lib/audit";
+import type { CarrierOnboardingProgress, OnboardingProgressDashboardSummary } from "@/lib/onboarding-progress";
 
 const statusOptions: Array<CarrierStatus | "All"> = ["All", "Active", "Pending", "Suspended", "Inactive"];
 const alertLabels: AlertLabel[] = [
@@ -100,6 +101,12 @@ export type ExecutiveOverviewData = {
     documents: string[];
     alerts: string[];
   };
+};
+
+const emptyOnboardingSummary: OnboardingProgressDashboardSummary = {
+  complete: 0,
+  inProgress: 0,
+  missingCriticalDocuments: 0,
 };
 
 const organizationNavGroups: NavGroup[] = [
@@ -164,6 +171,8 @@ export function ComplianceDashboard({
   session,
   branding,
   executiveOverview,
+  onboardingProgress = [],
+  onboardingSummary = emptyOnboardingSummary,
 }: {
   carriers?: Carrier[];
   notifications?: ComplianceNotification[];
@@ -171,6 +180,8 @@ export function ComplianceDashboard({
   session: AuthSession;
   branding: OrganizationBranding;
   executiveOverview: ExecutiveOverviewData;
+  onboardingProgress?: CarrierOnboardingProgress[];
+  onboardingSummary?: OnboardingProgressDashboardSummary;
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<DashboardTab>(() => getInitialDashboardTab());
@@ -185,6 +196,7 @@ export function ComplianceDashboard({
   const timelineEvents = getComplianceTimeline(activeCarriers, 90);
   const activeNotifications = notifications.length ? notifications : [];
   const unreadNotifications = activeNotifications.filter((notification) => notification.status === "unread").length;
+  const onboardingProgressByCarrier = useMemo(() => new Map(onboardingProgress.map((item) => [item.carrierId, item])), [onboardingProgress]);
 
   useEffect(() => {
     function handlePopState() {
@@ -392,6 +404,9 @@ export function ComplianceDashboard({
               <ExecutiveMetricCard label="Open compliance alerts" value={executiveOverview.openComplianceAlerts} detail="Unread/read alerts not dismissed" tone={executiveOverview.openComplianceAlerts ? "warn" : "good"} />
               <ExecutiveMetricCard label="Open tasks" value={executiveOverview.taskSummary.open} detail={`${executiveOverview.taskSummary.overdue} overdue · ${executiveOverview.taskSummary.dueThisWeek} due this week`} tone={executiveOverview.taskSummary.overdue ? "danger" : executiveOverview.taskSummary.open ? "warn" : "good"} />
               <ExecutiveMetricCard label="Inspection reports" value={executiveOverview.inspectionSummary.total} detail={`${executiveOverview.inspectionSummary.outOfService} out of service · ${executiveOverview.inspectionSummary.withViolations} with findings`} tone={executiveOverview.inspectionSummary.outOfService ? "danger" : executiveOverview.inspectionSummary.withViolations ? "warn" : "good"} />
+              <ExecutiveMetricCard label="Carriers complete" value={onboardingSummary.complete} detail="Onboarding packets complete" tone={onboardingSummary.complete ? "good" : "neutral"} />
+              <ExecutiveMetricCard label="Carriers in progress" value={onboardingSummary.inProgress} detail="Active onboarding work" tone={onboardingSummary.inProgress ? "warn" : "good"} />
+              <ExecutiveMetricCard label="Missing critical docs" value={onboardingSummary.missingCriticalDocuments} detail="Carrier onboarding blockers" tone={onboardingSummary.missingCriticalDocuments ? "danger" : "good"} />
             </section>
 
             <AlertPanel carriers={activeCarriers} compact />
@@ -408,7 +423,7 @@ export function ComplianceDashboard({
             <LowerDashboardTabs activeTab={activeLowerTab} onChange={setActiveLowerTab} />
 
             {activeLowerTab === "carriers" ? (
-              <CarrierRoster carriers={filteredCarriers} selectedCarrierId={selectedCarrierId} onSelectCarrier={setSelectedCarrierId} compact />
+              <CarrierRoster carriers={filteredCarriers} selectedCarrierId={selectedCarrierId} onSelectCarrier={setSelectedCarrierId} onboardingProgressByCarrier={onboardingProgressByCarrier} compact />
             ) : null}
 
             {activeLowerTab === "drivers" ? (
@@ -454,7 +469,7 @@ export function ComplianceDashboard({
         {activeTab === "compliance" ? (
           <div className="grid gap-5">
             <section className="grid grid-cols-[minmax(0,1.8fr)_minmax(320px,0.8fr)] gap-5 max-xl:grid-cols-1">
-              <CarrierRoster carriers={filteredCarriers} selectedCarrierId={selectedCarrierId} onSelectCarrier={setSelectedCarrierId} />
+              <CarrierRoster carriers={filteredCarriers} selectedCarrierId={selectedCarrierId} onSelectCarrier={setSelectedCarrierId} onboardingProgressByCarrier={onboardingProgressByCarrier} />
               <AlertPanel carriers={activeCarriers} />
             </section>
             <ExecutiveAnalytics carriers={activeCarriers} />
@@ -1122,11 +1137,13 @@ function CarrierRoster({
   carriers,
   selectedCarrierId,
   onSelectCarrier,
+  onboardingProgressByCarrier,
   compact = false,
 }: {
   carriers: Carrier[];
   selectedCarrierId: string;
   onSelectCarrier: (carrierId: string) => void;
+  onboardingProgressByCarrier: Map<string, CarrierOnboardingProgress>;
   compact?: boolean;
 }) {
   return (
@@ -1147,6 +1164,7 @@ function CarrierRoster({
               <th className={`border-b border-white/10 px-4 ${compact ? "py-3" : "py-4"}`}>MC / DOT</th>
               <th className={`border-b border-white/10 px-4 ${compact ? "py-3" : "py-4"}`}>Contact</th>
               <th className={`border-b border-white/10 px-4 ${compact ? "py-3" : "py-4"}`}>Status</th>
+              <th className={`border-b border-white/10 px-4 ${compact ? "py-3" : "py-4"}`}>Onboarding</th>
               <th className={`border-b border-white/10 px-4 ${compact ? "py-3" : "py-4"}`}>Score</th>
               <th className={`border-b border-white/10 px-4 ${compact ? "py-3" : "py-4"}`}>Alerts</th>
             </tr>
@@ -1158,10 +1176,11 @@ function CarrierRoster({
                 carrier={carrier}
                 isSelected={carrier.id === selectedCarrierId}
                 onSelectCarrier={onSelectCarrier}
+                onboardingProgress={onboardingProgressByCarrier.get(carrier.id) ?? null}
               />
             )) : (
               <tr>
-                <td colSpan={6} className="border-b border-white/10 px-4 py-8">
+                <td colSpan={7} className="border-b border-white/10 px-4 py-8">
                   <div className="empty-state">
                     No carriers match the current search and status filters.
                   </div>
@@ -1698,13 +1717,16 @@ function CarrierRow({
   carrier,
   isSelected,
   onSelectCarrier,
+  onboardingProgress,
 }: {
   carrier: Carrier;
   isSelected: boolean;
   onSelectCarrier: (carrierId: string) => void;
+  onboardingProgress: CarrierOnboardingProgress | null;
 }) {
   const score = getComplianceScore(carrier);
   const tier = getComplianceTier(carrier);
+  const onboardingPercent = onboardingProgress?.percentage ?? 0;
 
   return (
     <tr
@@ -1738,6 +1760,19 @@ function CarrierRow({
       </td>
       <td className="border-b border-white/10 px-4 py-4">
         <StatusChip value={carrier.status} type="carrier" />
+      </td>
+      <td className="border-b border-white/10 px-4 py-4">
+        <div className="grid min-w-36 gap-2">
+          <span className={`w-fit rounded-full border px-2.5 py-1 text-[11px] font-extrabold uppercase ${onboardingBadgeClass(onboardingProgress?.status ?? "Not Started")}`}>
+            {onboardingProgress?.status ?? "Not Started"}
+          </span>
+          <div className="h-2 overflow-hidden rounded-full bg-[#2a2a30]">
+            <div className="h-full rounded-full bg-manifest-red" style={{ width: `${onboardingPercent}%` }} />
+          </div>
+          <span className="text-xs font-bold text-manifest-muted">
+            {onboardingPercent}% · {onboardingProgress?.missingCount ?? 0} missing · {onboardingProgress?.expiringCount ?? 0} expiring
+          </span>
+        </div>
       </td>
       <td className="border-b border-white/10 px-4 py-4">
         <div className="grid min-w-28 gap-2">
@@ -1795,6 +1830,13 @@ function riskBarColor(tier: string) {
   if (tier === "Needs Attention") return "bg-manifest-amber";
   if (tier === "Moderate Risk") return "bg-manifest-orange";
   return "bg-manifest-danger";
+}
+
+function onboardingBadgeClass(status: CarrierOnboardingProgress["status"]) {
+  if (status === "Complete") return "border-manifest-green/35 bg-manifest-green/10 text-manifest-green";
+  if (status === "Near Complete") return "border-manifest-amber/45 bg-manifest-amber/10 text-manifest-amber";
+  if (status === "In Progress") return "border-manifest-red/45 bg-manifest-red/10 text-white";
+  return "border-white/10 bg-white/[0.035] text-manifest-muted";
 }
 
 function timelineDotColor(event: ComplianceTimelineEvent) {

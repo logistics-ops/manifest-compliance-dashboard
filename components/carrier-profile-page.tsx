@@ -33,6 +33,7 @@ import type { Load } from "@/types/load";
 import type { DQFileRecord } from "@/lib/data/dq-files";
 import type { UploadLinkRecord } from "@/lib/data/upload-links";
 import type { VehicleRecord } from "@/lib/data/vehicles";
+import type { CarrierOnboardingProgress } from "@/lib/onboarding-progress";
 import { StatusChip } from "@/components/status-chip";
 import { logoutAction } from "@/app/login/actions";
 import { canManageCarriers, canManageCompliance, canUploadCarrierDocuments } from "@/lib/auth/permissions";
@@ -48,6 +49,7 @@ export function CarrierProfilePage({
   drivers = [],
   vehicles = [],
   uploadLinks = [],
+  onboardingProgress,
   generatedUploadLink = null,
   message = null,
 }: {
@@ -57,6 +59,7 @@ export function CarrierProfilePage({
   drivers?: DQFileRecord[];
   vehicles?: VehicleRecord[];
   uploadLinks?: UploadLinkRecord[];
+  onboardingProgress: CarrierOnboardingProgress;
   generatedUploadLink?: string | null;
   message?: { type: "success" | "error"; text: string } | null;
 }) {
@@ -249,6 +252,8 @@ export function CarrierProfilePage({
           </div>
         </section>
 
+        <OnboardingProgressCard progress={onboardingProgress} />
+
         {mayManageCompliance ? (
           <UploadLinkPanel
             carrierId={carrier.id}
@@ -279,10 +284,96 @@ export function CarrierProfilePage({
         </section>
 
         <CarrierAssignedLoads carrierId={carrier.id} loads={loads} session={session} />
-      </div>
+        </div>
       </main>
     </div>
   );
+}
+
+function OnboardingProgressCard({ progress }: { progress: CarrierOnboardingProgress }) {
+  return (
+    <section className="section-panel mb-5 p-6 max-md:p-4">
+      <div className="mb-5 flex items-start justify-between gap-4 max-lg:flex-col">
+        <div>
+          <p className="eyebrow">Carrier Onboarding Progress</p>
+          <h2 className="text-2xl font-extrabold tracking-normal text-white">Intake completion</h2>
+          <p className="mt-2 text-sm leading-6 text-manifest-muted">
+            Real-time completion from company documents, driver files, vehicle files, maintenance records, and required compliance documents.
+          </p>
+        </div>
+        <div className="grid min-w-48 gap-2 rounded-md border border-white/10 bg-black/30 p-4">
+          <span className={`w-fit rounded-full border px-2.5 py-1 text-[11px] font-extrabold uppercase ${onboardingBadgeClass(progress.status)}`}>
+            {progress.status}
+          </span>
+          <strong className="text-4xl leading-none text-white">{progress.percentage}%</strong>
+          <div className="h-2 overflow-hidden rounded-full bg-white/10">
+            <div className="h-full rounded-full bg-manifest-red" style={{ width: `${progress.percentage}%` }} />
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-5 grid grid-cols-4 gap-3 max-lg:grid-cols-2 max-sm:grid-cols-1">
+        <ProgressMetric label="Completed" value={progress.completedCount} tone="good" />
+        <ProgressMetric label="Missing" value={progress.missingCount} tone="warn" />
+        <ProgressMetric label="Expiring" value={progress.expiringCount} tone="warn" />
+        <ProgressMetric label="Expired" value={progress.expiredCount} tone="danger" />
+      </div>
+
+      <div className="grid gap-3">
+        {progress.categories.map((category) => {
+          const issueItems = [...category.expiredItems, ...category.missingItems, ...category.expiringItems].slice(0, 4);
+          return (
+            <article key={category.name} className="rounded-md border border-white/10 bg-black/25 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
+                <div>
+                  <h3 className="text-base font-extrabold text-white">{category.name}</h3>
+                  <p className="mt-1 text-xs font-bold text-manifest-muted">
+                    {category.completedItems.length}/{category.totalItems} complete · {category.missingItems.length} missing · {category.expiringItems.length} expiring
+                  </p>
+                </div>
+                <strong className="text-lg text-white">{category.percentage}%</strong>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                <div className="h-full rounded-full bg-manifest-red" style={{ width: `${category.percentage}%` }} />
+              </div>
+              {issueItems.length ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {issueItems.map((item) => (
+                    <Link
+                      key={item.id}
+                      href={item.correctionHref}
+                      className="inline-flex min-h-8 items-center rounded-md border border-white/10 bg-white/[0.035] px-2.5 text-xs font-bold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white"
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-xs font-bold text-manifest-green">No missing or expiring items in this category.</p>
+              )}
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function ProgressMetric({ label, value, tone }: { label: string; value: number; tone: "good" | "warn" | "danger" }) {
+  const toneClass = tone === "good" ? "text-manifest-green" : tone === "warn" ? "text-manifest-amber" : "text-manifest-danger";
+  return (
+    <div className="rounded-md border border-white/10 bg-black/30 p-3">
+      <span className="panel-label">{label}</span>
+      <strong className={`mt-1 block text-2xl ${toneClass}`}>{value}</strong>
+    </div>
+  );
+}
+
+function onboardingBadgeClass(status: CarrierOnboardingProgress["status"]) {
+  if (status === "Complete") return "border-manifest-green/35 bg-manifest-green/10 text-manifest-green";
+  if (status === "Near Complete") return "border-manifest-amber/45 bg-manifest-amber/10 text-manifest-amber";
+  if (status === "In Progress") return "border-manifest-red/45 bg-manifest-red/10 text-white";
+  return "border-white/10 bg-white/[0.035] text-manifest-muted";
 }
 
 function UploadLinkPanel({
