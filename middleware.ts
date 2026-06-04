@@ -2,13 +2,18 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
 
   if (
-    request.nextUrl.pathname.startsWith("/_next") ||
-    request.nextUrl.pathname.startsWith("/api") ||
-    request.nextUrl.pathname === "/logo.png" ||
-    request.nextUrl.pathname.includes(".")
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/api") ||
+    pathname === "/logo.png" ||
+    pathname.includes(".")
   ) {
+    return NextResponse.next();
+  }
+
+  if (isPublicRoute(pathname)) {
     return NextResponse.next();
   }
 
@@ -43,7 +48,6 @@ export async function middleware(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const pathname = request.nextUrl.pathname;
 
   if (!user && pathname !== "/login") {
     const loginUrl = request.nextUrl.clone();
@@ -57,6 +61,10 @@ export async function middleware(request: NextRequest) {
   }
 
   return response;
+}
+
+function isPublicRoute(pathname: string) {
+  return pathname === "/upload" || pathname.startsWith("/upload/");
 }
 
 export const config = {
