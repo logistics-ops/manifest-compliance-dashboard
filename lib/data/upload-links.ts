@@ -1,6 +1,6 @@
-import { createHash } from "crypto";
 import { unstable_noStore as noStore } from "next/cache";
 import { getCurrentSession } from "@/lib/integrations/auth";
+import { hashUploadToken, normalizeUploadToken } from "@/lib/security/upload-token";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -30,6 +30,13 @@ export type PublicUploadLink = UploadLinkRecord & {
   isUsable: boolean;
 };
 
+export type PublicUploadLinkLookup = {
+  link: PublicUploadLink | null;
+  status: "found" | "not_found" | "configuration_error" | "lookup_error";
+  safeTokenHashPrefix: string | null;
+  errorMessage?: string;
+};
+
 type UploadLinkRow = {
   id: string;
   organization_id: string;
@@ -47,6 +54,11 @@ type UploadLinkRow = {
   drivers?: { first_name: string | null; last_name: string | null } | Array<{ first_name: string | null; last_name: string | null }> | null;
   equipment?: { unit_number: string | null; equipment_type: string | null } | Array<{ unit_number: string | null; equipment_type: string | null }> | null;
 };
+
+type OrganizationRow = { id: string; name: string | null };
+type CarrierRow = { id: string; company_name: string | null };
+type DriverRow = { id: string; first_name: string | null; last_name: string | null };
+type EquipmentRow = { id: string; unit_number: string | null; equipment_type: string | null };
 
 export async function getUploadLinksForCarrier(carrierId: string): Promise<UploadLinkRecord[]> {
   noStore();
@@ -71,39 +83,80 @@ export async function getUploadLinksForCarrier(carrierId: string): Promise<Uploa
 }
 
 export async function getPublicUploadLink(token: string): Promise<PublicUploadLink | null> {
+  const result = await getPublicUploadLinkLookup(token);
+  return result.link;
+}
+
+export async function getPublicUploadLinkLookup(token: string): Promise<PublicUploadLinkLookup> {
   noStore();
   const adminSupabase = createAdminClient();
-  if (!adminSupabase || !token) return null;
+  const normalizedToken = normalizeUploadToken(token);
+  const tokenHash = normalizedToken ? hashUploadToken(normalizedToken) : "";
+  const safeTokenHashPrefix = tokenHash ? tokenHash.slice(0, 12) : null;
+
+  if (!adminSupabase) {
+    console.warn("[upload-link] public lookup unavailable: missing service role env", { safeTokenHashPrefix });
+    return { link: null, status: "configuration_error", safeTokenHashPrefix };
+  }
+
+  if (!normalizedToken) {
+    console.warn("[upload-link] public lookup rejected empty token", { safeTokenHashPrefix });
+    return { link: null, status: "not_found", safeTokenHashPrefix };
+  }
 
   const { data, error } = await adminSupabase
     .from("upload_links")
-    .select("id, organization_id, carrier_id, driver_id, equipment_id, allowed_document_categories, expires_at, revoked_at, last_used_at, use_count, created_at, organizations(name), carriers(company_name), drivers(first_name, last_name), equipment(unit_number, equipment_type)")
-    .eq("token_hash", hashUploadToken(token))
+    .select("id, organization_id, carrier_id, driver_id, equipment_id, allowed_document_categories, expires_at, revoked_at, last_used_at, use_count, created_at")
+    .eq("token_hash", tokenHash)
     .maybeSingle();
 
-  if (error || !data) return null;
+  if (error) {
+    console.warn("[upload-link] public lookup query failed", {
+      safeTokenHashPrefix,
+      code: error.code,
+      message: error.message,
+    });
+    return { link: null, status: "lookup_error", safeTokenHashPrefix, errorMessage: error.message };
+  }
+
+  if (!data) {
+    console.warn("[upload-link] public lookup found no token row", { safeTokenHashPrefix });
+    return { link: null, status: "not_found", safeTokenHashPrefix };
+  }
+
   const row = data as UploadLinkRow;
-  const organization = Array.isArray(row.organizations) ? row.organizations[0] : row.organizations;
-  const carrier = Array.isArray(row.carriers) ? row.carriers[0] : row.carriers;
-  const driver = Array.isArray(row.drivers) ? row.drivers[0] : row.drivers;
-  const equipment = Array.isArray(row.equipment) ? row.equipment[0] : row.equipment;
+  const [organization, carrier, driver, equipment] = await Promise.all([
+    getOrganizationById(row.organization_id),
+    getCarrierById(row.carrier_id),
+    row.driver_id ? getDriverById(row.driver_id) : Promise.resolve(null),
+    row.equipment_id ? getEquipmentById(row.equipment_id) : Promise.resolve(null),
+  ]);
   const isExpired = new Date(row.expires_at).getTime() <= Date.now();
   const isRevoked = Boolean(row.revoked_at);
 
-  return {
-    ...mapUploadLinkRow(row),
-    organizationName: organization?.name ?? "Manifest Operations Center",
-    carrierName: carrier?.company_name ?? "Carrier",
-    driverName: driver ? `${driver.first_name ?? ""} ${driver.last_name ?? ""}`.trim() || "Driver" : null,
-    equipmentName: equipment ? `Unit ${equipment.unit_number ?? "Vehicle"}${equipment.equipment_type ? ` - ${equipment.equipment_type}` : ""}` : null,
-    isExpired,
-    isRevoked,
-    isUsable: !isExpired && !isRevoked,
-  };
-}
+  if (isExpired || isRevoked) {
+    console.warn("[upload-link] public lookup found inactive token", {
+      safeTokenHashPrefix,
+      isExpired,
+      isRevoked,
+      linkId: row.id,
+    });
+  }
 
-export function hashUploadToken(token: string) {
-  return createHash("sha256").update(token).digest("hex");
+  return {
+    link: {
+      ...mapUploadLinkRow(row),
+      organizationName: organization?.name ?? "Manifest Operations Center",
+      carrierName: carrier?.company_name ?? "Carrier",
+      driverName: driver ? `${driver.first_name ?? ""} ${driver.last_name ?? ""}`.trim() || "Driver" : null,
+      equipmentName: equipment ? `Unit ${equipment.unit_number ?? "Vehicle"}${equipment.equipment_type ? ` - ${equipment.equipment_type}` : ""}` : null,
+      isExpired,
+      isRevoked,
+      isUsable: !isExpired && !isRevoked,
+    },
+    status: "found",
+    safeTokenHashPrefix,
+  };
 }
 
 function mapUploadLinkRow(row: UploadLinkRow): UploadLinkRecord {
@@ -120,4 +173,32 @@ function mapUploadLinkRow(row: UploadLinkRow): UploadLinkRecord {
     useCount: row.use_count,
     createdAt: row.created_at,
   };
+}
+
+async function getOrganizationById(id: string) {
+  const adminSupabase = createAdminClient();
+  if (!adminSupabase) return null;
+  const { data } = await adminSupabase.from("organizations").select("id, name").eq("id", id).maybeSingle();
+  return data as OrganizationRow | null;
+}
+
+async function getCarrierById(id: string) {
+  const adminSupabase = createAdminClient();
+  if (!adminSupabase) return null;
+  const { data } = await adminSupabase.from("carriers").select("id, company_name").eq("id", id).maybeSingle();
+  return data as CarrierRow | null;
+}
+
+async function getDriverById(id: string) {
+  const adminSupabase = createAdminClient();
+  if (!adminSupabase) return null;
+  const { data } = await adminSupabase.from("drivers").select("id, first_name, last_name").eq("id", id).maybeSingle();
+  return data as DriverRow | null;
+}
+
+async function getEquipmentById(id: string) {
+  const adminSupabase = createAdminClient();
+  if (!adminSupabase) return null;
+  const { data } = await adminSupabase.from("equipment").select("id, unit_number, equipment_type").eq("id", id).maybeSingle();
+  return data as EquipmentRow | null;
 }

@@ -1,6 +1,6 @@
 import { ShieldCheck, UploadCloud } from "lucide-react";
 import { publicUploadDocumentAction } from "@/app/actions/upload-links";
-import { getPublicUploadLink, type UploadDocumentCategory } from "@/lib/data/upload-links";
+import { getPublicUploadLinkLookup, type UploadDocumentCategory } from "@/lib/data/upload-links";
 
 type PageProps = {
   params: Promise<{ token: string }>;
@@ -40,9 +40,18 @@ const vehicleDocumentOptions = [
 export default async function PublicUploadPage({ params, searchParams }: PageProps) {
   const { token } = await params;
   const messages = await searchParams;
-  const link = await getPublicUploadLink(token);
+  const lookup = await getPublicUploadLinkLookup(token);
+  const link = lookup.link;
 
   if (!link) {
+    if (lookup.status === "configuration_error") {
+      return <Unavailable title="Upload lookup unavailable" message="This secure upload page is missing required server configuration. Ask Manifest to verify the deployment settings." />;
+    }
+
+    if (lookup.status === "lookup_error") {
+      return <Unavailable title="Upload lookup unavailable" message="The secure upload page could not validate this link right now. Ask Manifest to verify the deployment and try again." />;
+    }
+
     return <Unavailable title="Upload link not found" message="Ask Manifest for a new secure upload link." />;
   }
 
