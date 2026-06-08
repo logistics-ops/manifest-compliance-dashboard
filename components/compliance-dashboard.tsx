@@ -64,7 +64,7 @@ const alertLabels: AlertLabel[] = [
 ];
 const dashboardTabs = ["overview", "compliance", "documents"] as const;
 type DashboardTab = "overview" | "compliance" | "operations" | "documents" | "activity";
-const lowerDashboardTabs = ["carriers", "drivers", "documents", "alerts", "risk-watch"] as const;
+const lowerDashboardTabs = ["drivers", "documents", "alerts", "risk-watch"] as const;
 type LowerDashboardTab = (typeof lowerDashboardTabs)[number];
 
 type NavItem = { label: string; href: string; icon: LucideIcon; placeholder?: boolean; platformOnly?: boolean };
@@ -194,7 +194,7 @@ export function ComplianceDashboard({
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<DashboardTab>(() => getInitialDashboardTab());
-  const [activeLowerTab, setActiveLowerTab] = useState<LowerDashboardTab>("carriers");
+  const [activeLowerTab, setActiveLowerTab] = useState<LowerDashboardTab>("drivers");
   const activeCarriers = carriers;
   const [selectedCarrierId, setSelectedCarrierId] = useState(activeCarriers[0]?.id ?? "");
   const [query, setQuery] = useState("");
@@ -294,8 +294,13 @@ export function ComplianceDashboard({
           <PanelLeftOpen className="h-4 w-4" />
           Navigation
         </button>
-        <header className="mb-5 border-b border-white/10 pb-5">
-          <div className="flex items-center justify-start gap-2.5 max-xl:flex-wrap max-md:w-full max-md:flex-col max-md:items-stretch">
+        <header className="mb-4 border-b border-white/10 pb-4">
+          <details className="rounded-md border border-white/10 bg-black/25 p-2.5">
+            <summary className="form-button min-h-11 w-fit cursor-pointer px-4 text-sm max-md:w-full max-md:justify-center">
+              <Plus className="h-4 w-4" />
+              Quick Actions
+            </summary>
+          <div className="mt-3 flex items-center justify-start gap-2.5 max-xl:flex-wrap max-md:w-full max-md:flex-col max-md:items-stretch">
             {canManageCarriers(session) ? (
               <Link
                 href="/carriers/new"
@@ -396,13 +401,14 @@ export function ComplianceDashboard({
               ))}
             </select>
           </div>
+          </details>
 
-          <div className="mt-5">
+          <div className="mt-3 rounded-md border border-white/10 bg-black/25 p-4">
             <p className="eyebrow">{branding.name}</p>
-            <h1 className="max-w-4xl text-5xl font-extrabold leading-[0.95] tracking-normal text-white max-md:text-3xl">
+            <h1 className="max-w-4xl text-3xl font-extrabold leading-tight tracking-normal text-white max-md:text-2xl">
               Manifest Operations Center
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-manifest-muted">
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-manifest-muted">
               Compliance visibility across audit readiness, carrier documents, DQ files, vehicle maintenance, and renewal risk.
             </p>
           </div>
@@ -423,29 +429,7 @@ export function ComplianceDashboard({
               />
             ) : null}
 
-            <section
-              id="overview"
-              className="section-panel overflow-hidden border-manifest-red/30 bg-[linear-gradient(110deg,rgba(227,25,55,0.20),rgba(17,17,20,0.88)_42%,rgba(255,255,255,0.04)),repeating-linear-gradient(135deg,rgba(255,255,255,0.05)_0_1px,transparent_1px_18px)] p-5 max-md:p-4"
-            >
-              <div className="flex items-center justify-between gap-8 max-lg:flex-col max-lg:items-stretch">
-                <div>
-                  <p className="eyebrow">Executive Overview</p>
-                  <h2 className="max-w-3xl text-3xl font-extrabold leading-tight tracking-normal text-white max-md:text-2xl">
-                    Audit posture, required documents, and compliance tasks in one command view.
-                  </h2>
-                  <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold text-manifest-muted">
-                    <span className="rounded-md border border-white/10 bg-black/30 px-3 py-2">{branding.slug}</span>
-                    <span className="rounded-md border border-white/10 bg-black/30 px-3 py-2">Tenant-scoped data</span>
-                    <span className="rounded-md border border-white/10 bg-black/30 px-3 py-2">Manifest Operations Center</span>
-                  </div>
-                </div>
-                <div className="grid min-h-24 min-w-40 place-items-center rounded-md border border-manifest-red/55 bg-black/45 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                    <span className="text-xs font-bold uppercase tracking-[0.18em] text-manifest-muted">Critical Compliance Issues</span>
-                    <strong className="text-4xl leading-none text-white">{executiveOverview.totalCriticalBlockers}</strong>
-                    <span className="text-xs font-bold text-manifest-red">open across compliance records</span>
-                </div>
-              </div>
-            </section>
+            <NeedsAttentionPanel overview={executiveOverview} />
 
             <section className="grid grid-cols-4 gap-3 max-2xl:grid-cols-2 max-md:grid-cols-1" aria-label="Dashboard overview metrics">
               <ExecutiveMetricCard label="Org audit readiness" value={`${executiveOverview.organizationAuditReadinessAverage}%`} detail="Carrier, DQ, vehicle, alert posture" tone={scoreTone(executiveOverview.organizationAuditReadinessAverage)} />
@@ -480,7 +464,7 @@ export function ComplianceDashboard({
               </section>
             </details>
 
-            <AlertPanel carriers={activeCarriers} compact />
+            <CarrierRoster carriers={filteredCarriers} selectedCarrierId={selectedCarrierId} onSelectCarrier={setSelectedCarrierId} onboardingProgressByCarrier={onboardingProgressByCarrier} compact />
 
             <details className="section-panel p-4">
               <summary className="cursor-pointer text-sm font-extrabold uppercase tracking-[0.18em] text-manifest-muted">
@@ -492,10 +476,6 @@ export function ComplianceDashboard({
             </details>
 
             <LowerDashboardTabs activeTab={activeLowerTab} onChange={setActiveLowerTab} />
-
-            {activeLowerTab === "carriers" ? (
-              <CarrierRoster carriers={filteredCarriers} selectedCarrierId={selectedCarrierId} onSelectCarrier={setSelectedCarrierId} onboardingProgressByCarrier={onboardingProgressByCarrier} compact />
-            ) : null}
 
             {activeLowerTab === "drivers" ? (
               <IssueOverviewPanel
@@ -680,6 +660,77 @@ function MiniCount({ label, value, tone }: { label: string; value: number; tone:
       <strong className={`block text-xl leading-none ${toneClass}`}>{value}</strong>
       <span className="mt-1 block text-[10px] font-extrabold uppercase tracking-[0.12em] text-manifest-quiet">{label}</span>
     </div>
+  );
+}
+
+function NeedsAttentionPanel({ overview }: { overview: ExecutiveOverviewData }) {
+  const items = [
+    {
+      label: "Critical Issues",
+      value: overview.totalCriticalBlockers,
+      detail: "Compliance records blocking readiness",
+      href: "/compliance-alerts?filter=critical",
+      tone: overview.totalCriticalBlockers ? "danger" : "neutral",
+    },
+    {
+      label: "Missing Documents",
+      value: overview.needsAttention.documents.length,
+      detail: "Documents requiring correction",
+      href: "/documents-to-fix",
+      tone: overview.needsAttention.documents.length ? "danger" : "neutral",
+    },
+    {
+      label: "Expiring Documents",
+      value: overview.expiringDocuments,
+      detail: "Records inside renewal watch",
+      href: "/compliance-alerts?filter=expiring-30",
+      tone: overview.expiringDocuments ? "warn" : "neutral",
+    },
+    {
+      label: "Overdue Tasks",
+      value: overview.taskSummary.overdue,
+      detail: "Compliance tasks past due",
+      href: "/compliance-tasks",
+      tone: overview.taskSummary.overdue ? "danger" : "neutral",
+    },
+    {
+      label: "Safety Coaching Due",
+      value: overview.safetyCoachingSummary.overdue,
+      detail: "Corrective actions past target",
+      href: "/safety-coaching",
+      tone: overview.safetyCoachingSummary.overdue ? "danger" : "neutral",
+    },
+  ] as const;
+
+  return (
+    <section id="overview" className="section-panel border-manifest-red/30 p-4 max-md:p-3">
+      <div className="mb-3 flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
+        <div>
+          <p className="eyebrow">Needs Attention</p>
+          <h2 className="text-xl font-extrabold tracking-normal text-white">Priority compliance queue</h2>
+        </div>
+        <Link href="/compliance-alerts" className="inline-flex min-h-10 items-center justify-center rounded-md border border-white/10 bg-black/30 px-3 text-xs font-extrabold uppercase tracking-[0.12em] text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white">
+          View alerts
+        </Link>
+      </div>
+      <div className="grid grid-cols-5 gap-2.5 max-2xl:grid-cols-3 max-lg:grid-cols-2 max-md:grid-cols-1">
+        {items.map((item) => (
+          <Link
+            key={item.label}
+            href={item.href}
+            className={`rounded-md border bg-black/25 p-3 transition hover:border-manifest-red/50 hover:bg-manifest-red/10 ${
+              item.tone === "danger" ? "border-manifest-danger/45" : item.tone === "warn" ? "border-manifest-amber/40" : "border-white/10"
+            }`}
+          >
+            <span className="block text-[11px] font-extrabold uppercase tracking-[0.12em] text-manifest-quiet">{item.label}</span>
+            <strong className={`mt-2 block text-2xl leading-none ${item.tone === "danger" ? "text-manifest-danger" : item.tone === "warn" ? "text-manifest-amber" : "text-white"}`}>
+              {item.value}
+            </strong>
+            <span className="mt-2 block text-xs font-bold leading-5 text-manifest-muted">{item.detail}</span>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 
