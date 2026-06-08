@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { ShieldCheck, UploadCloud } from "lucide-react";
 import { publicUploadDocumentAction } from "@/app/actions/upload-links";
+import { PublicUploadFilePicker } from "@/app/upload/[token]/public-upload-file-picker";
 import {
   getPublicUploadDocumentStatuses,
   getPublicUploadLinkLookup,
@@ -76,56 +78,64 @@ export default async function PublicUploadPage({ params, searchParams }: PagePro
   const selectedDocumentSlug = messages?.document ?? null;
   const completedCount = statuses.filter((status) => status.uploaded && categories.includes(status.category)).length;
   const requestedCount = intakeSections(categories, link.driverName, link.equipmentName).reduce((total, section) => total + section.documents.length, 0);
+  const remainingCount = Math.max(requestedCount - completedCount, 0);
+  const percentComplete = requestedCount ? Math.round((completedCount / requestedCount) * 100) : 0;
 
   return (
-    <main className="min-h-screen p-8 max-md:p-4">
+    <main className="min-h-screen p-6 max-md:p-3">
       <div className="mx-auto max-w-5xl">
-        <header className="mb-6 rounded-md border border-manifest-red/35 bg-black/35 p-6 shadow-premium">
-          <div className="flex items-start gap-4 max-sm:flex-col">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-md border border-manifest-red/45 bg-manifest-red/10 text-manifest-red">
+        <header className="mb-4 rounded-md border border-manifest-red/35 bg-black/35 p-4 shadow-premium">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(240px,0.55fr)] items-center gap-4 max-lg:grid-cols-1">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-manifest-red/45 bg-manifest-red/10 text-manifest-red max-lg:hidden">
               <ShieldCheck className="h-6 w-6" />
             </span>
               <div>
                 <p className="eyebrow">{link.organizationName}</p>
-                <h1 className="text-4xl font-extrabold leading-tight tracking-normal text-white max-md:text-3xl">Secure document upload</h1>
-              <p className="mt-3 text-sm leading-6 text-manifest-muted">
+                <h1 className="text-3xl font-extrabold leading-tight tracking-normal text-white max-md:text-2xl">Secure document upload</h1>
+              <p className="mt-2 text-sm leading-6 text-manifest-muted">
                 Submit compliance documents for {link.carrierName}. This link expires {formatDateTime(link.expiresAt)}.
               </p>
-              <div className="mt-4 inline-flex rounded-md border border-white/10 bg-black/25 px-3 py-2 text-xs font-extrabold uppercase tracking-[0.14em] text-manifest-muted">
-                {completedCount} of {requestedCount} requested documents uploaded
+            </div>
+            <div className="rounded-md border border-white/10 bg-black/25 p-3">
+              <div className="flex items-end justify-between gap-3">
+                <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-manifest-quiet">Progress</span>
+                <strong className="text-3xl leading-none text-white">{percentComplete}%</strong>
               </div>
-              <div className="mt-3 h-2 max-w-md overflow-hidden rounded-full bg-white/10">
-                <div className="h-full rounded-full bg-manifest-red" style={{ width: `${requestedCount ? Math.round((completedCount / requestedCount) * 100) : 0}%` }} />
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+                <div className="h-full rounded-full bg-manifest-red" style={{ width: `${percentComplete}%` }} />
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-center">
+                <ProgressPill label="Uploaded" value={completedCount} />
+                <ProgressPill label="Remaining" value={remainingCount} />
               </div>
             </div>
           </div>
         </header>
 
-        <section className="section-panel p-6 max-md:p-4">
-          <div className="mb-5">
+        <section className="section-panel p-4 max-md:p-3">
+          <div className="mb-4">
             <p className="eyebrow">Document Intake</p>
             <h2 className="text-2xl font-extrabold tracking-normal text-white">Carrier intake packet</h2>
-            <p className="mt-2 text-sm text-manifest-muted">
+            <p className="mt-1 text-sm text-manifest-muted">
               Upload each requested document before the link expires. Completed rows are saved and will stay checked if you refresh this page.
             </p>
           </div>
 
           {categories.length ? (
-            <div className="grid gap-5">
+            <div className="grid gap-4">
               {intakeSections(categories, link.driverName, link.equipmentName).map((section) => (
-                <section key={section.category} className="rounded-md border border-white/10 bg-black/20 p-4">
-                  <div className="mb-4 flex items-start justify-between gap-3 max-md:flex-col">
+                <section key={section.category} className="rounded-md border border-white/10 bg-black/20 p-3">
+                  <div className="mb-3 flex items-start justify-between gap-3 max-md:flex-col">
                     <div>
                       <p className="eyebrow">{section.eyebrow}</p>
                       <h3 className="text-xl font-extrabold tracking-normal text-white">{section.title}</h3>
-                      <p className="mt-1 text-sm text-manifest-muted">{section.description}</p>
                     </div>
                     <span className="rounded-full border border-white/10 bg-white/[0.035] px-3 py-1 text-[11px] font-extrabold uppercase text-manifest-muted max-md:w-full max-md:text-center">
                       {section.documents.filter((documentName) => statusByKey.get(statusKey(section.category, documentName))?.uploaded).length}/{section.documents.length} uploaded
                     </span>
                   </div>
-                  <div className="grid gap-3">
-                    {section.documents.map((documentName) => (
+                  <div className="grid gap-2">
+                    {sortDocumentsByMissing(section.documents, section.category, statusByKey).map((documentName) => (
                       <DocumentUploadRow
                         key={`${section.category}:${documentName}`}
                         token={token}
@@ -163,7 +173,16 @@ function Unavailable({ title, message }: { title: string; message: string }) {
 
 function Notice({ tone, message }: { tone: "success" | "error"; message: string }) {
   const classes = tone === "success" ? "border-manifest-green/35 bg-manifest-green/10 text-manifest-green" : "border-manifest-danger/40 bg-manifest-danger/10 text-manifest-danger";
-  return <div className={`mb-5 rounded-md border p-3 text-sm font-bold ${classes}`}>{message}</div>;
+  return <div className={`mt-3 rounded-md border p-3 text-sm font-bold ${classes}`}>{message}</div>;
+}
+
+function ProgressPill({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border border-white/10 bg-black/30 px-3 py-2">
+      <strong className="block text-lg leading-none text-white">{value}</strong>
+      <span className="mt-1 block text-[10px] font-extrabold uppercase tracking-[0.12em] text-manifest-quiet">{label}</span>
+    </div>
+  );
 }
 
 function visibleCategories(categories: UploadDocumentCategory[], hasDriver: boolean, hasEquipment: boolean) {
@@ -206,6 +225,19 @@ function intakeSections(categories: UploadDocumentCategory[], driverName: string
   });
 }
 
+function sortDocumentsByMissing(
+  documents: string[],
+  category: UploadDocumentCategory,
+  statusByKey: Map<string, PublicUploadDocumentStatus>,
+) {
+  return [...documents].sort((left, right) => {
+    const leftUploaded = Boolean(statusByKey.get(statusKey(category, left))?.uploaded);
+    const rightUploaded = Boolean(statusByKey.get(statusKey(category, right))?.uploaded);
+    if (leftUploaded === rightUploaded) return 0;
+    return leftUploaded ? 1 : -1;
+  });
+}
+
 function DocumentUploadRow({
   token,
   category,
@@ -222,8 +254,9 @@ function DocumentUploadRow({
   errorMessage: string | null;
 }) {
   const uploaded = Boolean(status?.uploaded);
-  return (
-    <article id={`document-${documentSlug(documentName)}`} className={`grid grid-cols-[minmax(220px,0.9fr)_minmax(260px,1fr)] gap-4 rounded-md border p-4 max-lg:grid-cols-1 ${uploaded ? "border-manifest-green/30 bg-manifest-green/5" : "border-white/10 bg-black/25"}`}>
+  const viewHref = uploaded ? `/upload/${encodeURIComponent(token)}/view?category=${encodeURIComponent(category)}&document=${encodeURIComponent(documentName)}` : null;
+  const body = (
+    <>
       <div className="min-w-0">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <strong className="text-sm text-white">{documentName}</strong>
@@ -233,8 +266,7 @@ function DocumentUploadRow({
         </div>
         {uploaded ? (
           <p className="text-xs leading-5 text-manifest-muted">
-            {status?.fileName ? `File: ${status.fileName}` : "File saved"}
-            {status?.uploadedAt ? ` · ${formatDateTime(status.uploadedAt)}` : ""}
+            {status?.uploadedAt ? `Uploaded ${formatDateTime(status.uploadedAt)}` : "Uploaded"}
             {status?.expirationDate ? ` · Expires ${status.expirationDate}` : ""}
           </p>
         ) : (
@@ -244,7 +276,23 @@ function DocumentUploadRow({
         {errorMessage ? <Notice tone="error" message={errorMessage} /> : null}
       </div>
 
-      <form action={publicUploadDocumentAction} className="grid gap-3 rounded-md border border-white/10 bg-black/20 p-3">
+      {uploaded ? (
+        <div className="flex items-center justify-end gap-2 max-sm:grid max-sm:grid-cols-2">
+          {viewHref ? (
+            <Link href={viewHref} target="_blank" className="inline-flex min-h-11 items-center justify-center rounded-md border border-white/10 bg-black/30 px-4 text-sm font-extrabold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white">
+              View
+            </Link>
+          ) : null}
+          <span className="inline-flex min-h-11 items-center justify-center rounded-md border border-white/10 bg-black/30 px-4 text-sm font-extrabold text-manifest-muted">
+            Replace
+          </span>
+        </div>
+      ) : null}
+    </>
+  );
+
+  const form = (
+      <form action={publicUploadDocumentAction} className="mt-3 grid gap-3 rounded-md border border-white/10 bg-black/20 p-3">
         <input type="hidden" name="token" value={token} />
         <input type="hidden" name="category" value={category} />
         <input type="hidden" name="documentName" value={documentName} />
@@ -255,7 +303,7 @@ function DocumentUploadRow({
           </label>
           <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
             File
-            <input name="file" type="file" className="form-control min-h-12" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required />
+            <PublicUploadFilePicker uploaded={uploaded} />
           </label>
         </div>
         <label className="grid gap-2 text-xs font-bold uppercase tracking-[0.18em] text-manifest-quiet">
@@ -267,6 +315,27 @@ function DocumentUploadRow({
           {uploaded ? "Replace document" : "Upload document"}
         </button>
       </form>
+  );
+
+  if (uploaded) {
+    return (
+      <details id={`document-${documentSlug(documentName)}`} className="rounded-md border border-manifest-green/30 bg-manifest-green/5 p-3">
+        <summary className="cursor-pointer list-none">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 max-sm:grid-cols-1">
+            {body}
+          </div>
+        </summary>
+        {form}
+      </details>
+    );
+  }
+
+  return (
+    <article id={`document-${documentSlug(documentName)}`} className="rounded-md border border-white/10 bg-black/25 p-3">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 max-md:grid-cols-1">
+        {body}
+      </div>
+      {form}
     </article>
   );
 }
