@@ -118,7 +118,9 @@ export async function publicUploadDocumentAction(formData: FormData) {
   const documentName = getString(formData, "documentName");
   const expirationDate = getOptionalString(formData, "expirationDate");
   const notes = getOptionalString(formData, "notes");
-  const file = formData.get("file");
+  const files = formData
+    .getAll("files")
+    .filter((value): value is File => value instanceof File && value.size > 0);
   const link = await getPublicUploadLink(token);
   const adminSupabase = createAdminClient();
   const safeTokenHashPrefix = token ? hashUploadToken(token).slice(0, 12) : null;
@@ -139,13 +141,15 @@ export async function publicUploadDocumentAction(formData: FormData) {
     redirectToUpload(token, "This upload link does not allow that document category.", "error");
   }
   if (!documentName) redirectToUpload(token, "Document name is required.", "error");
-  if (!(file instanceof File) || file.size === 0) redirectToUpload(token, "Choose a document file before uploading.", "error");
-  if (file.size > MAX_PUBLIC_UPLOAD_BYTES) redirectToUpload(token, "File must be 10 MB or smaller.", "error");
+  if (!files.length) redirectToUpload(token, "Choose one or more files before uploading.", "error");
 
-  try {
-    validateDocumentFile(file);
-  } catch (error) {
-    redirectToUpload(token, error instanceof Error ? error.message : "Unsupported file type.", "error");
+  for (const file of files) {
+    if (file.size > MAX_PUBLIC_UPLOAD_BYTES) redirectToUpload(token, `${file.name} must be 10 MB or smaller.`, "error", documentName);
+    try {
+      validateDocumentFile(file);
+    } catch (error) {
+      redirectToUpload(token, error instanceof Error ? error.message : "Unsupported file type.", "error", documentName);
+    }
   }
 
   const ownerId = getOwnerIdForCategory(link, category);
@@ -154,43 +158,61 @@ export async function publicUploadDocumentAction(formData: FormData) {
   let storagePath: string | null = null;
   const documentSlug = slugify(documentName);
   const targetTable = documentTableForCategory(category);
+  const uploadedFileNames: string[] = [];
+  let latestDocumentId: string | null = null;
 
   try {
-    const versionNumber = await nextVersionNumber(category, link, documentName);
-    const fileName = sanitizeFileName(file.name);
-    storagePath = buildStoragePath(category, link.organizationId, ownerId, documentName, versionNumber, fileName);
-    const uploadData = Buffer.from(await file.arrayBuffer());
-    const { error: uploadError } = await adminSupabase.storage.from(STORAGE_BUCKET).upload(storagePath, uploadData, {
-      contentType: getDocumentMimeType(file),
-      upsert: false,
-    });
+    let versionNumber = await nextVersionNumber(category, link, documentName);
 
-    if (uploadError) {
-      throw new PublicUploadError(uploadError.message, "storage_upload", {
-        supabaseErrorCode: getSupabaseErrorCode(uploadError),
-        supabaseErrorMessage: uploadError.message,
-        table: "storage.objects",
+    for (const file of files) {
+      const fileName = sanitizeFileName(file.name);
+      storagePath = buildStoragePath(category, link.organizationId, ownerId, documentName, versionNumber, fileName);
+      const uploadData = Buffer.from(await file.arrayBuffer());
+      const { error: uploadError } = await adminSupabase.storage.from(STORAGE_BUCKET).upload(storagePath, uploadData, {
+        contentType: getDocumentMimeType(file),
+        upsert: false,
       });
-    }
 
-    const documentId = await finalizePublicDocument({
-      category,
-      organizationId: link.organizationId,
-      carrierId: link.carrierId,
-      ownerId,
-      documentName,
-      storagePath,
-      fileName,
-      fileSize: file.size,
-      mimeType: getDocumentMimeType(file),
-      expirationDate,
-      notes,
-      versionNumber,
-    });
+      if (uploadError) {
+        throw new PublicUploadError(uploadError.message, "storage_upload", {
+          supabaseErrorCode: getSupabaseErrorCode(uploadError),
+          supabaseErrorMessage: uploadError.message,
+          table: "storage.objects",
+        });
+      }
+
+      latestDocumentId = await finalizePublicDocument({
+        category,
+        organizationId: link.organizationId,
+        carrierId: link.carrierId,
+        ownerId,
+        documentName,
+        storagePath,
+        fileName,
+        fileSize: file.size,
+        mimeType: getDocumentMimeType(file),
+        expirationDate,
+        notes,
+        versionNumber,
+      });
+
+      uploadedFileNames.push(fileName);
+
+      await appendAuditLog({
+        organizationId: link.organizationId,
+        actorUserId: null,
+        action: "public_document.uploaded",
+        entityType: `${category}_document`,
+        entityId: latestDocumentId,
+        metadata: { upload_link_id: link.id, carrier_id: link.carrierId, owner_id: ownerId, category, document_name: documentName, storage_path: storagePath, file_name: fileName },
+      });
+
+      versionNumber += 1;
+    }
 
     const { error: usageError } = await adminSupabase
       .from("upload_links")
-      .update({ last_used_at: new Date().toISOString(), use_count: link.useCount + 1 })
+      .update({ last_used_at: new Date().toISOString(), use_count: link.useCount + files.length })
       .eq("id", link.id);
     if (usageError) {
       throw new PublicUploadError(usageError.message, "usage_update", {
@@ -206,16 +228,7 @@ export async function publicUploadDocumentAction(formData: FormData) {
       action: "upload_link.used",
       entityType: "upload_link",
       entityId: link.id,
-      metadata: { carrier_id: link.carrierId, category, document_name: documentName },
-    });
-
-    await appendAuditLog({
-      organizationId: link.organizationId,
-      actorUserId: null,
-      action: "public_document.uploaded",
-      entityType: `${category}_document`,
-      entityId: documentId,
-      metadata: { upload_link_id: link.id, carrier_id: link.carrierId, owner_id: ownerId, category, document_name: documentName, storage_path: storagePath, file_name: fileName },
+      metadata: { carrier_id: link.carrierId, category, document_name: documentName, file_count: files.length, file_names: uploadedFileNames },
     });
   } catch (error) {
     const failure = normalizePublicUploadError(error);
@@ -242,7 +255,7 @@ export async function publicUploadDocumentAction(formData: FormData) {
   revalidatePath(`/carriers/${link.carrierId}`);
   revalidatePath("/audit-readiness");
   revalidatePath("/documents-to-fix");
-  redirectToUpload(token, "Document uploaded. You can continue uploading the remaining requested documents.", "success", documentName);
+  redirectToUpload(token, `${files.length} file${files.length === 1 ? "" : "s"} submitted for ${documentName}. You can continue uploading the remaining requested documents.`, "success", documentName);
 }
 
 async function finalizePublicDocument(input: {
@@ -503,6 +516,12 @@ function getSupabaseErrorCode(error: unknown) {
 }
 
 async function buildUploadUrl(token: string) {
+  const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (configuredAppUrl) {
+    return `${configuredAppUrl.replace(/\/+$/, "")}/upload/${token}`;
+  }
+
+  console.warn("[upload-link] NEXT_PUBLIC_APP_URL is not configured. Falling back to request host for generated upload link.");
   const requestHeaders = await headers();
   const host = requestHeaders.get("x-forwarded-host") || requestHeaders.get("host");
   const protocol = requestHeaders.get("x-forwarded-proto") || "http";

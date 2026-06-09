@@ -255,43 +255,44 @@ function DocumentUploadRow({
 }) {
   const uploaded = Boolean(status?.uploaded);
   const viewHref = uploaded ? `/upload/${encodeURIComponent(token)}/view?category=${encodeURIComponent(category)}&document=${encodeURIComponent(documentName)}` : null;
-  const body = (
-    <>
-      <div className="min-w-0">
-        <div className="mb-2 flex flex-wrap items-center gap-2">
-          <strong className="text-sm text-white">{documentName}</strong>
-          <span className={`rounded-full border px-2.5 py-1 text-[11px] font-extrabold uppercase ${uploaded ? "border-manifest-green/35 bg-manifest-green/10 text-manifest-green" : "border-manifest-gold/35 bg-manifest-gold/10 text-manifest-gold"}`}>
-            {uploaded ? "Uploaded" : "Needed"}
-          </span>
+  const fileCount = status?.fileCount ?? (uploaded ? 1 : 0);
+  const latestUploadedAt = status?.uploadedAt ? formatDateTime(status.uploadedAt) : null;
+
+  return (
+    <details
+      id={`document-${documentSlug(documentName)}`}
+      className={`rounded-md border p-3 ${uploaded ? "border-manifest-green/30 bg-manifest-green/5" : "border-white/10 bg-black/25"}`}
+    >
+      <summary className="cursor-pointer list-none">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 max-sm:grid-cols-1">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`rounded-full border px-2.5 py-1 text-[11px] font-extrabold uppercase ${uploaded ? "border-manifest-green/35 bg-manifest-green/10 text-manifest-green" : "border-manifest-gold/35 bg-manifest-gold/10 text-manifest-gold"}`}>
+                {uploaded ? "Uploaded" : "Needed"}
+              </span>
+              <strong className="truncate text-sm text-white">{documentName}</strong>
+            </div>
+            <p className="mt-1 truncate text-xs leading-5 text-manifest-muted">
+              {uploaded
+                ? `${fileCount} file${fileCount === 1 ? "" : "s"} uploaded${latestUploadedAt ? ` · Latest ${latestUploadedAt}` : ""}`
+                : "Open row to select files and submit."}
+            </p>
+          </div>
+          <div className="flex items-center justify-end gap-2 max-sm:grid max-sm:grid-cols-2">
+            {uploaded && viewHref ? (
+              <Link href={viewHref} target="_blank" className="inline-flex min-h-10 items-center justify-center rounded-md border border-white/10 bg-black/30 px-3 text-xs font-extrabold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white">
+                View files
+              </Link>
+            ) : null}
+            <span className="inline-flex min-h-10 items-center justify-center rounded-md border border-manifest-red/40 bg-manifest-red/10 px-3 text-xs font-extrabold text-white">
+              {uploaded ? "Add more / Replace" : "Upload files"} ▾
+            </span>
+          </div>
         </div>
-        {uploaded ? (
-          <p className="text-xs leading-5 text-manifest-muted">
-            {status?.uploadedAt ? `Uploaded ${formatDateTime(status.uploadedAt)}` : "Uploaded"}
-            {status?.expirationDate ? ` · Expires ${status.expirationDate}` : ""}
-          </p>
-        ) : (
-          <p className="text-xs leading-5 text-manifest-muted">Upload this document or use Replace later if Manifest needs an updated copy.</p>
-        )}
         {successMessage ? <Notice tone="success" message={successMessage} /> : null}
         {errorMessage ? <Notice tone="error" message={errorMessage} /> : null}
-      </div>
+      </summary>
 
-      {uploaded ? (
-        <div className="flex items-center justify-end gap-2 max-sm:grid max-sm:grid-cols-2">
-          {viewHref ? (
-            <Link href={viewHref} target="_blank" className="inline-flex min-h-11 items-center justify-center rounded-md border border-white/10 bg-black/30 px-4 text-sm font-extrabold text-manifest-muted transition hover:border-manifest-red/50 hover:bg-manifest-red/10 hover:text-white">
-              View
-            </Link>
-          ) : null}
-          <span className="inline-flex min-h-11 items-center justify-center rounded-md border border-white/10 bg-black/30 px-4 text-sm font-extrabold text-manifest-muted">
-            Replace
-          </span>
-        </div>
-      ) : null}
-    </>
-  );
-
-  const form = (
       <form action={publicUploadDocumentAction} className="mt-3 grid gap-3 rounded-md border border-white/10 bg-black/20 p-3">
         <input type="hidden" name="token" value={token} />
         <input type="hidden" name="category" value={category} />
@@ -312,31 +313,10 @@ function DocumentUploadRow({
         </label>
         <button className="form-button min-h-12 w-fit px-4 text-sm max-sm:w-full">
           <UploadCloud className="h-4 w-4" />
-          {uploaded ? "Replace document" : "Upload document"}
+          {uploaded ? "Replace / Add Files" : `Submit ${documentName}`}
         </button>
       </form>
-  );
-
-  if (uploaded) {
-    return (
-      <details id={`document-${documentSlug(documentName)}`} className="rounded-md border border-manifest-green/30 bg-manifest-green/5 p-3">
-        <summary className="cursor-pointer list-none">
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 max-sm:grid-cols-1">
-            {body}
-          </div>
-        </summary>
-        {form}
-      </details>
-    );
-  }
-
-  return (
-    <article id={`document-${documentSlug(documentName)}`} className="rounded-md border border-white/10 bg-black/25 p-3">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 max-md:grid-cols-1">
-        {body}
-      </div>
-      {form}
-    </article>
+    </details>
   );
 }
 

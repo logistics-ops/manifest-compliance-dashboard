@@ -46,6 +46,12 @@ export type PublicUploadDocumentStatus = {
   storagePath: string | null;
   fileName: string | null;
   uploadedAt: string | null;
+  fileCount: number;
+  files: Array<{
+    fileName: string | null;
+    storagePath: string | null;
+    uploadedAt: string | null;
+  }>;
 };
 
 type UploadLinkRow = {
@@ -85,6 +91,12 @@ type ScopedDocumentRow = {
   status: string | null;
   expiration_date: string | null;
   storage_path: string | null;
+  uploaded_at: string | null;
+};
+type CarrierDocumentVersionRow = {
+  document_name: string;
+  storage_path: string | null;
+  file_name: string | null;
   uploaded_at: string | null;
 };
 
@@ -204,7 +216,31 @@ export async function getPublicUploadDocumentStatuses(link: PublicUploadLink): P
     if (error) {
       console.warn("[upload-link] unable to load carrier intake statuses", { linkId: link.id, code: error.code, message: error.message });
     } else {
-      results.push(...((data ?? []) as CarrierDocumentRow[]).map((row) => ({
+      const rows = (data ?? []) as CarrierDocumentRow[];
+      const { data: versions } = await adminSupabase
+        .from("carrier_document_versions")
+        .select("document_name, storage_path, file_name, uploaded_at")
+        .eq("organization_id", link.organizationId)
+        .eq("carrier_id", link.carrierId)
+        .order("uploaded_at", { ascending: false });
+      const versionsByDocument = new Map<string, CarrierDocumentVersionRow[]>();
+      ((versions ?? []) as CarrierDocumentVersionRow[]).forEach((version) => {
+        const key = version.document_name.toLowerCase();
+        versionsByDocument.set(key, [...(versionsByDocument.get(key) ?? []), version]);
+      });
+
+      results.push(...rows.map((row) => {
+        const files = (versionsByDocument.get(row.document_name.toLowerCase()) ?? []).map((version) => ({
+          fileName: version.file_name ?? fileNameFromPath(version.storage_path),
+          storagePath: version.storage_path,
+          uploadedAt: version.uploaded_at,
+        }));
+        const fallbackFiles = row.storage_path
+          ? [{ fileName: row.file_name ?? fileNameFromPath(row.storage_path), storagePath: row.storage_path, uploadedAt: row.uploaded_at }]
+          : [];
+        const visibleFiles = files.length ? files : fallbackFiles;
+
+        return {
         category: "carrier" as const,
         documentName: row.document_name,
         uploaded: row.uploaded,
@@ -213,7 +249,10 @@ export async function getPublicUploadDocumentStatuses(link: PublicUploadLink): P
         storagePath: row.storage_path,
         fileName: row.file_name ?? fileNameFromPath(row.storage_path),
         uploadedAt: row.uploaded_at,
-      })));
+          fileCount: visibleFiles.length || (row.uploaded ? 1 : 0),
+          files: visibleFiles,
+        };
+      }));
     }
   }
 
@@ -236,6 +275,8 @@ export async function getPublicUploadDocumentStatuses(link: PublicUploadLink): P
         storagePath: row.storage_path,
         fileName: fileNameFromPath(row.storage_path),
         uploadedAt: row.uploaded_at,
+        fileCount: row.storage_path ? 1 : 0,
+        files: row.storage_path ? [{ fileName: fileNameFromPath(row.storage_path), storagePath: row.storage_path, uploadedAt: row.uploaded_at }] : [],
       })));
     }
   }
@@ -259,6 +300,8 @@ export async function getPublicUploadDocumentStatuses(link: PublicUploadLink): P
         storagePath: row.storage_path,
         fileName: fileNameFromPath(row.storage_path),
         uploadedAt: row.uploaded_at,
+        fileCount: row.storage_path ? 1 : 0,
+        files: row.storage_path ? [{ fileName: fileNameFromPath(row.storage_path), storagePath: row.storage_path, uploadedAt: row.uploaded_at }] : [],
       })));
     }
   }
