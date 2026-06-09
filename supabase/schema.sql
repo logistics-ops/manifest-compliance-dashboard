@@ -564,24 +564,12 @@ references public.carriers(organization_id, id)
 on delete cascade,
 add constraint drivers_organization_id_id_unique unique (organization_id, id);
 
-alter table public.driver_documents
-add constraint driver_documents_organization_driver_fkey
-foreign key (organization_id, driver_id)
-references public.drivers(organization_id, id)
-on delete cascade;
-
 alter table public.equipment
 add constraint equipment_organization_carrier_fkey
 foreign key (organization_id, carrier_id)
 references public.carriers(organization_id, id)
 on delete cascade,
 add constraint equipment_organization_id_id_unique unique (organization_id, id);
-
-alter table public.equipment_documents
-add constraint equipment_documents_organization_equipment_fkey
-foreign key (organization_id, equipment_id)
-references public.equipment(organization_id, id)
-on delete cascade;
 
 alter table public.users
 add constraint users_organization_id_id_unique unique (organization_id, id),
