@@ -92,27 +92,62 @@ export async function getVehicles(): Promise<VehicleRecord[]> {
 
   if (!supabase || !session) return [];
 
-  let query = supabase
+  let equipmentQuery = supabase
     .from("equipment")
-    .select("id, organization_id, carrier_id, unit_number, equipment_type, vin, plate_number, plate_state, status, carriers(company_name), equipment_documents(id, equipment_id, document_name, storage_path, uploaded, status, expiration_date, uploaded_at, notes)")
+    .select("id, organization_id, carrier_id, unit_number, equipment_type, vin, plate_number, plate_state, status, carriers(company_name)")
     .order("unit_number");
 
   if (session.organizationId && !session.platformSuperAdmin) {
-    query = query.eq("organization_id", session.organizationId);
+    equipmentQuery = equipmentQuery.eq("organization_id", session.organizationId);
   }
 
   if (session.role === "carrier" && session.carrierId && !session.platformSuperAdmin) {
-    query = query.eq("carrier_id", session.carrierId);
+    equipmentQuery = equipmentQuery.eq("carrier_id", session.carrierId);
   }
 
-  const { data, error } = await query;
+  const { data: equipmentRows, error } = await equipmentQuery;
 
-  if (error || !data) {
+  if (error || !equipmentRows) {
     console.error("Unable to load vehicles", error?.message);
     return [];
   }
 
-  return (data as EquipmentRow[]).map(mapEquipmentRow);
+  const rows = equipmentRows as EquipmentRow[];
+  const equipmentIds = rows.map((equipment) => equipment.id);
+  if (!equipmentIds.length) {
+    return [];
+  }
+
+  let documentQuery = supabase
+    .from("equipment_documents")
+    .select("id, equipment_id, document_name, storage_path, uploaded, status, expiration_date, uploaded_at, notes")
+    .in("equipment_id", equipmentIds);
+
+  if (session.organizationId && !session.platformSuperAdmin) {
+    documentQuery = documentQuery.eq("organization_id", session.organizationId);
+  }
+
+  const { data: documents, error: documentError } = await documentQuery;
+  if (documentError || !documents) {
+    console.error("Unable to load vehicle document rows", documentError?.message);
+    return rows.map((equipment) => mapEquipmentRow({ ...equipment, equipment_documents: [] }));
+  }
+
+  const documentsByEquipment = groupDocumentsByOwner(documents as EquipmentDocumentRow[], "equipment_id");
+  return rows.map((equipment) => mapEquipmentRow({
+    ...equipment,
+    equipment_documents: documentsByEquipment.get(equipment.id) ?? [],
+  }));
+}
+
+function groupDocumentsByOwner<T extends Record<K, string>, K extends keyof T>(documents: T[], ownerKey: K) {
+  return documents.reduce((grouped, document) => {
+    const ownerId = document[ownerKey];
+    const ownerDocuments = grouped.get(ownerId) ?? [];
+    ownerDocuments.push(document);
+    grouped.set(ownerId, ownerDocuments);
+    return grouped;
+  }, new Map<string, T[]>());
 }
 
 function mapEquipmentRow(row: EquipmentRow): VehicleRecord {

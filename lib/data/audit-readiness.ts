@@ -10,15 +10,6 @@ type DriverDocumentRow = {
   uploaded: boolean;
   status: string;
   expiration_date: string | null;
-  drivers?: {
-    carrier_id: string;
-    first_name: string | null;
-    last_name: string | null;
-  } | Array<{
-    carrier_id: string;
-    first_name: string | null;
-    last_name: string | null;
-  }> | null;
 };
 
 type EquipmentDocumentRow = {
@@ -28,13 +19,21 @@ type EquipmentDocumentRow = {
   uploaded: boolean;
   status: string;
   expiration_date: string | null;
-  equipment?: {
-    carrier_id: string;
-    unit_number: string | null;
-  } | Array<{
-    carrier_id: string;
-    unit_number: string | null;
-  }> | null;
+};
+
+type AuditDriverRow = {
+  id: string;
+  organization_id: string;
+  carrier_id: string;
+  first_name: string | null;
+  last_name: string | null;
+};
+
+type AuditEquipmentRow = {
+  id: string;
+  organization_id: string;
+  carrier_id: string;
+  unit_number: string | null;
 };
 
 type ComplianceAlertRow = {
@@ -83,15 +82,40 @@ async function getDriverDocumentsByCarrier(
   supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
   session: NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>,
 ) {
-  let query = supabase
-    .from("driver_documents")
-    .select("organization_id, driver_id, document_name, uploaded, status, expiration_date, drivers!driver_documents_organization_driver_fkey(carrier_id, first_name, last_name)");
+  let driverQuery = supabase
+    .from("drivers")
+    .select("id, organization_id, carrier_id, first_name, last_name");
 
   if (session.organizationId && !session.platformSuperAdmin) {
-    query = query.eq("organization_id", session.organizationId);
+    driverQuery = driverQuery.eq("organization_id", session.organizationId);
   }
 
-  const { data, error } = await query;
+  if (session.role === "carrier" && session.carrierId && !session.platformSuperAdmin) {
+    driverQuery = driverQuery.eq("carrier_id", session.carrierId);
+  }
+
+  const { data: drivers, error: driverError } = await driverQuery;
+  if (driverError || !drivers) {
+    console.error("Unable to load drivers for audit readiness", driverError?.message);
+    return new Map<string, AuditDocumentInput[]>();
+  }
+
+  const driversById = new Map((drivers as AuditDriverRow[]).map((driver) => [driver.id, driver]));
+  const driverIds = Array.from(driversById.keys());
+  if (!driverIds.length) {
+    return new Map<string, AuditDocumentInput[]>();
+  }
+
+  let documentQuery = supabase
+    .from("driver_documents")
+    .select("organization_id, driver_id, document_name, uploaded, status, expiration_date")
+    .in("driver_id", driverIds);
+
+  if (session.organizationId && !session.platformSuperAdmin) {
+    documentQuery = documentQuery.eq("organization_id", session.organizationId);
+  }
+
+  const { data, error } = await documentQuery;
   if (error || !data) {
     console.error("Unable to load driver documents for audit readiness", error?.message);
     return new Map<string, AuditDocumentInput[]>();
@@ -99,7 +123,7 @@ async function getDriverDocumentsByCarrier(
 
   const documentsByCarrier = new Map<string, AuditDocumentInput[]>();
   (data as DriverDocumentRow[]).forEach((row) => {
-    const driver = Array.isArray(row.drivers) ? row.drivers[0] : row.drivers;
+    const driver = driversById.get(row.driver_id);
     if (!driver?.carrier_id) return;
     const documents = documentsByCarrier.get(driver.carrier_id) ?? [];
     documents.push({
@@ -120,15 +144,40 @@ async function getEquipmentDocumentsByCarrier(
   supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
   session: NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>,
 ) {
-  let query = supabase
-    .from("equipment_documents")
-    .select("organization_id, equipment_id, document_name, uploaded, status, expiration_date, equipment!equipment_documents_organization_equipment_fkey(carrier_id, unit_number)");
+  let equipmentQuery = supabase
+    .from("equipment")
+    .select("id, organization_id, carrier_id, unit_number");
 
   if (session.organizationId && !session.platformSuperAdmin) {
-    query = query.eq("organization_id", session.organizationId);
+    equipmentQuery = equipmentQuery.eq("organization_id", session.organizationId);
   }
 
-  const { data, error } = await query;
+  if (session.role === "carrier" && session.carrierId && !session.platformSuperAdmin) {
+    equipmentQuery = equipmentQuery.eq("carrier_id", session.carrierId);
+  }
+
+  const { data: equipmentRows, error: equipmentError } = await equipmentQuery;
+  if (equipmentError || !equipmentRows) {
+    console.error("Unable to load equipment for audit readiness", equipmentError?.message);
+    return new Map<string, AuditDocumentInput[]>();
+  }
+
+  const equipmentById = new Map((equipmentRows as AuditEquipmentRow[]).map((equipment) => [equipment.id, equipment]));
+  const equipmentIds = Array.from(equipmentById.keys());
+  if (!equipmentIds.length) {
+    return new Map<string, AuditDocumentInput[]>();
+  }
+
+  let documentQuery = supabase
+    .from("equipment_documents")
+    .select("organization_id, equipment_id, document_name, uploaded, status, expiration_date")
+    .in("equipment_id", equipmentIds);
+
+  if (session.organizationId && !session.platformSuperAdmin) {
+    documentQuery = documentQuery.eq("organization_id", session.organizationId);
+  }
+
+  const { data, error } = await documentQuery;
   if (error || !data) {
     console.error("Unable to load equipment documents for audit readiness", error?.message);
     return new Map<string, AuditDocumentInput[]>();
@@ -136,7 +185,7 @@ async function getEquipmentDocumentsByCarrier(
 
   const documentsByCarrier = new Map<string, AuditDocumentInput[]>();
   (data as EquipmentDocumentRow[]).forEach((row) => {
-    const equipment = Array.isArray(row.equipment) ? row.equipment[0] : row.equipment;
+    const equipment = equipmentById.get(row.equipment_id);
     if (!equipment?.carrier_id) return;
     const documents = documentsByCarrier.get(equipment.carrier_id) ?? [];
     documents.push({

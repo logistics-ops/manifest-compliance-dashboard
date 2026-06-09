@@ -94,27 +94,62 @@ export async function getDQFiles(): Promise<DQFileRecord[]> {
 
   if (!supabase || !session) return [];
 
-  let query = supabase
+  let driverQuery = supabase
     .from("drivers")
-    .select("id, organization_id, carrier_id, first_name, last_name, cdl_number, cdl_state, status, carriers(company_name), driver_documents(id, driver_id, document_name, uploaded, status, expiration_date, storage_path, uploaded_at)")
+    .select("id, organization_id, carrier_id, first_name, last_name, cdl_number, cdl_state, status, carriers(company_name)")
     .order("last_name");
 
   if (session.organizationId && !session.platformSuperAdmin) {
-    query = query.eq("organization_id", session.organizationId);
+    driverQuery = driverQuery.eq("organization_id", session.organizationId);
   }
 
   if (session.role === "carrier" && session.carrierId && !session.platformSuperAdmin) {
-    query = query.eq("carrier_id", session.carrierId);
+    driverQuery = driverQuery.eq("carrier_id", session.carrierId);
   }
 
-  const { data, error } = await query;
+  const { data: drivers, error } = await driverQuery;
 
-  if (error || !data) {
+  if (error || !drivers) {
     console.error("Unable to load DQ files", error?.message);
     return [];
   }
 
-  return (data as DriverRow[]).map(mapDriverRow);
+  const driverRows = drivers as DriverRow[];
+  const driverIds = driverRows.map((driver) => driver.id);
+  if (!driverIds.length) {
+    return [];
+  }
+
+  let documentQuery = supabase
+    .from("driver_documents")
+    .select("id, driver_id, document_name, uploaded, status, expiration_date, storage_path, uploaded_at")
+    .in("driver_id", driverIds);
+
+  if (session.organizationId && !session.platformSuperAdmin) {
+    documentQuery = documentQuery.eq("organization_id", session.organizationId);
+  }
+
+  const { data: documents, error: documentError } = await documentQuery;
+  if (documentError || !documents) {
+    console.error("Unable to load DQ document rows", documentError?.message);
+    return driverRows.map((driver) => mapDriverRow({ ...driver, driver_documents: [] }));
+  }
+
+  const documentsByDriver = groupDocumentsByOwner(documents as DriverDocumentRow[], "driver_id");
+  return driverRows.map((driver) => mapDriverRow({
+    ...driver,
+    driver_documents: documentsByDriver.get(driver.id) ?? [],
+  }));
+}
+
+function groupDocumentsByOwner<T extends Record<K, string>, K extends keyof T>(documents: T[], ownerKey: K) {
+  return documents.reduce((grouped, document) => {
+    const ownerId = document[ownerKey];
+    const ownerDocuments = grouped.get(ownerId) ?? [];
+    ownerDocuments.push(document);
+    grouped.set(ownerId, ownerDocuments);
+    return grouped;
+  }, new Map<string, T[]>());
 }
 
 function mapDriverRow(row: DriverRow): DQFileRecord {
