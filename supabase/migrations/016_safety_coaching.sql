@@ -1,12 +1,26 @@
 -- Phase 2.3C: safety coaching and corrective action tracking.
 
+do $$
+begin
+  if not exists (select 1 from pg_type where typnamespace = 'public'::regnamespace and typname = 'compliance_task_status') then
+    create type public.compliance_task_status as enum ('open', 'in_progress', 'waiting', 'completed');
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typnamespace = 'public'::regnamespace and typname = 'compliance_task_priority') then
+    create type public.compliance_task_priority as enum ('critical', 'high', 'medium', 'low');
+  end if;
+end $$;
+
 create table if not exists public.safety_coaching (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   carrier_id uuid not null references public.carriers(id) on delete cascade,
   safety_score_id uuid references public.safety_scores(id) on delete set null,
   inspection_report_id uuid references public.inspection_reports(id) on delete set null,
-  compliance_task_id uuid references public.compliance_tasks(id) on delete set null,
+  compliance_task_id uuid,
   issue text not null,
   recommendation text not null,
   priority public.compliance_task_priority not null default 'medium',
@@ -24,29 +38,73 @@ create table if not exists public.safety_coaching (
 alter table public.safety_coaching
 drop constraint if exists safety_coaching_organization_carrier_fkey;
 
-alter table public.safety_coaching
-add constraint safety_coaching_organization_carrier_fkey
-foreign key (organization_id, carrier_id)
-references public.carriers(organization_id, id)
-on delete cascade;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'safety_coaching_carrier_id_fkey'
+      and conrelid = 'public.safety_coaching'::regclass
+  ) then
+    alter table public.safety_coaching
+    add constraint safety_coaching_carrier_id_fkey
+    foreign key (carrier_id)
+    references public.carriers(id)
+    on delete cascade;
+  end if;
+end $$;
 
 alter table public.safety_coaching
 drop constraint if exists safety_coaching_organization_safety_score_fkey;
 
-alter table public.safety_coaching
-add constraint safety_coaching_organization_safety_score_fkey
-foreign key (organization_id, safety_score_id)
-references public.safety_scores(organization_id, id)
-on delete set null;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'safety_coaching_safety_score_id_fkey'
+      and conrelid = 'public.safety_coaching'::regclass
+  ) then
+    alter table public.safety_coaching
+    add constraint safety_coaching_safety_score_id_fkey
+    foreign key (safety_score_id)
+    references public.safety_scores(id)
+    on delete set null;
+  end if;
+end $$;
 
 alter table public.safety_coaching
 drop constraint if exists safety_coaching_organization_inspection_fkey;
 
-alter table public.safety_coaching
-add constraint safety_coaching_organization_inspection_fkey
-foreign key (organization_id, inspection_report_id)
-references public.inspection_reports(organization_id, id)
-on delete set null;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'safety_coaching_inspection_report_id_fkey'
+      and conrelid = 'public.safety_coaching'::regclass
+  ) then
+    alter table public.safety_coaching
+    add constraint safety_coaching_inspection_report_id_fkey
+    foreign key (inspection_report_id)
+    references public.inspection_reports(id)
+    on delete set null;
+  end if;
+end $$;
+
+do $$
+begin
+  if to_regclass('public.compliance_tasks') is not null
+    and not exists (
+      select 1 from pg_constraint
+      where conname = 'safety_coaching_compliance_task_id_fkey'
+        and conrelid = 'public.safety_coaching'::regclass
+    )
+  then
+    alter table public.safety_coaching
+    add constraint safety_coaching_compliance_task_id_fkey
+    foreign key (compliance_task_id)
+    references public.compliance_tasks(id)
+    on delete set null;
+  end if;
+end $$;
 
 create index if not exists safety_coaching_organization_id_idx on public.safety_coaching(organization_id);
 create index if not exists safety_coaching_carrier_id_idx on public.safety_coaching(carrier_id);
