@@ -135,7 +135,14 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
   const safeTokenHashPrefix = tokenHash ? tokenHash.slice(0, 12) : null;
 
   if (!adminSupabase) {
-    console.warn("[upload-link] public lookup unavailable: missing service role env", { safeTokenHashPrefix });
+    console.warn("[upload-link] public lookup unavailable: missing Supabase environment configuration", {
+      safeTokenHashPrefix,
+      hasNextPublicSupabaseUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
+      hasNextPublicSupabaseAnonKey: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+      hasSupabaseServiceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+      hasNextPublicSupabaseStorageBucket: Boolean(process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET),
+      effectiveBucketName: process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "carrier-documents",
+    });
     return { link: null, status: "configuration_error", safeTokenHashPrefix };
   }
 

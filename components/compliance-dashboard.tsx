@@ -284,7 +284,7 @@ export function ComplianceDashboard({
         onNavigate={handleSidebarNavigate}
       />
 
-      <main className="p-6 max-md:p-4">
+      <main className="p-5 max-md:p-4">
         <button
           type="button"
           onClick={() => setIsSidebarOpen(true)}
@@ -294,13 +294,13 @@ export function ComplianceDashboard({
           <PanelLeftOpen className="h-4 w-4" />
           Navigation
         </button>
-        <header className="mb-4 border-b border-white/10 pb-4">
-          <details className="rounded-md border border-white/10 bg-black/25 p-2.5">
+        <header className="mb-3 border-b border-white/10 pb-3">
+          <details className="relative w-fit max-md:w-full">
             <summary className="form-button min-h-11 w-fit cursor-pointer px-4 text-sm max-md:w-full max-md:justify-center">
               <Plus className="h-4 w-4" />
               Quick Actions
             </summary>
-          <div className="mt-3 flex items-center justify-start gap-2.5 max-xl:flex-wrap max-md:w-full max-md:flex-col max-md:items-stretch">
+          <div className="absolute left-0 top-full z-30 mt-2 grid w-[min(760px,calc(100vw-2rem))] grid-cols-2 gap-2.5 rounded-md border border-white/10 bg-black/95 p-3 shadow-premium backdrop-blur-xl max-md:static max-md:w-full max-md:grid-cols-1">
             {canManageCarriers(session) ? (
               <Link
                 href="/carriers/new"
@@ -403,21 +403,24 @@ export function ComplianceDashboard({
           </div>
           </details>
 
-          <div className="mt-3 rounded-md border border-white/10 bg-black/25 p-4">
+          <details className="mt-3 rounded-md border border-white/10 bg-black/25 p-3">
+            <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-[0.16em] text-manifest-muted">
+              Manifest Operations Center
+            </summary>
+          <div className="mt-3">
             <p className="eyebrow">{branding.name}</p>
-            <h1 className="max-w-4xl text-3xl font-extrabold leading-tight tracking-normal text-white max-md:text-2xl">
+            <h1 className="max-w-4xl text-2xl font-extrabold leading-tight tracking-normal text-white max-md:text-xl">
               Manifest Operations Center
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-manifest-muted">
               Compliance visibility across audit readiness, carrier documents, DQ files, vehicle maintenance, and renewal risk.
             </p>
           </div>
+          </details>
         </header>
 
-        <DashboardTabs activeTab={activeTab} onChange={handleTabChange} />
-
         {activeTab === "overview" ? (
-          <div className="grid gap-5">
+          <div className="grid gap-4">
             <ActionCenterStrip overview={executiveOverview} />
             {isCarrierPortal && selectedCarrier ? (
               <CarrierPortalPriorityPanel
@@ -431,7 +434,13 @@ export function ComplianceDashboard({
 
             <NeedsAttentionPanel overview={executiveOverview} />
 
-            <section className="grid grid-cols-4 gap-3 max-2xl:grid-cols-2 max-md:grid-cols-1" aria-label="Dashboard overview metrics">
+            <CarrierRoster carriers={filteredCarriers} selectedCarrierId={selectedCarrierId} onSelectCarrier={setSelectedCarrierId} onboardingProgressByCarrier={onboardingProgressByCarrier} compact />
+
+            <details className="section-panel p-4">
+              <summary className="cursor-pointer text-sm font-extrabold uppercase tracking-[0.18em] text-manifest-muted">
+                More Compliance Metrics
+              </summary>
+              <section className="mt-4 grid grid-cols-4 gap-3 max-2xl:grid-cols-2 max-md:grid-cols-1" aria-label="Dashboard overview metrics">
               <ExecutiveMetricCard label="Org audit readiness" value={`${executiveOverview.organizationAuditReadinessAverage}%`} detail="Carrier, DQ, vehicle, alert posture" tone={scoreTone(executiveOverview.organizationAuditReadinessAverage)} />
               <ExecutiveMetricCard label="DQ readiness" value={`${executiveOverview.dqReadinessAverage}%`} detail={`${executiveOverview.driversNeedingAttention} drivers need attention`} tone={scoreTone(executiveOverview.dqReadinessAverage)} />
               <ExecutiveMetricCard label="Vehicle maintenance" value={`${executiveOverview.vehicleReadinessAverage}%`} detail={`${executiveOverview.vehiclesNeedingAttention} units need attention`} tone={scoreTone(executiveOverview.vehicleReadinessAverage)} />
@@ -440,13 +449,6 @@ export function ComplianceDashboard({
               <ExecutiveMetricCard label="Open compliance alerts" value={executiveOverview.openComplianceAlerts} detail="Unread/read alerts not dismissed" tone={executiveOverview.openComplianceAlerts ? "warn" : "good"} />
               <ExecutiveMetricCard label="Open tasks" value={executiveOverview.taskSummary.open} detail={`${executiveOverview.taskSummary.overdue} overdue · ${executiveOverview.taskSummary.dueThisWeek} due this week`} tone={executiveOverview.taskSummary.overdue ? "danger" : executiveOverview.taskSummary.open ? "warn" : "good"} />
               <ExecutiveMetricCard label="Inspection reports" value={executiveOverview.inspectionSummary.total} detail={`${executiveOverview.inspectionSummary.outOfService} out of service · ${executiveOverview.inspectionSummary.withViolations} with findings`} tone={executiveOverview.inspectionSummary.outOfService ? "danger" : executiveOverview.inspectionSummary.withViolations ? "warn" : "good"} />
-            </section>
-
-            <details className="section-panel p-4">
-              <summary className="cursor-pointer text-sm font-extrabold uppercase tracking-[0.18em] text-manifest-muted">
-                More compliance metrics
-              </summary>
-              <section className="mt-4 grid grid-cols-4 gap-3 max-2xl:grid-cols-2 max-md:grid-cols-1" aria-label="Secondary dashboard metrics">
               <ExecutiveMetricCard label="Good safety posture" value={executiveOverview.safetyScoreSummary.good} detail="Manual safety score records" tone={executiveOverview.safetyScoreSummary.good ? "good" : "neutral"} />
               <ExecutiveMetricCard label="Safety needs review" value={executiveOverview.safetyScoreSummary.needsReview} detail="Manual safety score records" tone={executiveOverview.safetyScoreSummary.needsReview ? "warn" : "good"} />
               <ExecutiveMetricCard label="Missing safety data" value={executiveOverview.safetyScoreSummary.missingData} detail="No manual safety record" tone={executiveOverview.safetyScoreSummary.missingData ? "danger" : "good"} />
@@ -463,8 +465,6 @@ export function ComplianceDashboard({
               <ExecutiveMetricCard label="Missing critical docs" value={onboardingSummary.missingCriticalDocuments} detail="Carrier onboarding blockers" tone={onboardingSummary.missingCriticalDocuments ? "danger" : "good"} />
               </section>
             </details>
-
-            <CarrierRoster carriers={filteredCarriers} selectedCarrierId={selectedCarrierId} onSelectCarrier={setSelectedCarrierId} onboardingProgressByCarrier={onboardingProgressByCarrier} compact />
 
             <details className="section-panel p-4">
               <summary className="cursor-pointer text-sm font-extrabold uppercase tracking-[0.18em] text-manifest-muted">
