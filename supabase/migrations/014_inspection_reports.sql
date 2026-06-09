@@ -37,47 +37,92 @@ create table if not exists public.inspection_documents (
 alter table public.inspection_reports
 drop constraint if exists inspection_reports_organization_carrier_fkey;
 
-alter table public.inspection_reports
-add constraint inspection_reports_organization_carrier_fkey
-foreign key (organization_id, carrier_id)
-references public.carriers(organization_id, id)
-on delete cascade;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'inspection_reports_carrier_id_fkey'
+      and conrelid = 'public.inspection_reports'::regclass
+  ) then
+    alter table public.inspection_reports
+    add constraint inspection_reports_carrier_id_fkey
+    foreign key (carrier_id)
+    references public.carriers(id)
+    on delete cascade;
+  end if;
+end $$;
 
 alter table public.inspection_reports
 drop constraint if exists inspection_reports_organization_driver_fkey;
 
-alter table public.inspection_reports
-add constraint inspection_reports_organization_driver_fkey
-foreign key (organization_id, driver_id)
-references public.drivers(organization_id, id)
-on delete set null;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'inspection_reports_driver_id_fkey'
+      and conrelid = 'public.inspection_reports'::regclass
+  ) then
+    alter table public.inspection_reports
+    add constraint inspection_reports_driver_id_fkey
+    foreign key (driver_id)
+    references public.drivers(id)
+    on delete set null;
+  end if;
+end $$;
 
 alter table public.inspection_reports
 drop constraint if exists inspection_reports_organization_equipment_fkey;
 
-alter table public.inspection_reports
-add constraint inspection_reports_organization_equipment_fkey
-foreign key (organization_id, equipment_id)
-references public.equipment(organization_id, id)
-on delete set null;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'inspection_reports_equipment_id_fkey'
+      and conrelid = 'public.inspection_reports'::regclass
+  ) then
+    alter table public.inspection_reports
+    add constraint inspection_reports_equipment_id_fkey
+    foreign key (equipment_id)
+    references public.equipment(id)
+    on delete set null;
+  end if;
+end $$;
 
 alter table public.inspection_documents
 drop constraint if exists inspection_documents_organization_inspection_fkey;
 
-alter table public.inspection_documents
-add constraint inspection_documents_organization_inspection_fkey
-foreign key (organization_id, inspection_id)
-references public.inspection_reports(organization_id, id)
-on delete cascade;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'inspection_documents_inspection_id_fkey'
+      and conrelid = 'public.inspection_documents'::regclass
+  ) then
+    alter table public.inspection_documents
+    add constraint inspection_documents_inspection_id_fkey
+    foreign key (inspection_id)
+    references public.inspection_reports(id)
+    on delete cascade;
+  end if;
+end $$;
 
 alter table public.inspection_documents
 drop constraint if exists inspection_documents_organization_carrier_fkey;
 
-alter table public.inspection_documents
-add constraint inspection_documents_organization_carrier_fkey
-foreign key (organization_id, carrier_id)
-references public.carriers(organization_id, id)
-on delete cascade;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'inspection_documents_carrier_id_fkey'
+      and conrelid = 'public.inspection_documents'::regclass
+  ) then
+    alter table public.inspection_documents
+    add constraint inspection_documents_carrier_id_fkey
+    foreign key (carrier_id)
+    references public.carriers(id)
+    on delete cascade;
+  end if;
+end $$;
 
 create index if not exists inspection_reports_organization_id_idx on public.inspection_reports(organization_id);
 create index if not exists inspection_reports_carrier_id_idx on public.inspection_reports(carrier_id);
