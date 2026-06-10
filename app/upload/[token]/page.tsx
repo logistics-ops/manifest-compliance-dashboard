@@ -194,6 +194,13 @@ function logUploadLookupUnavailableRender(lookup: Awaited<ReturnType<typeof getP
     uploadLinksRowFound: lookup.uploadLinkRowFound,
     isExpired: lookup.isExpired,
     isRevoked: lookup.isRevoked,
+    adminClientFailureReason: lookup.adminClientFailureReason,
+    hasSupabaseUrl: lookup.hasSupabaseUrl,
+    hasServiceRoleKey: lookup.hasServiceRoleKey,
+    urlLength: lookup.urlLength,
+    serviceRoleLength: lookup.serviceRoleLength,
+    createClientThrew: lookup.createClientThrew,
+    createClientErrorMessage: lookup.createClientErrorMessage,
   });
 }
 
@@ -221,6 +228,13 @@ function UploadLookupDebugPanel({ lookup }: { lookup: Awaited<ReturnType<typeof 
     ["isExpired", lookup.isExpired ?? "null"],
     ["isRevoked", lookup.isRevoked ?? "null"],
     ["effectiveBucketName", lookup.effectiveBucketName],
+    ["adminClientFailureReason", lookup.adminClientFailureReason ?? "null"],
+    ["hasSupabaseUrl", lookup.hasSupabaseUrl],
+    ["hasServiceRoleKey", lookup.hasServiceRoleKey],
+    ["urlLength", lookup.urlLength],
+    ["serviceRoleLength", lookup.serviceRoleLength],
+    ["createClientThrew", lookup.createClientThrew],
+    ["createClientErrorMessage", lookup.createClientErrorMessage ?? "null"],
   ] as const;
 
   return (

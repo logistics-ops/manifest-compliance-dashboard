@@ -1,7 +1,7 @@
 import { unstable_noStore as noStore } from "next/cache";
 import { getCurrentSession } from "@/lib/integrations/auth";
 import { hashUploadToken, normalizeUploadToken } from "@/lib/security/upload-token";
-import { createAdminClient, getAdminClientEnvDiagnostics } from "@/lib/supabase/admin";
+import { createAdminClient, getAdminClientEnvDiagnostics, getLastAdminClientDiagnostics } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export type UploadDocumentCategory = "carrier" | "driver" | "vehicle";
@@ -41,6 +41,13 @@ export type PublicUploadLinkLookup = {
   isExpired: boolean | null;
   isRevoked: boolean | null;
   effectiveBucketName: string;
+  adminClientFailureReason: string | null;
+  hasSupabaseUrl: boolean;
+  hasServiceRoleKey: boolean;
+  urlLength: number;
+  serviceRoleLength: number;
+  createClientThrew: boolean;
+  createClientErrorMessage: string | null;
   errorMessage?: string;
 };
 
@@ -141,9 +148,11 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
   const tokenHash = normalizedToken ? hashUploadToken(normalizedToken) : "";
   const safeTokenHashPrefix = tokenHash ? tokenHash.slice(0, 12) : null;
   const effectiveBucketName = getEffectiveBucketName();
+  const adminDiagnostics = getLastAdminClientDiagnostics();
 
   if (!adminSupabase) {
     const adminEnv = getAdminClientEnvDiagnostics();
+    const adminFailure = getLastAdminClientDiagnostics();
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
     const storageBucket = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET ?? "";
     const failedChecks = [
@@ -170,6 +179,13 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
       nextPublicSupabaseStorageBucketLength: storageBucket.length,
       nextPublicSupabaseStorageBucketTrimmedLength: storageBucket.trim().length,
       effectiveBucketName,
+      adminClientFailureReason: adminFailure.adminClientFailureReason,
+      hasSupabaseUrl: adminFailure.hasUrl,
+      hasServiceRoleKey: adminFailure.hasServiceRoleKey,
+      urlLength: adminFailure.urlLength,
+      serviceRoleLength: adminFailure.serviceRoleLength,
+      createClientThrew: adminFailure.createClientThrew,
+      createClientErrorMessage: adminFailure.createClientErrorMessage,
     });
     return {
       link: null,
@@ -182,6 +198,13 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
       isExpired: null,
       isRevoked: null,
       effectiveBucketName,
+      adminClientFailureReason: adminFailure.adminClientFailureReason,
+      hasSupabaseUrl: adminFailure.hasUrl,
+      hasServiceRoleKey: adminFailure.hasServiceRoleKey,
+      urlLength: adminFailure.urlLength,
+      serviceRoleLength: adminFailure.serviceRoleLength,
+      createClientThrew: adminFailure.createClientThrew,
+      createClientErrorMessage: adminFailure.createClientErrorMessage,
     };
   }
 
@@ -198,6 +221,13 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
       isExpired: null,
       isRevoked: null,
       effectiveBucketName,
+      adminClientFailureReason: adminDiagnostics.adminClientFailureReason,
+      hasSupabaseUrl: adminDiagnostics.hasUrl,
+      hasServiceRoleKey: adminDiagnostics.hasServiceRoleKey,
+      urlLength: adminDiagnostics.urlLength,
+      serviceRoleLength: adminDiagnostics.serviceRoleLength,
+      createClientThrew: adminDiagnostics.createClientThrew,
+      createClientErrorMessage: adminDiagnostics.createClientErrorMessage,
     };
   }
 
@@ -224,6 +254,13 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
       isExpired: null,
       isRevoked: null,
       effectiveBucketName,
+      adminClientFailureReason: adminDiagnostics.adminClientFailureReason,
+      hasSupabaseUrl: adminDiagnostics.hasUrl,
+      hasServiceRoleKey: adminDiagnostics.hasServiceRoleKey,
+      urlLength: adminDiagnostics.urlLength,
+      serviceRoleLength: adminDiagnostics.serviceRoleLength,
+      createClientThrew: adminDiagnostics.createClientThrew,
+      createClientErrorMessage: adminDiagnostics.createClientErrorMessage,
       errorMessage: error.message,
     };
   }
@@ -241,6 +278,13 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
       isExpired: null,
       isRevoked: null,
       effectiveBucketName,
+      adminClientFailureReason: adminDiagnostics.adminClientFailureReason,
+      hasSupabaseUrl: adminDiagnostics.hasUrl,
+      hasServiceRoleKey: adminDiagnostics.hasServiceRoleKey,
+      urlLength: adminDiagnostics.urlLength,
+      serviceRoleLength: adminDiagnostics.serviceRoleLength,
+      createClientThrew: adminDiagnostics.createClientThrew,
+      createClientErrorMessage: adminDiagnostics.createClientErrorMessage,
     };
   }
 
@@ -283,6 +327,13 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
     isExpired,
     isRevoked,
     effectiveBucketName,
+    adminClientFailureReason: adminDiagnostics.adminClientFailureReason,
+    hasSupabaseUrl: adminDiagnostics.hasUrl,
+    hasServiceRoleKey: adminDiagnostics.hasServiceRoleKey,
+    urlLength: adminDiagnostics.urlLength,
+    serviceRoleLength: adminDiagnostics.serviceRoleLength,
+    createClientThrew: adminDiagnostics.createClientThrew,
+    createClientErrorMessage: adminDiagnostics.createClientErrorMessage,
   };
 }
 
