@@ -1,7 +1,7 @@
 import { unstable_noStore as noStore } from "next/cache";
 import { getCurrentSession } from "@/lib/integrations/auth";
 import { hashUploadToken, normalizeUploadToken } from "@/lib/security/upload-token";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, getAdminClientEnvDiagnostics } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export type UploadDocumentCategory = "carrier" | "driver" | "vehicle";
@@ -135,13 +135,33 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
   const safeTokenHashPrefix = tokenHash ? tokenHash.slice(0, 12) : null;
 
   if (!adminSupabase) {
+    const adminEnv = getAdminClientEnvDiagnostics();
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+    const storageBucket = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET ?? "";
+    const failedChecks = [
+      adminEnv.isUrlEmptyAfterTrim ? "NEXT_PUBLIC_SUPABASE_URL_EMPTY_AFTER_TRIM" : null,
+      adminEnv.isServiceRoleKeyEmptyAfterTrim ? "SUPABASE_SERVICE_ROLE_KEY_EMPTY_AFTER_TRIM" : null,
+    ].filter(Boolean);
+
     console.warn("[upload-link] public lookup unavailable: missing Supabase environment configuration", {
       safeTokenHashPrefix,
-      hasNextPublicSupabaseUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
-      hasNextPublicSupabaseAnonKey: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
-      hasSupabaseServiceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
-      hasNextPublicSupabaseStorageBucket: Boolean(process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET),
-      effectiveBucketName: process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "carrier-documents",
+      createAdminClientReturnedNull: true,
+      failedChecks,
+      hasNextPublicSupabaseUrl: adminEnv.hasUrl,
+      nextPublicSupabaseUrlLength: adminEnv.urlLength,
+      nextPublicSupabaseUrlTrimmedLength: adminEnv.urlTrimmedLength,
+      isNextPublicSupabaseUrlEmptyAfterTrim: adminEnv.isUrlEmptyAfterTrim,
+      hasSupabaseServiceRoleKey: adminEnv.hasServiceRoleKey,
+      supabaseServiceRoleKeyLength: adminEnv.serviceRoleLength,
+      supabaseServiceRoleKeyTrimmedLength: adminEnv.serviceRoleTrimmedLength,
+      isSupabaseServiceRoleKeyEmptyAfterTrim: adminEnv.isServiceRoleKeyEmptyAfterTrim,
+      hasNextPublicSupabaseAnonKey: Boolean(anonKey),
+      nextPublicSupabaseAnonKeyLength: anonKey.length,
+      nextPublicSupabaseAnonKeyTrimmedLength: anonKey.trim().length,
+      hasNextPublicSupabaseStorageBucket: Boolean(storageBucket),
+      nextPublicSupabaseStorageBucketLength: storageBucket.length,
+      nextPublicSupabaseStorageBucketTrimmedLength: storageBucket.trim().length,
+      effectiveBucketName: storageBucket.trim() || "carrier-documents",
     });
     return { link: null, status: "configuration_error", safeTokenHashPrefix };
   }
