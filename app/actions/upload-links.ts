@@ -123,13 +123,11 @@ export async function publicUploadDocumentAction(formData: FormData) {
     .filter((value): value is File => value instanceof File && value.size > 0);
   const link = await getPublicUploadLink(token);
   const adminSupabase = createAdminClient();
-  const safeTokenHashPrefix = token ? hashUploadToken(token).slice(0, 12) : null;
 
   if (!link?.isUsable) redirectToUpload(token, "This upload link is expired, revoked, or invalid.", "error");
   if (!adminSupabase) redirectToUpload(token, "Uploads are temporarily unavailable.", "error");
   if (STORAGE_BUCKET !== "carrier-documents") {
     console.warn("[upload-link] public upload misconfigured storage bucket", {
-      safeTokenHashPrefix,
       expectedBucket: "carrier-documents",
       configuredBucket: STORAGE_BUCKET,
       linkId: link.id,
@@ -233,7 +231,6 @@ export async function publicUploadDocumentAction(formData: FormData) {
   } catch (error) {
     const failure = normalizePublicUploadError(error);
     console.warn("[upload-link] public upload failed", {
-      safeTokenHashPrefix,
       stage: failure.stage,
       category,
       linkId: link.id,

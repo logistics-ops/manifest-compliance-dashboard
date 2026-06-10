@@ -1,7 +1,7 @@
 import { unstable_noStore as noStore } from "next/cache";
 import { getCurrentSession } from "@/lib/integrations/auth";
 import { hashUploadToken, normalizeUploadToken } from "@/lib/security/upload-token";
-import { createAdminClient, getAdminClientEnvDiagnostics, getLastAdminClientDiagnostics } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export type UploadDocumentCategory = "carrier" | "driver" | "vehicle";
@@ -33,24 +33,6 @@ export type PublicUploadLink = UploadLinkRecord & {
 export type PublicUploadLinkLookup = {
   link: PublicUploadLink | null;
   status: "found" | "not_found" | "configuration_error" | "lookup_error";
-  safeTokenHashPrefix: string | null;
-  hasAdminClient: boolean;
-  queryErrorCode: string | null;
-  queryErrorMessage: string | null;
-  uploadLinkRowFound: boolean;
-  isExpired: boolean | null;
-  isRevoked: boolean | null;
-  effectiveBucketName: string;
-  adminClientFailureReason: string | null;
-  hasSupabaseUrl: boolean;
-  hasServiceRoleKey: boolean;
-  serviceRoleEnvNameRead: string;
-  supabaseUrlEnvNameRead: string;
-  allExpectedEnvNames: string[];
-  urlLength: number;
-  serviceRoleLength: number;
-  createClientThrew: boolean;
-  createClientErrorMessage: string | null;
   errorMessage?: string;
 };
 
@@ -151,98 +133,13 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
   const adminSupabase = createAdminClient();
   const normalizedToken = normalizeUploadToken(token);
   const tokenHash = normalizedToken ? hashUploadToken(normalizedToken) : "";
-  const safeTokenHashPrefix = tokenHash ? tokenHash.slice(0, 12) : null;
-  const effectiveBucketName = getEffectiveBucketName();
-  const adminDiagnostics = getLastAdminClientDiagnostics();
 
   if (!adminSupabase) {
-    const adminEnv = getAdminClientEnvDiagnostics();
-    const adminFailure = getLastAdminClientDiagnostics();
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-    const storageBucket = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET ?? "";
-    const failedChecks = [
-      adminEnv.isUrlEmptyAfterTrim ? "NEXT_PUBLIC_SUPABASE_URL_EMPTY_AFTER_TRIM" : null,
-      adminEnv.isServiceRoleKeyEmptyAfterTrim ? "SUPABASE_SERVICE_ROLE_KEY_EMPTY_AFTER_TRIM" : null,
-    ].filter(Boolean);
-
-    console.warn("[upload-link] public lookup unavailable: missing Supabase environment configuration", {
-      safeTokenHashPrefix,
-      createAdminClientReturnedNull: true,
-      failedChecks,
-      hasNextPublicSupabaseUrl: adminEnv.hasUrl,
-      nextPublicSupabaseUrlLength: adminEnv.urlLength,
-      nextPublicSupabaseUrlTrimmedLength: adminEnv.urlTrimmedLength,
-      isNextPublicSupabaseUrlEmptyAfterTrim: adminEnv.isUrlEmptyAfterTrim,
-      hasSupabaseServiceRoleKey: adminEnv.hasServiceRoleKey,
-      supabaseServiceRoleKeyLength: adminEnv.serviceRoleLength,
-      supabaseServiceRoleKeyTrimmedLength: adminEnv.serviceRoleTrimmedLength,
-      isSupabaseServiceRoleKeyEmptyAfterTrim: adminEnv.isServiceRoleKeyEmptyAfterTrim,
-      hasNextPublicSupabaseAnonKey: Boolean(anonKey),
-      nextPublicSupabaseAnonKeyLength: anonKey.length,
-      nextPublicSupabaseAnonKeyTrimmedLength: anonKey.trim().length,
-      hasNextPublicSupabaseStorageBucket: Boolean(storageBucket),
-      nextPublicSupabaseStorageBucketLength: storageBucket.length,
-      nextPublicSupabaseStorageBucketTrimmedLength: storageBucket.trim().length,
-      effectiveBucketName,
-      adminClientFailureReason: adminFailure.adminClientFailureReason,
-      hasSupabaseUrl: adminFailure.hasUrl,
-      hasServiceRoleKey: adminFailure.hasServiceRoleKey,
-      serviceRoleEnvNameRead: adminFailure.serviceRoleEnvNameRead,
-      supabaseUrlEnvNameRead: adminFailure.supabaseUrlEnvNameRead,
-      allExpectedEnvNames: adminFailure.allExpectedEnvNames,
-      urlLength: adminFailure.urlLength,
-      serviceRoleLength: adminFailure.serviceRoleLength,
-      createClientThrew: adminFailure.createClientThrew,
-      createClientErrorMessage: adminFailure.createClientErrorMessage,
-    });
-    return {
-      link: null,
-      status: "configuration_error",
-      safeTokenHashPrefix,
-      hasAdminClient: false,
-      queryErrorCode: null,
-      queryErrorMessage: null,
-      uploadLinkRowFound: false,
-      isExpired: null,
-      isRevoked: null,
-      effectiveBucketName,
-      adminClientFailureReason: adminFailure.adminClientFailureReason,
-      hasSupabaseUrl: adminFailure.hasUrl,
-      hasServiceRoleKey: adminFailure.hasServiceRoleKey,
-      serviceRoleEnvNameRead: adminFailure.serviceRoleEnvNameRead,
-      supabaseUrlEnvNameRead: adminFailure.supabaseUrlEnvNameRead,
-      allExpectedEnvNames: adminFailure.allExpectedEnvNames,
-      urlLength: adminFailure.urlLength,
-      serviceRoleLength: adminFailure.serviceRoleLength,
-      createClientThrew: adminFailure.createClientThrew,
-      createClientErrorMessage: adminFailure.createClientErrorMessage,
-    };
+    return { link: null, status: "configuration_error" };
   }
 
   if (!normalizedToken) {
-    console.warn("[upload-link] public lookup rejected empty token", { safeTokenHashPrefix });
-    return {
-      link: null,
-      status: "not_found",
-      safeTokenHashPrefix,
-      hasAdminClient: true,
-      queryErrorCode: null,
-      queryErrorMessage: null,
-      uploadLinkRowFound: false,
-      isExpired: null,
-      isRevoked: null,
-      effectiveBucketName,
-      adminClientFailureReason: adminDiagnostics.adminClientFailureReason,
-      hasSupabaseUrl: adminDiagnostics.hasUrl,
-      hasServiceRoleKey: adminDiagnostics.hasServiceRoleKey,
-      serviceRoleEnvNameRead: adminDiagnostics.serviceRoleEnvNameRead,
-      supabaseUrlEnvNameRead: adminDiagnostics.supabaseUrlEnvNameRead,
-      allExpectedEnvNames: adminDiagnostics.allExpectedEnvNames,
-      urlLength: adminDiagnostics.urlLength,
-      serviceRoleLength: adminDiagnostics.serviceRoleLength,
-      createClientThrew: adminDiagnostics.createClientThrew,
-      createClientErrorMessage: adminDiagnostics.createClientErrorMessage,
-    };
+    return { link: null, status: "not_found" };
   }
 
   const { data, error } = await adminSupabase
@@ -253,59 +150,14 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
 
   if (error) {
     console.warn("[upload-link] public lookup query failed", {
-      safeTokenHashPrefix,
       code: error.code,
       message: error.message,
     });
-    return {
-      link: null,
-      status: "lookup_error",
-      safeTokenHashPrefix,
-      hasAdminClient: true,
-      queryErrorCode: error.code ?? null,
-      queryErrorMessage: error.message ?? null,
-      uploadLinkRowFound: false,
-      isExpired: null,
-      isRevoked: null,
-      effectiveBucketName,
-      adminClientFailureReason: adminDiagnostics.adminClientFailureReason,
-      hasSupabaseUrl: adminDiagnostics.hasUrl,
-      hasServiceRoleKey: adminDiagnostics.hasServiceRoleKey,
-      serviceRoleEnvNameRead: adminDiagnostics.serviceRoleEnvNameRead,
-      supabaseUrlEnvNameRead: adminDiagnostics.supabaseUrlEnvNameRead,
-      allExpectedEnvNames: adminDiagnostics.allExpectedEnvNames,
-      urlLength: adminDiagnostics.urlLength,
-      serviceRoleLength: adminDiagnostics.serviceRoleLength,
-      createClientThrew: adminDiagnostics.createClientThrew,
-      createClientErrorMessage: adminDiagnostics.createClientErrorMessage,
-      errorMessage: error.message,
-    };
+    return { link: null, status: "lookup_error", errorMessage: error.message };
   }
 
   if (!data) {
-    console.warn("[upload-link] public lookup found no token row", { safeTokenHashPrefix });
-    return {
-      link: null,
-      status: "not_found",
-      safeTokenHashPrefix,
-      hasAdminClient: true,
-      queryErrorCode: null,
-      queryErrorMessage: null,
-      uploadLinkRowFound: false,
-      isExpired: null,
-      isRevoked: null,
-      effectiveBucketName,
-      adminClientFailureReason: adminDiagnostics.adminClientFailureReason,
-      hasSupabaseUrl: adminDiagnostics.hasUrl,
-      hasServiceRoleKey: adminDiagnostics.hasServiceRoleKey,
-      serviceRoleEnvNameRead: adminDiagnostics.serviceRoleEnvNameRead,
-      supabaseUrlEnvNameRead: adminDiagnostics.supabaseUrlEnvNameRead,
-      allExpectedEnvNames: adminDiagnostics.allExpectedEnvNames,
-      urlLength: adminDiagnostics.urlLength,
-      serviceRoleLength: adminDiagnostics.serviceRoleLength,
-      createClientThrew: adminDiagnostics.createClientThrew,
-      createClientErrorMessage: adminDiagnostics.createClientErrorMessage,
-    };
+    return { link: null, status: "not_found" };
   }
 
   const row = data as UploadLinkRow;
@@ -317,15 +169,6 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
   ]);
   const isExpired = new Date(row.expires_at).getTime() <= Date.now();
   const isRevoked = Boolean(row.revoked_at);
-
-  if (isExpired || isRevoked) {
-    console.warn("[upload-link] public lookup found inactive token", {
-      safeTokenHashPrefix,
-      isExpired,
-      isRevoked,
-      linkId: row.id,
-    });
-  }
 
   return {
     link: {
@@ -339,24 +182,6 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
       isUsable: !isExpired && !isRevoked,
     },
     status: "found",
-    safeTokenHashPrefix,
-    hasAdminClient: true,
-    queryErrorCode: null,
-    queryErrorMessage: null,
-    uploadLinkRowFound: true,
-    isExpired,
-    isRevoked,
-    effectiveBucketName,
-    adminClientFailureReason: adminDiagnostics.adminClientFailureReason,
-    hasSupabaseUrl: adminDiagnostics.hasUrl,
-    hasServiceRoleKey: adminDiagnostics.hasServiceRoleKey,
-    serviceRoleEnvNameRead: adminDiagnostics.serviceRoleEnvNameRead,
-    supabaseUrlEnvNameRead: adminDiagnostics.supabaseUrlEnvNameRead,
-    allExpectedEnvNames: adminDiagnostics.allExpectedEnvNames,
-    urlLength: adminDiagnostics.urlLength,
-    serviceRoleLength: adminDiagnostics.serviceRoleLength,
-    createClientThrew: adminDiagnostics.createClientThrew,
-    createClientErrorMessage: adminDiagnostics.createClientErrorMessage,
   };
 }
 
