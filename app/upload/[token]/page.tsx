@@ -53,10 +53,12 @@ export default async function PublicUploadPage({ params, searchParams }: PagePro
 
   if (!link) {
     if (lookup.status === "configuration_error") {
+      logUploadLookupUnavailableRender(lookup);
       return <Unavailable title="Upload lookup unavailable" message="This secure upload page is missing required server configuration. Ask Manifest to verify the deployment settings." />;
     }
 
     if (lookup.status === "lookup_error") {
+      logUploadLookupUnavailableRender(lookup);
       return <Unavailable title="Upload lookup unavailable" message="The secure upload page could not validate this link right now. Ask Manifest to verify the deployment and try again." />;
     }
 
@@ -157,6 +159,19 @@ export default async function PublicUploadPage({ params, searchParams }: PagePro
       </div>
     </main>
   );
+}
+
+function logUploadLookupUnavailableRender(lookup: Awaited<ReturnType<typeof getPublicUploadLinkLookup>>) {
+  console.warn("[upload-link] rendering Upload lookup unavailable", {
+    lookupStatus: lookup.status,
+    hasAdminClient: lookup.hasAdminClient,
+    safeTokenHashPrefix: lookup.safeTokenHashPrefix,
+    queryErrorCode: lookup.queryErrorCode,
+    queryErrorMessage: lookup.queryErrorMessage,
+    uploadLinksRowFound: lookup.uploadLinkRowFound,
+    isExpired: lookup.isExpired,
+    isRevoked: lookup.isRevoked,
+  });
 }
 
 function Unavailable({ title, message }: { title: string; message: string }) {

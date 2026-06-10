@@ -34,6 +34,12 @@ export type PublicUploadLinkLookup = {
   link: PublicUploadLink | null;
   status: "found" | "not_found" | "configuration_error" | "lookup_error";
   safeTokenHashPrefix: string | null;
+  hasAdminClient: boolean;
+  queryErrorCode: string | null;
+  queryErrorMessage: string | null;
+  uploadLinkRowFound: boolean;
+  isExpired: boolean | null;
+  isRevoked: boolean | null;
   errorMessage?: string;
 };
 
@@ -163,12 +169,32 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
       nextPublicSupabaseStorageBucketTrimmedLength: storageBucket.trim().length,
       effectiveBucketName: storageBucket.trim() || "carrier-documents",
     });
-    return { link: null, status: "configuration_error", safeTokenHashPrefix };
+    return {
+      link: null,
+      status: "configuration_error",
+      safeTokenHashPrefix,
+      hasAdminClient: false,
+      queryErrorCode: null,
+      queryErrorMessage: null,
+      uploadLinkRowFound: false,
+      isExpired: null,
+      isRevoked: null,
+    };
   }
 
   if (!normalizedToken) {
     console.warn("[upload-link] public lookup rejected empty token", { safeTokenHashPrefix });
-    return { link: null, status: "not_found", safeTokenHashPrefix };
+    return {
+      link: null,
+      status: "not_found",
+      safeTokenHashPrefix,
+      hasAdminClient: true,
+      queryErrorCode: null,
+      queryErrorMessage: null,
+      uploadLinkRowFound: false,
+      isExpired: null,
+      isRevoked: null,
+    };
   }
 
   const { data, error } = await adminSupabase
@@ -183,12 +209,33 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
       code: error.code,
       message: error.message,
     });
-    return { link: null, status: "lookup_error", safeTokenHashPrefix, errorMessage: error.message };
+    return {
+      link: null,
+      status: "lookup_error",
+      safeTokenHashPrefix,
+      hasAdminClient: true,
+      queryErrorCode: error.code ?? null,
+      queryErrorMessage: error.message ?? null,
+      uploadLinkRowFound: false,
+      isExpired: null,
+      isRevoked: null,
+      errorMessage: error.message,
+    };
   }
 
   if (!data) {
     console.warn("[upload-link] public lookup found no token row", { safeTokenHashPrefix });
-    return { link: null, status: "not_found", safeTokenHashPrefix };
+    return {
+      link: null,
+      status: "not_found",
+      safeTokenHashPrefix,
+      hasAdminClient: true,
+      queryErrorCode: null,
+      queryErrorMessage: null,
+      uploadLinkRowFound: false,
+      isExpired: null,
+      isRevoked: null,
+    };
   }
 
   const row = data as UploadLinkRow;
@@ -223,6 +270,12 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
     },
     status: "found",
     safeTokenHashPrefix,
+    hasAdminClient: true,
+    queryErrorCode: null,
+    queryErrorMessage: null,
+    uploadLinkRowFound: true,
+    isExpired,
+    isRevoked,
   };
 }
 
