@@ -117,6 +117,8 @@ type CarrierDocumentVersionRow = {
   uploaded_at: string | null;
 };
 
+type PublicUploadedFile = PublicUploadDocumentStatus["files"][number];
+
 export async function getUploadLinksForCarrier(carrierId: string): Promise<UploadLinkRecord[]> {
   noStore();
   const session = await getCurrentSession();
@@ -425,18 +427,30 @@ export async function getPublicUploadDocumentStatuses(link: PublicUploadLink): P
     if (error) {
       console.warn("[upload-link] unable to load driver intake statuses", { linkId: link.id, code: error.code, message: error.message });
     } else {
-      results.push(...((data ?? []) as ScopedDocumentRow[]).map((row) => ({
-        category: "driver" as const,
-        documentName: row.document_name,
-        uploaded: row.uploaded,
-        status: row.status,
-        expirationDate: row.expiration_date,
-        storagePath: row.storage_path,
-        fileName: fileNameFromPath(row.storage_path),
-        uploadedAt: row.uploaded_at,
-        fileCount: row.storage_path ? 1 : 0,
-        files: row.storage_path ? [{ fileName: fileNameFromPath(row.storage_path), storagePath: row.storage_path, uploadedAt: row.uploaded_at }] : [],
-      })));
+      const rows = (data ?? []) as ScopedDocumentRow[];
+      const statuses = await Promise.all(rows.map(async (row) => {
+        const storageFiles = await listPublicUploadStorageFiles({
+          category: "driver",
+          organizationId: link.organizationId,
+          ownerId: link.driverId as string,
+          documentName: row.document_name,
+          fallback: row.storage_path ? [{ fileName: fileNameFromPath(row.storage_path), storagePath: row.storage_path, uploadedAt: row.uploaded_at }] : [],
+        });
+
+        return {
+          category: "driver" as const,
+          documentName: row.document_name,
+          uploaded: row.uploaded,
+          status: row.status,
+          expirationDate: row.expiration_date,
+          storagePath: row.storage_path,
+          fileName: fileNameFromPath(row.storage_path),
+          uploadedAt: row.uploaded_at,
+          fileCount: storageFiles.length || (row.storage_path ? 1 : 0),
+          files: storageFiles,
+        };
+      }));
+      results.push(...statuses);
     }
   }
 
@@ -450,18 +464,30 @@ export async function getPublicUploadDocumentStatuses(link: PublicUploadLink): P
     if (error) {
       console.warn("[upload-link] unable to load vehicle intake statuses", { linkId: link.id, code: error.code, message: error.message });
     } else {
-      results.push(...((data ?? []) as ScopedDocumentRow[]).map((row) => ({
-        category: "vehicle" as const,
-        documentName: row.document_name,
-        uploaded: row.uploaded,
-        status: row.status,
-        expirationDate: row.expiration_date,
-        storagePath: row.storage_path,
-        fileName: fileNameFromPath(row.storage_path),
-        uploadedAt: row.uploaded_at,
-        fileCount: row.storage_path ? 1 : 0,
-        files: row.storage_path ? [{ fileName: fileNameFromPath(row.storage_path), storagePath: row.storage_path, uploadedAt: row.uploaded_at }] : [],
-      })));
+      const rows = (data ?? []) as ScopedDocumentRow[];
+      const statuses = await Promise.all(rows.map(async (row) => {
+        const storageFiles = await listPublicUploadStorageFiles({
+          category: "vehicle",
+          organizationId: link.organizationId,
+          ownerId: link.equipmentId as string,
+          documentName: row.document_name,
+          fallback: row.storage_path ? [{ fileName: fileNameFromPath(row.storage_path), storagePath: row.storage_path, uploadedAt: row.uploaded_at }] : [],
+        });
+
+        return {
+          category: "vehicle" as const,
+          documentName: row.document_name,
+          uploaded: row.uploaded,
+          status: row.status,
+          expirationDate: row.expiration_date,
+          storagePath: row.storage_path,
+          fileName: fileNameFromPath(row.storage_path),
+          uploadedAt: row.uploaded_at,
+          fileCount: storageFiles.length || (row.storage_path ? 1 : 0),
+          files: storageFiles,
+        };
+      }));
+      results.push(...statuses);
     }
   }
 
@@ -519,4 +545,74 @@ function fileNameFromPath(storagePath: string | null) {
 
 function getEffectiveBucketName() {
   return process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET?.trim() || "carrier-documents";
+}
+
+async function listPublicUploadStorageFiles(input: {
+  category: UploadDocumentCategory;
+  organizationId: string;
+  ownerId: string;
+  documentName: string;
+  fallback: PublicUploadedFile[];
+}): Promise<PublicUploadedFile[]> {
+  const adminSupabase = createAdminClient();
+  if (!adminSupabase) return input.fallback;
+
+  const prefix = documentStoragePrefix(input.category, input.organizationId, input.ownerId, input.documentName);
+  const { data: versionEntries, error: versionError } = await adminSupabase.storage
+    .from(getEffectiveBucketName())
+    .list(prefix, { limit: 100, sortBy: { column: "name", order: "asc" } });
+
+  if (versionError || !versionEntries?.length) {
+    if (versionError) {
+      console.warn("[upload-link] unable to list public upload storage versions", {
+        category: input.category,
+        storagePathPrefix: prefix,
+        code: "statusCode" in versionError ? versionError.statusCode : null,
+        message: versionError.message,
+      });
+    }
+    return input.fallback;
+  }
+
+  const files: PublicUploadedFile[] = [];
+  for (const versionEntry of versionEntries) {
+    if (!versionEntry.name.startsWith("v")) continue;
+
+    const versionPrefix = `${prefix}/${versionEntry.name}`;
+    const { data: fileEntries, error: fileError } = await adminSupabase.storage
+      .from(getEffectiveBucketName())
+      .list(versionPrefix, { limit: 100, sortBy: { column: "created_at", order: "desc" } });
+
+    if (fileError) {
+      console.warn("[upload-link] unable to list public upload storage files", {
+        category: input.category,
+        storagePathPrefix: versionPrefix,
+        code: "statusCode" in fileError ? fileError.statusCode : null,
+        message: fileError.message,
+      });
+      continue;
+    }
+
+    (fileEntries ?? []).forEach((fileEntry) => {
+      if (!fileEntry.name || fileEntry.name === ".emptyFolderPlaceholder") return;
+      files.push({
+        fileName: fileEntry.name,
+        storagePath: `${versionPrefix}/${fileEntry.name}`,
+        uploadedAt: fileEntry.updated_at ?? fileEntry.created_at ?? null,
+      });
+    });
+  }
+
+  return files.length
+    ? files.sort((left, right) => String(right.uploadedAt ?? "").localeCompare(String(left.uploadedAt ?? "")))
+    : input.fallback;
+}
+
+function documentStoragePrefix(category: UploadDocumentCategory, organizationId: string, ownerId: string, documentName: string) {
+  const folder = category === "carrier" ? "carriers" : category === "driver" ? "drivers" : "equipment";
+  return `organizations/${organizationId}/${folder}/${ownerId}/${slugifyDocumentName(documentName)}`;
+}
+
+function slugifyDocumentName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
