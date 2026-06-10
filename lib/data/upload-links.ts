@@ -40,6 +40,7 @@ export type PublicUploadLinkLookup = {
   uploadLinkRowFound: boolean;
   isExpired: boolean | null;
   isRevoked: boolean | null;
+  effectiveBucketName: string;
   errorMessage?: string;
 };
 
@@ -139,6 +140,7 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
   const normalizedToken = normalizeUploadToken(token);
   const tokenHash = normalizedToken ? hashUploadToken(normalizedToken) : "";
   const safeTokenHashPrefix = tokenHash ? tokenHash.slice(0, 12) : null;
+  const effectiveBucketName = getEffectiveBucketName();
 
   if (!adminSupabase) {
     const adminEnv = getAdminClientEnvDiagnostics();
@@ -167,7 +169,7 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
       hasNextPublicSupabaseStorageBucket: Boolean(storageBucket),
       nextPublicSupabaseStorageBucketLength: storageBucket.length,
       nextPublicSupabaseStorageBucketTrimmedLength: storageBucket.trim().length,
-      effectiveBucketName: storageBucket.trim() || "carrier-documents",
+      effectiveBucketName,
     });
     return {
       link: null,
@@ -179,6 +181,7 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
       uploadLinkRowFound: false,
       isExpired: null,
       isRevoked: null,
+      effectiveBucketName,
     };
   }
 
@@ -194,6 +197,7 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
       uploadLinkRowFound: false,
       isExpired: null,
       isRevoked: null,
+      effectiveBucketName,
     };
   }
 
@@ -219,6 +223,7 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
       uploadLinkRowFound: false,
       isExpired: null,
       isRevoked: null,
+      effectiveBucketName,
       errorMessage: error.message,
     };
   }
@@ -235,6 +240,7 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
       uploadLinkRowFound: false,
       isExpired: null,
       isRevoked: null,
+      effectiveBucketName,
     };
   }
 
@@ -276,6 +282,7 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
     uploadLinkRowFound: true,
     isExpired,
     isRevoked,
+    effectiveBucketName,
   };
 }
 
@@ -436,4 +443,8 @@ async function getEquipmentById(id: string) {
 function fileNameFromPath(storagePath: string | null) {
   if (!storagePath) return null;
   return storagePath.split("/").pop() ?? null;
+}
+
+function getEffectiveBucketName() {
+  return process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET?.trim() || "carrier-documents";
 }

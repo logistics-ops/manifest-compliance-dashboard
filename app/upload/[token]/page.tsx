@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { ShieldCheck, UploadCloud } from "lucide-react";
 import { publicUploadDocumentAction } from "@/app/actions/upload-links";
 import { PublicUploadFilePicker } from "@/app/upload/[token]/public-upload-file-picker";
@@ -11,7 +12,7 @@ import {
 
 type PageProps = {
   params: Promise<{ token: string }>;
-  searchParams?: Promise<{ success?: string; error?: string; document?: string }>;
+  searchParams?: Promise<{ success?: string; error?: string; document?: string; debug?: string }>;
 };
 
 const carrierDocumentOptions = [
@@ -50,19 +51,38 @@ export default async function PublicUploadPage({ params, searchParams }: PagePro
   const messages = await searchParams;
   const lookup = await getPublicUploadLinkLookup(token);
   const link = lookup.link;
+  const showDebugPanel = messages?.debug === "1";
 
   if (!link) {
     if (lookup.status === "configuration_error") {
       logUploadLookupUnavailableRender(lookup);
-      return <Unavailable title="Upload lookup unavailable" message="This secure upload page is missing required server configuration. Ask Manifest to verify the deployment settings." />;
+      return (
+        <Unavailable
+          title="Upload lookup unavailable"
+          message="This secure upload page is missing required server configuration. Ask Manifest to verify the deployment settings."
+          debugPanel={showDebugPanel ? <UploadLookupDebugPanel lookup={lookup} /> : null}
+        />
+      );
     }
 
     if (lookup.status === "lookup_error") {
       logUploadLookupUnavailableRender(lookup);
-      return <Unavailable title="Upload lookup unavailable" message="The secure upload page could not validate this link right now. Ask Manifest to verify the deployment and try again." />;
+      return (
+        <Unavailable
+          title="Upload lookup unavailable"
+          message="The secure upload page could not validate this link right now. Ask Manifest to verify the deployment and try again."
+          debugPanel={showDebugPanel ? <UploadLookupDebugPanel lookup={lookup} /> : null}
+        />
+      );
     }
 
-    return <Unavailable title="Upload link not found" message="Ask Manifest for a new secure upload link." />;
+    return (
+      <Unavailable
+        title="Upload link not found"
+        message="Ask Manifest for a new secure upload link."
+        debugPanel={showDebugPanel ? <UploadLookupDebugPanel lookup={lookup} /> : null}
+      />
+    );
   }
 
   if (!link.isUsable) {
@@ -70,6 +90,7 @@ export default async function PublicUploadPage({ params, searchParams }: PagePro
       <Unavailable
         title={link.isRevoked ? "Upload link revoked" : "Upload link expired"}
         message="This secure upload link is no longer active. Ask Manifest for a new link."
+        debugPanel={showDebugPanel ? <UploadLookupDebugPanel lookup={lookup} /> : null}
       />
     );
   }
@@ -113,6 +134,8 @@ export default async function PublicUploadPage({ params, searchParams }: PagePro
             </div>
           </div>
         </header>
+
+        {showDebugPanel ? <UploadLookupDebugPanel lookup={lookup} /> : null}
 
         <section className="section-panel p-4 max-md:p-3">
           <div className="mb-4">
@@ -174,15 +197,44 @@ function logUploadLookupUnavailableRender(lookup: Awaited<ReturnType<typeof getP
   });
 }
 
-function Unavailable({ title, message }: { title: string; message: string }) {
+function Unavailable({ title, message, debugPanel = null }: { title: string; message: string; debugPanel?: ReactNode }) {
   return (
     <main className="grid min-h-screen place-items-center p-8 max-md:p-4">
       <section className="section-panel max-w-xl p-6 text-center">
         <ShieldCheck className="mx-auto h-9 w-9 text-manifest-red" />
         <h1 className="mt-4 text-3xl font-extrabold tracking-normal text-white">{title}</h1>
         <p className="mt-3 text-sm leading-6 text-manifest-muted">{message}</p>
+        {debugPanel}
       </section>
     </main>
+  );
+}
+
+function UploadLookupDebugPanel({ lookup }: { lookup: Awaited<ReturnType<typeof getPublicUploadLinkLookup>> }) {
+  const rows = [
+    ["lookupStatus", lookup.status],
+    ["hasAdminClient", lookup.hasAdminClient],
+    ["safeTokenHashPrefix", lookup.safeTokenHashPrefix ?? "null"],
+    ["queryErrorCode", lookup.queryErrorCode ?? "null"],
+    ["queryErrorMessage", lookup.queryErrorMessage ?? "null"],
+    ["uploadLinksRowFound", lookup.uploadLinkRowFound],
+    ["isExpired", lookup.isExpired ?? "null"],
+    ["isRevoked", lookup.isRevoked ?? "null"],
+    ["effectiveBucketName", lookup.effectiveBucketName],
+  ] as const;
+
+  return (
+    <div className="mt-5 rounded-md border border-manifest-gold/30 bg-manifest-gold/10 p-3 text-left">
+      <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-manifest-gold">Temporary upload debug</p>
+      <dl className="mt-3 grid gap-2 text-xs">
+        {rows.map(([label, value]) => (
+          <div key={label} className="grid grid-cols-[150px_minmax(0,1fr)] gap-3 rounded border border-white/10 bg-black/25 p-2 max-sm:grid-cols-1">
+            <dt className="font-extrabold text-manifest-quiet">{label}</dt>
+            <dd className="break-words font-mono text-manifest-muted">{String(value)}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
