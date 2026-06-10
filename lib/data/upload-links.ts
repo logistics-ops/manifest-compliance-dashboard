@@ -41,6 +41,8 @@ export type PublicUploadDocumentStatus = {
   documentName: string;
   uploaded: boolean;
   status: string | null;
+  reviewStatus: DocumentReviewStatus;
+  reviewNote: string | null;
   expirationDate: string | null;
   storagePath: string | null;
   fileName: string | null;
@@ -79,6 +81,8 @@ type CarrierDocumentRow = {
   document_name: string;
   uploaded: boolean;
   status: string | null;
+  review_status: DocumentReviewStatus | null;
+  review_note: string | null;
   expiration_date: string | null;
   storage_path: string | null;
   file_name: string | null;
@@ -88,6 +92,8 @@ type ScopedDocumentRow = {
   document_name: string;
   uploaded: boolean;
   status: string | null;
+  review_status: DocumentReviewStatus | null;
+  review_note: string | null;
   expiration_date: string | null;
   storage_path: string | null;
   uploaded_at: string | null;
@@ -100,6 +106,7 @@ type CarrierDocumentVersionRow = {
 };
 
 type PublicUploadedFile = PublicUploadDocumentStatus["files"][number];
+type DocumentReviewStatus = "pending_review" | "approved" | "rejected" | "replacement_requested";
 
 export async function getUploadLinksForCarrier(carrierId: string): Promise<UploadLinkRecord[]> {
   noStore();
@@ -195,7 +202,7 @@ export async function getPublicUploadDocumentStatuses(link: PublicUploadLink): P
   if (link.allowedDocumentCategories.includes("carrier")) {
     const { data, error } = await adminSupabase
       .from("carrier_documents")
-      .select("document_name, uploaded, status, expiration_date, storage_path, file_name, uploaded_at")
+      .select("document_name, uploaded, status, review_status, review_note, expiration_date, storage_path, file_name, uploaded_at")
       .eq("organization_id", link.organizationId)
       .eq("carrier_id", link.carrierId);
 
@@ -231,6 +238,8 @@ export async function getPublicUploadDocumentStatuses(link: PublicUploadLink): P
         documentName: row.document_name,
         uploaded: row.uploaded,
         status: row.status,
+        reviewStatus: row.review_status ?? "pending_review",
+        reviewNote: row.review_note,
         expirationDate: row.expiration_date,
         storagePath: row.storage_path,
         fileName: row.file_name ?? fileNameFromPath(row.storage_path),
@@ -245,7 +254,7 @@ export async function getPublicUploadDocumentStatuses(link: PublicUploadLink): P
   if (link.allowedDocumentCategories.includes("driver") && link.driverId) {
     const { data, error } = await adminSupabase
       .from("driver_documents")
-      .select("document_name, uploaded, status, expiration_date, storage_path, uploaded_at")
+      .select("document_name, uploaded, status, review_status, review_note, expiration_date, storage_path, uploaded_at")
       .eq("organization_id", link.organizationId)
       .eq("driver_id", link.driverId);
 
@@ -267,6 +276,8 @@ export async function getPublicUploadDocumentStatuses(link: PublicUploadLink): P
           documentName: row.document_name,
           uploaded: row.uploaded,
           status: row.status,
+          reviewStatus: row.review_status ?? "pending_review",
+          reviewNote: row.review_note,
           expirationDate: row.expiration_date,
           storagePath: row.storage_path,
           fileName: fileNameFromPath(row.storage_path),
@@ -282,7 +293,7 @@ export async function getPublicUploadDocumentStatuses(link: PublicUploadLink): P
   if (link.allowedDocumentCategories.includes("vehicle") && link.equipmentId) {
     const { data, error } = await adminSupabase
       .from("equipment_documents")
-      .select("document_name, uploaded, status, expiration_date, storage_path, uploaded_at")
+      .select("document_name, uploaded, status, review_status, review_note, expiration_date, storage_path, uploaded_at")
       .eq("organization_id", link.organizationId)
       .eq("equipment_id", link.equipmentId);
 
@@ -304,6 +315,8 @@ export async function getPublicUploadDocumentStatuses(link: PublicUploadLink): P
           documentName: row.document_name,
           uploaded: row.uploaded,
           status: row.status,
+          reviewStatus: row.review_status ?? "pending_review",
+          reviewNote: row.review_note,
           expirationDate: row.expiration_date,
           storagePath: row.storage_path,
           fileName: fileNameFromPath(row.storage_path),

@@ -8,42 +8,12 @@ import {
   type PublicUploadDocumentStatus,
   type UploadDocumentCategory,
 } from "@/lib/data/upload-links";
+import { documentSlug, getUploadPacketSections, isCompletedUploadStatus, uploadPacketStatusKey } from "@/lib/upload-packet";
 
 type PageProps = {
   params: Promise<{ token: string }>;
   searchParams?: Promise<{ success?: string; error?: string; document?: string }>;
 };
-
-const carrierDocumentOptions = [
-  "W-9",
-  "Certificate of Insurance",
-  "MC Authority",
-  "BOC-3",
-  "Drug & Alcohol Consortium",
-  "Notice of Assignment / Factoring",
-  "Other supporting document",
-];
-
-const driverDocumentOptions = [
-  "Employment Application",
-  "Initial MVR / 3-Year Driving Record",
-  "Annual MVR Inquiry",
-  "Medical Examiner Certificate / CDLIS Med Cert",
-  "Road Test Certificate or CDL Equivalent",
-  "Pre-Employment Drug/Alcohol Inquiry",
-  "Other DQ Document",
-];
-
-const vehicleDocumentOptions = [
-  "Registration",
-  "Insurance",
-  "Annual Inspection",
-  "Preventive Maintenance",
-  "IRP",
-  "IFTA",
-  "Permits",
-  "Other Custom Vehicle Documents",
-];
 
 export default async function PublicUploadPage({ params, searchParams }: PageProps) {
   const { token } = await params;
@@ -74,10 +44,10 @@ export default async function PublicUploadPage({ params, searchParams }: PagePro
 
   const categories = visibleCategories(link.allowedDocumentCategories, Boolean(link.driverId), Boolean(link.equipmentId));
   const statuses = await getPublicUploadDocumentStatuses(link);
-  const statusByKey = new Map(statuses.map((status) => [statusKey(status.category, status.documentName), status]));
+  const statusByKey = new Map(statuses.map((status) => [uploadPacketStatusKey(status.category, status.documentName), status]));
   const selectedDocumentSlug = messages?.document ?? null;
-  const completedCount = statuses.filter((status) => status.uploaded && categories.includes(status.category)).length;
-  const requestedCount = intakeSections(categories, link.driverName, link.equipmentName).reduce((total, section) => total + section.documents.length, 0);
+  const completedCount = statuses.filter((status) => isCompletedUploadStatus(status) && categories.includes(status.category)).length;
+  const requestedCount = getUploadPacketSections(categories, link.driverName, link.equipmentName).reduce((total, section) => total + section.documents.length, 0);
   const remainingCount = Math.max(requestedCount - completedCount, 0);
   const percentComplete = requestedCount ? Math.round((completedCount / requestedCount) * 100) : 0;
 
@@ -122,7 +92,7 @@ export default async function PublicUploadPage({ params, searchParams }: PagePro
 
           {categories.length ? (
             <div className="grid gap-4">
-              {intakeSections(categories, link.driverName, link.equipmentName).map((section) => (
+              {getUploadPacketSections(categories, link.driverName, link.equipmentName).map((section) => (
                 <section key={section.category} className="rounded-md border border-white/10 bg-black/20 p-3">
                   <div className="mb-3 flex items-start justify-between gap-3 max-md:flex-col">
                     <div>
@@ -130,7 +100,10 @@ export default async function PublicUploadPage({ params, searchParams }: PagePro
                       <h3 className="text-xl font-extrabold tracking-normal text-white">{section.title}</h3>
                     </div>
                     <span className="rounded-full border border-white/10 bg-white/[0.035] px-3 py-1 text-[11px] font-extrabold uppercase text-manifest-muted max-md:w-full max-md:text-center">
-                      {section.documents.filter((documentName) => statusByKey.get(statusKey(section.category, documentName))?.uploaded).length}/{section.documents.length} uploaded
+                      {section.documents.filter((documentName) => {
+                        const status = statusByKey.get(uploadPacketStatusKey(section.category, documentName));
+                        return status ? isCompletedUploadStatus(status) : false;
+                      }).length}/{section.documents.length} uploaded
                     </span>
                   </div>
                   <div className="grid gap-2">
@@ -140,7 +113,7 @@ export default async function PublicUploadPage({ params, searchParams }: PagePro
                         token={token}
                         category={section.category}
                         documentName={documentName}
-                        status={statusByKey.get(statusKey(section.category, documentName)) ?? null}
+                        status={statusByKey.get(uploadPacketStatusKey(section.category, documentName)) ?? null}
                         successMessage={selectedDocumentSlug === documentSlug(documentName) ? messages?.success ?? null : null}
                         errorMessage={selectedDocumentSlug === documentSlug(documentName) ? messages?.error ?? null : null}
                       />
@@ -192,46 +165,16 @@ function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
 }
 
-function intakeSections(categories: UploadDocumentCategory[], driverName: string | null, equipmentName: string | null) {
-  return categories.map((category) => {
-    if (category === "carrier") {
-      return {
-        category,
-        eyebrow: "Company / Carrier Documents",
-        title: "Company compliance files",
-        description: "Upload the core company packet requested by Manifest.",
-        documents: carrierDocumentOptions,
-      };
-    }
-
-    if (category === "driver") {
-      return {
-        category,
-        eyebrow: "Driver / DQ Documents",
-        title: driverName ? `Driver packet - ${driverName}` : "Driver packet",
-        description: "Upload the requested driver qualification files for this link.",
-        documents: driverDocumentOptions,
-      };
-    }
-
-    return {
-      category,
-      eyebrow: "Vehicle / Maintenance Documents",
-      title: equipmentName ? `Vehicle packet - ${equipmentName}` : "Vehicle packet",
-      description: "Upload the requested vehicle and maintenance records for this link.",
-      documents: vehicleDocumentOptions,
-    };
-  });
-}
-
 function sortDocumentsByMissing(
   documents: string[],
   category: UploadDocumentCategory,
   statusByKey: Map<string, PublicUploadDocumentStatus>,
 ) {
   return [...documents].sort((left, right) => {
-    const leftUploaded = Boolean(statusByKey.get(statusKey(category, left))?.uploaded);
-    const rightUploaded = Boolean(statusByKey.get(statusKey(category, right))?.uploaded);
+    const leftStatus = statusByKey.get(uploadPacketStatusKey(category, left));
+    const rightStatus = statusByKey.get(uploadPacketStatusKey(category, right));
+    const leftUploaded = leftStatus ? isCompletedUploadStatus(leftStatus) : false;
+    const rightUploaded = rightStatus ? isCompletedUploadStatus(rightStatus) : false;
     if (leftUploaded === rightUploaded) return 0;
     return leftUploaded ? 1 : -1;
   });
@@ -253,6 +196,8 @@ function DocumentUploadRow({
   errorMessage: string | null;
 }) {
   const uploaded = Boolean(status?.uploaded);
+  const needsReplacement = status?.reviewStatus === "rejected" || status?.reviewStatus === "replacement_requested";
+  const completed = uploaded && !needsReplacement;
   const viewHref = uploaded ? `/upload/${encodeURIComponent(token)}/view?category=${encodeURIComponent(category)}&document=${encodeURIComponent(documentName)}` : null;
   const fileCount = status?.fileCount ?? (uploaded ? 1 : 0);
   const latestUploadedAt = status?.uploadedAt ? formatDateTime(status.uploadedAt) : null;
@@ -260,22 +205,25 @@ function DocumentUploadRow({
   return (
     <details
       id={`document-${documentSlug(documentName)}`}
-      className={`rounded-md border p-3 ${uploaded ? "border-manifest-green/30 bg-manifest-green/5" : "border-white/10 bg-black/25"}`}
+      className={`rounded-md border p-3 ${completed ? "border-manifest-green/30 bg-manifest-green/5" : needsReplacement ? "border-manifest-danger/35 bg-manifest-danger/10" : "border-white/10 bg-black/25"}`}
     >
       <summary className="cursor-pointer list-none">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 max-sm:grid-cols-1">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className={`rounded-full border px-2.5 py-1 text-[11px] font-extrabold uppercase ${uploaded ? "border-manifest-green/35 bg-manifest-green/10 text-manifest-green" : "border-manifest-gold/35 bg-manifest-gold/10 text-manifest-gold"}`}>
-                {uploaded ? "Uploaded" : "Needed"}
+              <span className={`rounded-full border px-2.5 py-1 text-[11px] font-extrabold uppercase ${completed ? "border-manifest-green/35 bg-manifest-green/10 text-manifest-green" : needsReplacement ? "border-manifest-danger/35 bg-manifest-danger/10 text-manifest-danger" : "border-manifest-gold/35 bg-manifest-gold/10 text-manifest-gold"}`}>
+                {completed ? "Uploaded" : needsReplacement ? "Replacement needed" : "Needed"}
               </span>
               <strong className="truncate text-sm text-white">{documentName}</strong>
             </div>
             <p className="mt-1 truncate text-xs leading-5 text-manifest-muted">
               {uploaded
-                ? `${fileCount} file${fileCount === 1 ? "" : "s"} uploaded${latestUploadedAt ? ` · Latest ${latestUploadedAt}` : ""}`
+                ? `${fileCount} file${fileCount === 1 ? "" : "s"} uploaded${latestUploadedAt ? ` · Latest ${latestUploadedAt}` : ""}${needsReplacement ? " · Action required" : ""}`
                 : "Open row to select files and submit."}
             </p>
+            {needsReplacement && status?.reviewNote ? (
+              <p className="mt-1 text-xs font-bold leading-5 text-manifest-danger">{status.reviewNote}</p>
+            ) : null}
           </div>
           <div className="flex items-center justify-end gap-2 max-sm:grid max-sm:grid-cols-2">
             {uploaded && viewHref ? (
@@ -317,12 +265,4 @@ function DocumentUploadRow({
       </form>
     </details>
   );
-}
-
-function statusKey(category: UploadDocumentCategory, documentName: string) {
-  return `${category}:${documentName.toLowerCase()}`;
-}
-
-function documentSlug(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }

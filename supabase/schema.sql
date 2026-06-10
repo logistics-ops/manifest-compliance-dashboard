@@ -115,6 +115,12 @@ create table public.carrier_documents (
   expiration_date date,
   status public.document_status not null default 'missing',
   notes text,
+  review_status text not null default 'pending_review' check (review_status in ('pending_review', 'approved', 'rejected', 'replacement_requested')),
+  review_note text,
+  internal_review_note text,
+  reviewed_by uuid references public.users(id) on delete set null,
+  reviewed_at timestamptz,
+  replacement_requested_at timestamptz,
   uploaded_by uuid references public.users(id) on delete set null,
   uploaded_at timestamptz,
   version_number integer not null default 0,
@@ -166,6 +172,12 @@ create table public.driver_documents (
   expiration_date date,
   status public.document_status not null default 'missing',
   notes text,
+  review_status text not null default 'pending_review' check (review_status in ('pending_review', 'approved', 'rejected', 'replacement_requested')),
+  review_note text,
+  internal_review_note text,
+  reviewed_by uuid references public.users(id) on delete set null,
+  reviewed_at timestamptz,
+  replacement_requested_at timestamptz,
   uploaded_by uuid references public.users(id) on delete set null,
   uploaded_at timestamptz,
   created_at timestamptz not null default now(),
@@ -199,6 +211,12 @@ create table public.equipment_documents (
   expiration_date date,
   status public.document_status not null default 'missing',
   notes text,
+  review_status text not null default 'pending_review' check (review_status in ('pending_review', 'approved', 'rejected', 'replacement_requested')),
+  review_note text,
+  internal_review_note text,
+  reviewed_by uuid references public.users(id) on delete set null,
+  reviewed_at timestamptz,
+  replacement_requested_at timestamptz,
   uploaded_by uuid references public.users(id) on delete set null,
   uploaded_at timestamptz,
   created_at timestamptz not null default now(),
@@ -466,6 +484,8 @@ create index if not exists carrier_documents_carrier_id_idx on public.carrier_do
 create index if not exists carrier_documents_organization_id_idx on public.carrier_documents(organization_id);
 create index if not exists carrier_documents_status_idx on public.carrier_documents(status);
 create index if not exists carrier_documents_expiration_date_idx on public.carrier_documents(expiration_date);
+create index if not exists carrier_documents_review_status_idx on public.carrier_documents(review_status);
+create index if not exists carrier_documents_uploaded_at_idx on public.carrier_documents(uploaded_at desc);
 create index if not exists carrier_document_versions_carrier_document_id_idx on public.carrier_document_versions(carrier_document_id);
 create index if not exists carrier_document_versions_carrier_id_idx on public.carrier_document_versions(carrier_id);
 create index if not exists carrier_document_versions_organization_id_idx on public.carrier_document_versions(organization_id);
@@ -474,11 +494,15 @@ create index if not exists drivers_organization_id_idx on public.drivers(organiz
 create index if not exists driver_documents_driver_id_idx on public.driver_documents(driver_id);
 create index if not exists driver_documents_status_idx on public.driver_documents(status);
 create index if not exists driver_documents_expiration_date_idx on public.driver_documents(expiration_date);
+create index if not exists driver_documents_review_status_idx on public.driver_documents(review_status);
+create index if not exists driver_documents_uploaded_at_idx on public.driver_documents(uploaded_at desc);
 create index if not exists equipment_carrier_id_idx on public.equipment(carrier_id);
 create index if not exists equipment_organization_id_idx on public.equipment(organization_id);
 create index if not exists equipment_documents_equipment_id_idx on public.equipment_documents(equipment_id);
 create index if not exists equipment_documents_status_idx on public.equipment_documents(status);
 create index if not exists equipment_documents_expiration_date_idx on public.equipment_documents(expiration_date);
+create index if not exists equipment_documents_review_status_idx on public.equipment_documents(review_status);
+create index if not exists equipment_documents_uploaded_at_idx on public.equipment_documents(uploaded_at desc);
 create index if not exists compliance_notes_carrier_id_idx on public.compliance_notes(carrier_id);
 create index if not exists compliance_notes_document_ref_idx on public.compliance_notes(document_table, document_id);
 create index if not exists compliance_notes_created_at_idx on public.compliance_notes(created_at desc);

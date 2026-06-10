@@ -89,6 +89,12 @@ export async function finalizeDriverDocumentUploadAction(input: {
         uploaded_by: session.userId,
         uploaded_at: uploadedAt,
         status,
+        review_status: "pending_review",
+        review_note: null,
+        internal_review_note: null,
+        reviewed_by: null,
+        reviewed_at: null,
+        replacement_requested_at: null,
       },
       { onConflict: "driver_id,document_name" },
     )

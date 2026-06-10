@@ -315,6 +315,12 @@ export async function finalizeCarrierDocumentUploadAction(input: {
     uploaded_at: uploadedAt,
     version_number: input.versionNumber,
     status,
+    review_status: "pending_review",
+    review_note: null,
+    internal_review_note: null,
+    reviewed_by: null,
+    reviewed_at: null,
+    replacement_requested_at: null,
   };
 
   const { data, error } = await supabase

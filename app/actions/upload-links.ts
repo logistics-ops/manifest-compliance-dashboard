@@ -6,10 +6,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDocumentMimeType, validateDocumentFile } from "@/lib/integrations/uploads";
 import { requireStaffAccess } from "@/lib/integrations/auth";
-import { getPublicUploadLink, type UploadDocumentCategory } from "@/lib/data/upload-links";
+import { getPublicUploadDocumentStatuses, getPublicUploadLink, type PublicUploadLink, type UploadDocumentCategory } from "@/lib/data/upload-links";
 import { hashUploadToken } from "@/lib/security/upload-token";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { getUploadPacketSections, isCompletedUploadStatus, uploadPacketStatusKey } from "@/lib/upload-packet";
 import type { AuthSession } from "@/types/carrier";
 
 const STORAGE_BUCKET = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "carrier-documents";
@@ -228,6 +229,8 @@ export async function publicUploadDocumentAction(formData: FormData) {
       entityId: link.id,
       metadata: { carrier_id: link.carrierId, category, document_name: documentName, file_count: files.length, file_names: uploadedFileNames },
     });
+
+    await maybeNotifyCompletedUploadPacket(adminSupabase, link);
   } catch (error) {
     const failure = normalizePublicUploadError(error);
     console.warn("[upload-link] public upload failed", {
@@ -253,6 +256,47 @@ export async function publicUploadDocumentAction(formData: FormData) {
   revalidatePath("/audit-readiness");
   revalidatePath("/documents-to-fix");
   redirectToUpload(token, `${files.length} file${files.length === 1 ? "" : "s"} submitted for ${documentName}. You can continue uploading the remaining requested documents.`, "success", documentName);
+}
+
+async function maybeNotifyCompletedUploadPacket(
+  adminSupabase: NonNullable<ReturnType<typeof createAdminClient>>,
+  link: PublicUploadLink,
+) {
+  const categories = link.allowedDocumentCategories.filter((category) => category === "carrier" || (category === "driver" && link.driverId) || (category === "vehicle" && link.equipmentId));
+  const sections = getUploadPacketSections(categories, link.driverName, link.equipmentName);
+  const requestedKeys = sections.flatMap((section) => section.documents.map((documentName) => uploadPacketStatusKey(section.category, documentName)));
+  if (!requestedKeys.length) return;
+
+  const statuses = await getPublicUploadDocumentStatuses(link);
+  const statusByKey = new Map(statuses.map((status) => [uploadPacketStatusKey(status.category, status.documentName), status]));
+  const completed = requestedKeys.filter((key) => {
+    const status = statusByKey.get(key);
+    return status ? isCompletedUploadStatus(status) : false;
+  });
+  if (completed.length !== requestedKeys.length) return;
+
+  await adminSupabase.from("notifications").upsert({
+    organization_id: link.organizationId,
+    carrier_id: link.carrierId,
+    document_name: "Carrier intake packet",
+    type: "upload_packet.completed",
+    title: "Carrier upload packet completed",
+    message: `${link.carrierName} completed the requested document upload packet. Review the submitted files before approving compliance records.`,
+    category: "user_operation",
+    priority: "medium",
+    severity: "medium",
+    status: "unread",
+    related_entity_type: "upload_link",
+    related_entity_id: link.id,
+    related_url: "/document-review",
+    rule_key: `upload_packet:${link.id}:completed`,
+    metadata: {
+      carrier_id: link.carrierId,
+      upload_link_id: link.id,
+      completed_count: completed.length,
+      requested_count: requestedKeys.length,
+    },
+  }, { onConflict: "organization_id,rule_key" });
 }
 
 async function finalizePublicDocument(input: {
@@ -310,6 +354,12 @@ async function finalizePublicDocument(input: {
       uploaded_at: uploadedAt,
       version_number: input.versionNumber,
       status,
+      review_status: "pending_review",
+      review_note: null,
+      internal_review_note: null,
+      reviewed_by: null,
+      reviewed_at: null,
+      replacement_requested_at: null,
     };
 
     const { data, error } = existing
@@ -387,6 +437,12 @@ async function finalizePublicDocument(input: {
     uploaded_by: null,
     uploaded_at: uploadedAt,
     status,
+    review_status: "pending_review",
+    review_note: null,
+    internal_review_note: null,
+    reviewed_by: null,
+    reviewed_at: null,
+    replacement_requested_at: null,
   };
 
   const { data, error } = existing

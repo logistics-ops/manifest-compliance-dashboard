@@ -95,6 +95,13 @@ export type ExecutiveOverviewData = {
   safetyTrendSummary: SafetyTrendSummary;
   safetyCoachingSummary: SafetyCoachingSummary;
   saferSnapshotSummary: SaferSnapshotSummary;
+  documentReviewSummary: {
+    total: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+    replacementRequested: number;
+  };
   loadCount: number;
   invoiceTotals: {
     count: number;
@@ -137,6 +144,7 @@ const organizationNavGroups: NavGroup[] = [
       { label: "DQ Files", href: "/dq-files", icon: ClipboardCheck },
       { label: "Vehicles", href: "/vehicles", icon: Truck },
       { label: "Documents To Fix", href: "/documents-to-fix", icon: FileWarning },
+      { label: "Document Review", href: "/document-review", icon: FileCheck2 },
       { label: "Compliance Alerts", href: "/compliance-alerts", icon: ShieldAlert },
       { label: "Audit Readiness", href: "/audit-readiness", icon: ShieldAlert },
       { label: "Inspection Reports", href: "/inspections", icon: ClipboardCheck },
@@ -460,6 +468,8 @@ export function ComplianceDashboard({
               <ExecutiveMetricCard label="Completed coaching" value={executiveOverview.safetyCoachingSummary.completed} detail="Safety corrective actions" tone="good" />
               <ExecutiveMetricCard label="Missing SAFER snapshots" value={executiveOverview.saferSnapshotSummary.missing} detail="Manual SAFER reviews needed" tone={executiveOverview.saferSnapshotSummary.missing ? "danger" : "good"} />
               <ExecutiveMetricCard label="Outdated SAFER snapshots" value={executiveOverview.saferSnapshotSummary.outdated} detail="Older than 90 days" tone={executiveOverview.saferSnapshotSummary.outdated ? "warn" : "good"} />
+              <ExecutiveMetricCard label="Pending document reviews" value={executiveOverview.documentReviewSummary.pending} detail={`${executiveOverview.documentReviewSummary.rejected} rejected`} tone={executiveOverview.documentReviewSummary.pending ? "warn" : executiveOverview.documentReviewSummary.rejected ? "danger" : "good"} />
+              <ExecutiveMetricCard label="Replacement requests" value={executiveOverview.documentReviewSummary.replacementRequested} detail="Carrier action needed" tone={executiveOverview.documentReviewSummary.replacementRequested ? "danger" : "good"} />
               <ExecutiveMetricCard label="Carriers complete" value={onboardingSummary.complete} detail="Onboarding packets complete" tone={onboardingSummary.complete ? "good" : "neutral"} />
               <ExecutiveMetricCard label="Carriers in progress" value={onboardingSummary.inProgress} detail="Active onboarding work" tone={onboardingSummary.inProgress ? "warn" : "good"} />
               <ExecutiveMetricCard label="Missing critical docs" value={onboardingSummary.missingCriticalDocuments} detail="Carrier onboarding blockers" tone={onboardingSummary.missingCriticalDocuments ? "danger" : "good"} />
@@ -746,12 +756,13 @@ function ActionCenterStrip({ overview }: { overview: ExecutiveOverviewData }) {
     { label: "Missing Documents", value: overview.needsAttention.documents.length, detail: "Need correction", href: "/compliance-alerts?filter=all", tone: overview.needsAttention.documents.length ? "danger" : "neutral" },
     { label: "Compliance Alerts", value: overview.openComplianceAlerts, detail: "Open alerts", href: "/compliance-alerts?filter=all", tone: overview.openComplianceAlerts ? "warn" : "neutral" },
     { label: "Compliance Tasks", value: overview.taskSummary.open, detail: `${overview.taskSummary.overdue} overdue`, href: "/compliance-tasks", tone: overview.taskSummary.overdue ? "danger" : overview.taskSummary.open ? "warn" : "neutral" },
+    { label: "Document Reviews", value: overview.documentReviewSummary.pending, detail: `${overview.documentReviewSummary.rejected} rejected`, href: "/document-review", tone: overview.documentReviewSummary.rejected ? "danger" : overview.documentReviewSummary.pending ? "warn" : "neutral" },
     { label: "Expiring Records", value: overview.expiringDocuments, detail: "Renewal watch", href: "/compliance-alerts?filter=expiring-30", tone: overview.expiringDocuments ? "warn" : "neutral" },
   ];
 
   return (
     <section className="sticky top-3 z-20 rounded-md border border-manifest-red/35 bg-black/85 p-2.5 shadow-premium backdrop-blur-xl">
-      <div className="grid grid-cols-5 gap-2.5 max-xl:grid-cols-2 max-md:grid-cols-1">
+      <div className="grid grid-cols-6 gap-2.5 max-2xl:grid-cols-3 max-xl:grid-cols-2 max-md:grid-cols-1">
         {actions.map((action) => (
           <Link
             key={action.label}
