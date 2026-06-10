@@ -1,10 +1,23 @@
 import { createClient } from "@supabase/supabase-js";
 
+export const ADMIN_CLIENT_ENV_NAMES = {
+  supabaseUrl: "NEXT_PUBLIC_SUPABASE_URL",
+  serviceRoleKey: "SUPABASE_SERVICE_ROLE_KEY",
+} as const;
+
+export const EXPECTED_ADMIN_CLIENT_ENV_NAMES = [
+  ADMIN_CLIENT_ENV_NAMES.supabaseUrl,
+  ADMIN_CLIENT_ENV_NAMES.serviceRoleKey,
+] as const;
+
 export function getAdminClientEnvDiagnostics() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  const supabaseUrl = process.env[ADMIN_CLIENT_ENV_NAMES.supabaseUrl] ?? "";
+  const serviceRoleKey = process.env[ADMIN_CLIENT_ENV_NAMES.serviceRoleKey] ?? "";
 
   return {
+    supabaseUrlEnvNameRead: ADMIN_CLIENT_ENV_NAMES.supabaseUrl,
+    serviceRoleEnvNameRead: ADMIN_CLIENT_ENV_NAMES.serviceRoleKey,
+    allExpectedEnvNames: [...EXPECTED_ADMIN_CLIENT_ENV_NAMES],
     hasUrl: Boolean(supabaseUrl),
     urlLength: supabaseUrl.length,
     urlTrimmedLength: supabaseUrl.trim().length,
@@ -35,8 +48,8 @@ export function getLastAdminClientDiagnostics() {
 
 export function createAdminClient() {
   const diagnostics = getAdminClientEnvDiagnostics();
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const supabaseUrl = process.env[ADMIN_CLIENT_ENV_NAMES.supabaseUrl]?.trim();
+  const serviceRoleKey = process.env[ADMIN_CLIENT_ENV_NAMES.serviceRoleKey]?.trim();
   lastAdminClientDiagnostics = {
     ...diagnostics,
     adminClientFailureReason: null,

@@ -44,6 +44,9 @@ export type PublicUploadLinkLookup = {
   adminClientFailureReason: string | null;
   hasSupabaseUrl: boolean;
   hasServiceRoleKey: boolean;
+  serviceRoleEnvNameRead: string;
+  supabaseUrlEnvNameRead: string;
+  allExpectedEnvNames: string[];
   urlLength: number;
   serviceRoleLength: number;
   createClientThrew: boolean;
@@ -182,6 +185,9 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
       adminClientFailureReason: adminFailure.adminClientFailureReason,
       hasSupabaseUrl: adminFailure.hasUrl,
       hasServiceRoleKey: adminFailure.hasServiceRoleKey,
+      serviceRoleEnvNameRead: adminFailure.serviceRoleEnvNameRead,
+      supabaseUrlEnvNameRead: adminFailure.supabaseUrlEnvNameRead,
+      allExpectedEnvNames: adminFailure.allExpectedEnvNames,
       urlLength: adminFailure.urlLength,
       serviceRoleLength: adminFailure.serviceRoleLength,
       createClientThrew: adminFailure.createClientThrew,
@@ -201,6 +207,9 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
       adminClientFailureReason: adminFailure.adminClientFailureReason,
       hasSupabaseUrl: adminFailure.hasUrl,
       hasServiceRoleKey: adminFailure.hasServiceRoleKey,
+      serviceRoleEnvNameRead: adminFailure.serviceRoleEnvNameRead,
+      supabaseUrlEnvNameRead: adminFailure.supabaseUrlEnvNameRead,
+      allExpectedEnvNames: adminFailure.allExpectedEnvNames,
       urlLength: adminFailure.urlLength,
       serviceRoleLength: adminFailure.serviceRoleLength,
       createClientThrew: adminFailure.createClientThrew,
@@ -224,6 +233,9 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
       adminClientFailureReason: adminDiagnostics.adminClientFailureReason,
       hasSupabaseUrl: adminDiagnostics.hasUrl,
       hasServiceRoleKey: adminDiagnostics.hasServiceRoleKey,
+      serviceRoleEnvNameRead: adminDiagnostics.serviceRoleEnvNameRead,
+      supabaseUrlEnvNameRead: adminDiagnostics.supabaseUrlEnvNameRead,
+      allExpectedEnvNames: adminDiagnostics.allExpectedEnvNames,
       urlLength: adminDiagnostics.urlLength,
       serviceRoleLength: adminDiagnostics.serviceRoleLength,
       createClientThrew: adminDiagnostics.createClientThrew,
@@ -257,6 +269,9 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
       adminClientFailureReason: adminDiagnostics.adminClientFailureReason,
       hasSupabaseUrl: adminDiagnostics.hasUrl,
       hasServiceRoleKey: adminDiagnostics.hasServiceRoleKey,
+      serviceRoleEnvNameRead: adminDiagnostics.serviceRoleEnvNameRead,
+      supabaseUrlEnvNameRead: adminDiagnostics.supabaseUrlEnvNameRead,
+      allExpectedEnvNames: adminDiagnostics.allExpectedEnvNames,
       urlLength: adminDiagnostics.urlLength,
       serviceRoleLength: adminDiagnostics.serviceRoleLength,
       createClientThrew: adminDiagnostics.createClientThrew,
@@ -281,6 +296,9 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
       adminClientFailureReason: adminDiagnostics.adminClientFailureReason,
       hasSupabaseUrl: adminDiagnostics.hasUrl,
       hasServiceRoleKey: adminDiagnostics.hasServiceRoleKey,
+      serviceRoleEnvNameRead: adminDiagnostics.serviceRoleEnvNameRead,
+      supabaseUrlEnvNameRead: adminDiagnostics.supabaseUrlEnvNameRead,
+      allExpectedEnvNames: adminDiagnostics.allExpectedEnvNames,
       urlLength: adminDiagnostics.urlLength,
       serviceRoleLength: adminDiagnostics.serviceRoleLength,
       createClientThrew: adminDiagnostics.createClientThrew,
@@ -330,6 +348,9 @@ export async function getPublicUploadLinkLookup(token: string): Promise<PublicUp
     adminClientFailureReason: adminDiagnostics.adminClientFailureReason,
     hasSupabaseUrl: adminDiagnostics.hasUrl,
     hasServiceRoleKey: adminDiagnostics.hasServiceRoleKey,
+    serviceRoleEnvNameRead: adminDiagnostics.serviceRoleEnvNameRead,
+    supabaseUrlEnvNameRead: adminDiagnostics.supabaseUrlEnvNameRead,
+    allExpectedEnvNames: adminDiagnostics.allExpectedEnvNames,
     urlLength: adminDiagnostics.urlLength,
     serviceRoleLength: adminDiagnostics.serviceRoleLength,
     createClientThrew: adminDiagnostics.createClientThrew,
